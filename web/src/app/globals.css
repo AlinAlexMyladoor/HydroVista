@@ -1,0 +1,566 @@
+@import "tailwindcss";
+@import 'maplibre-gl/dist/maplibre-gl.css';
+
+/* ─── HydroVista Design Tokens ────────────────────────────────────────────── */
+@theme {
+  /* Brand palette — spec-exact */
+  --color-background: #F7F8F4;
+  --color-surface: #FFFFFF;
+  --color-surface-secondary: #E8F0EA;
+  --color-primary: #155E59;
+  --color-primary-dark: #104A46;
+  --color-primary-light: #1E7A73;
+  --color-water: #3299C6;
+  --color-water-pale: #DCEFF3;
+  --color-warning: #E7A23B;
+  --color-warning-dark: #B87D28;
+  --color-critical: #C83F3A;
+  --color-critical-light: #FDECEA;
+  --color-text: #26332F;
+  --color-text-secondary: #687770;
+  --color-border: #DCE4DD;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+
+  /* Shadows */
+  --shadow-card: 0 1px 3px 0 rgba(21, 94, 89, 0.08), 0 1px 2px -1px rgba(21, 94, 89, 0.04);
+  --shadow-panel: 0 2px 8px 0 rgba(21, 94, 89, 0.10), 0 1px 4px -1px rgba(21, 94, 89, 0.06);
+  --shadow-elevated: 0 4px 16px 0 rgba(21, 94, 89, 0.12), 0 2px 6px -2px rgba(21, 94, 89, 0.08);
+}
+
+/* ─── CSS Custom Properties (for non-Tailwind use) ───────────────────────── */
+:root {
+  --color-background: #F7F8F4;
+  --color-surface: #FFFFFF;
+  --color-surface-secondary: #E8F0EA;
+  --color-primary: #155E59;
+  --color-primary-dark: #104A46;
+  --color-primary-light: #1E7A73;
+  --color-water: #3299C6;
+  --color-water-pale: #DCEFF3;
+  --color-warning: #E7A23B;
+  --color-warning-dark: #B87D28;
+  --color-critical: #C83F3A;
+  --color-critical-light: #FDECEA;
+  --color-text: #26332F;
+  --color-text-secondary: #687770;
+  --color-border: #DCE4DD;
+  --shadow-card: 0 1px 3px 0 rgba(21, 94, 89, 0.08), 0 1px 2px -1px rgba(21, 94, 89, 0.04);
+  --shadow-panel: 0 2px 8px 0 rgba(21, 94, 89, 0.10), 0 1px 4px -1px rgba(21, 94, 89, 0.06);
+  --shadow-elevated: 0 4px 16px 0 rgba(21, 94, 89, 0.12), 0 2px 6px -2px rgba(21, 94, 89, 0.08);
+}
+
+/* ─── Base Typography ─────────────────────────────────────────────────────── */
+html {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+  font-variation-settings: 'opsz' 32;
+  color: #26332F;
+  background-color: #F7F8F4;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background-color: #F7F8F4;
+  color: #26332F;
+  overflow: hidden;
+  height: 100vh;
+  line-height: 1.5;
+}
+
+/* ─── Keyboard Accessibility ──────────────────────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid #155E59;
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* ─── Heading System ──────────────────────────────────────────────────────── */
+h1 { font-size: 1.25rem; font-weight: 600; line-height: 1.3; letter-spacing: -0.02em; }
+h2 { font-size: 1rem; font-weight: 600; line-height: 1.4; letter-spacing: -0.01em; }
+h3 { font-size: 0.875rem; font-weight: 600; line-height: 1.4; }
+h4 { font-size: 0.8125rem; font-weight: 600; line-height: 1.4; }
+
+/* ─── Tabular Numbers ─────────────────────────────────────────────────────── */
+.tabular, .font-mono {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ─── Panel / Card Styles ─────────────────────────────────────────────────── */
+.panel {
+  background-color: #FFFFFF;
+  border: 1px solid #DCE4DD;
+  border-radius: 8px;
+  box-shadow: var(--shadow-card);
+}
+
+.panel-inset {
+  background-color: #F7F8F4;
+  border: 1px solid #DCE4DD;
+  border-radius: 6px;
+}
+
+/* ─── Status Badges ───────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.4375rem;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+}
+
+.badge-low    { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.badge-medium { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+.badge-high   { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+.badge-critical { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+.badge-info   { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.badge-teal   { background: #E8F0EA; color: #155E59; border: 1px solid #DCE4DD; }
+.badge-stale  { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+.badge-unavailable { background: #f9fafb; color: #6b7280; border: 1px solid #e5e7eb; }
+
+/* ─── Status Dots ─────────────────────────────────────────────────────────── */
+.status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.status-dot-live    { background-color: #22c55e; animation: pulse-green 2s ease-in-out infinite; }
+.status-dot-stale   { background-color: #E7A23B; }
+.status-dot-offline { background-color: #9ca3af; }
+.status-dot-error   { background-color: #C83F3A; }
+
+/* ─── Buttons ─────────────────────────────────────────────────────────────── */
+.btn-primary {
+  background-color: #155E59;
+  color: #ffffff;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: background-color 150ms ease, box-shadow 150ms ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: none;
+}
+.btn-primary:hover  { background-color: #104A46; box-shadow: 0 2px 6px rgba(21,94,89,0.25); }
+.btn-primary:active { background-color: #0d3d3a; }
+.btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.btn-secondary {
+  background-color: #FFFFFF;
+  border: 1px solid #DCE4DD;
+  color: #26332F;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 150ms ease, border-color 150ms ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+}
+.btn-secondary:hover  { background-color: #E8F0EA; border-color: #c5d2c7; }
+.btn-secondary:active { background-color: #d4e4d7; }
+
+.btn-ghost {
+  background: transparent;
+  border: none;
+  color: #687770;
+  padding: 0.375rem 0.625rem;
+  border-radius: 5px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  transition: background-color 120ms ease, color 120ms ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.btn-ghost:hover { background-color: #E8F0EA; color: #26332F; }
+
+/* ─── Scrollbars ──────────────────────────────────────────────────────────── */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #DCE4DD transparent;
+}
+.scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background-color: #c5d2c7; border-radius: 4px; }
+.scrollbar-thin::-webkit-scrollbar-thumb:hover { background-color: #a7b9ab; }
+
+/* ─── Animations ──────────────────────────────────────────────────────────── */
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.animate-fade-in      { animation: fade-in 0.2s ease-out both; }
+.animate-slide-right  { animation: slide-in-right 0.22s ease-out both; }
+.animate-slide-up     { animation: slide-in-up 0.22s ease-out both; }
+.animate-spin         { animation: spin 1s linear infinite; }
+
+/* Respect reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in, .animate-slide-right, .animate-slide-up { animation: none; }
+  .status-dot-live { animation: none; }
+}
+
+/* ─── Data Disclaimer Banner ──────────────────────────────────────────────── */
+.disclaimer-bar {
+  background-color: #fffbeb;
+  border-bottom: 1px solid #fde68a;
+  color: #92400e;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  padding: 0.25rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ─── Intelligence Rail Cards ─────────────────────────────────────────────── */
+.intel-card {
+  background: #FFFFFF;
+  border: 1px solid #DCE4DD;
+  border-radius: 8px;
+  padding: 0.875rem;
+  box-shadow: var(--shadow-card);
+}
+
+.intel-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.625rem;
+}
+
+.intel-card-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #26332F;
+  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.intel-card-action {
+  font-size: 0.6875rem;
+  color: #155E59;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  transition: opacity 150ms;
+  cursor: pointer;
+  text-decoration: none;
+}
+.intel-card-action:hover { opacity: 0.75; }
+
+/* ─── Risk Assessment Header ──────────────────────────────────────────────── */
+.risk-header-high {
+  background: linear-gradient(135deg, #fef2f2 0%, #fff7f7 100%);
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 0.875rem;
+}
+
+.risk-header-medium {
+  background: linear-gradient(135deg, #fffbeb 0%, #fffdf5 100%);
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 0.875rem;
+}
+
+/* ─── Metric Tiles ────────────────────────────────────────────────────────── */
+.metric-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.25rem;
+  padding: 0.625rem 0.5rem;
+  background: #F7F8F4;
+  border: 1px solid #DCE4DD;
+  border-radius: 6px;
+}
+
+.metric-value {
+  font-size: 1.125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #26332F;
+  line-height: 1.2;
+}
+
+.metric-label {
+  font-size: 0.625rem;
+  font-weight: 500;
+  color: #687770;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+}
+
+/* ─── Timeline Slider ─────────────────────────────────────────────────────── */
+.timeline-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 3px;
+  background: #DCE4DD;
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+}
+.timeline-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #155E59;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 0 0 1px #155E59;
+  transition: transform 100ms ease;
+}
+.timeline-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+.timeline-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #155E59;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 0 0 1px #155E59;
+}
+
+/* ─── Layer Toggle Checkboxes ─────────────────────────────────────────────── */
+.layer-checkbox {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #155E59;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+/* ─── Nav Active/Hover ────────────────────────────────────────────────────── */
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #687770;
+  transition: all 120ms ease;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.nav-link:hover { background: #E8F0EA; color: #26332F; }
+.nav-link.active { background: #E8F0EA; color: #155E59; font-weight: 600; }
+
+/* ─── Data Source Pills ───────────────────────────────────────────────────── */
+.source-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.6875rem;
+  color: #687770;
+  padding: 0.25rem 0;
+}
+
+.source-pill .source-name { font-weight: 500; color: #26332F; }
+.source-pill .source-age  { color: #687770; font-variant-numeric: tabular-nums; }
+
+/* ─── Forecast Chart Area ─────────────────────────────────────────────────── */
+.chart-container {
+  width: 100%;
+  overflow: hidden;
+}
+
+/* ─── MapLibre Overrides ──────────────────────────────────────────────────── */
+.maplibregl-ctrl-group {
+  background: #FFFFFF !important;
+  border: 1px solid #DCE4DD !important;
+  border-radius: 6px !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.maplibregl-ctrl-group button {
+  width: 30px !important;
+  height: 30px !important;
+  color: #26332F !important;
+}
+
+.maplibregl-ctrl-group button:hover { background: #E8F0EA !important; }
+
+.maplibregl-popup-content {
+  border-radius: 8px !important;
+  border: 1px solid #DCE4DD !important;
+  box-shadow: var(--shadow-elevated) !important;
+  padding: 0 !important;
+  font-family: 'Inter', system-ui, sans-serif !important;
+}
+
+.maplibregl-popup-tip { display: none !important; }
+
+.maplibregl-popup-close-button {
+  font-size: 1rem !important;
+  color: #687770 !important;
+  right: 6px !important;
+  top: 4px !important;
+  padding: 2px !important;
+  line-height: 1 !important;
+}
+
+.maplibregl-ctrl-attrib {
+  background: rgba(247,248,244,0.85) !important;
+  font-size: 0.6rem !important;
+}
+
+.maplibregl-ctrl-compass .maplibregl-ctrl-icon { opacity: 0.8; }
+
+/* ─── Bottom Analytics Strip ──────────────────────────────────────────────── */
+.analytics-strip {
+  background: #FFFFFF;
+  border-top: 1px solid #DCE4DD;
+  display: flex;
+  gap: 0;
+}
+
+.analytics-panel {
+  flex: 1;
+  padding: 0.75rem;
+  border-right: 1px solid #DCE4DD;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.analytics-panel:last-child { border-right: none; }
+
+.analytics-panel-title {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #26332F;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ─── Risk Colour Utilities ───────────────────────────────────────────────── */
+.risk-critical { color: #C83F3A; }
+.risk-high     { color: #c2410c; }
+.risk-medium   { color: #92400e; }
+.risk-low      { color: #15803d; }
+
+.bg-risk-critical { background-color: #fef2f2; border-color: #fecaca; }
+.bg-risk-high     { background-color: #fff7ed; border-color: #fed7aa; }
+.bg-risk-medium   { background-color: #fffbeb; border-color: #fde68a; }
+.bg-risk-low      { background-color: #f0fdf4; border-color: #bbf7d0; }
+
+/* ─── Isolation Clock Facility Row ───────────────────────────────────────── */
+.facility-row {
+  padding: 0.625rem 0.75rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 1px solid #DCE4DD;
+  background: #FFFFFF;
+  transition: background 120ms;
+}
+
+.facility-row:hover { background: #F7F8F4; }
+
+.facility-row.at-risk {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+/* ─── Responsive containers ───────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .intel-rail { display: none; }
+  .analytics-strip { flex-wrap: wrap; }
+  .analytics-panel { min-width: 50%; border-bottom: 1px solid #DCE4DD; }
+}
+
+@media (max-width: 768px) {
+  .left-rail { display: none; }
+  .analytics-panel { min-width: 100%; }
+}
+
+/* ─── Loading skeleton ────────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #E8F0EA 25%, #F7F8F4 50%, #E8F0EA 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+/* ─── Recharts Overrides ──────────────────────────────────────────────────── */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: #DCE4DD !important;
+  stroke-dasharray: none !important;
+}
+
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: #FFFFFF !important;
+  border: 1px solid #DCE4DD !important;
+  border-radius: 6px !important;
+  box-shadow: var(--shadow-panel) !important;
+  font-size: 0.75rem !important;
+  padding: 0.5rem 0.75rem !important;
+}
+
+.recharts-text { fill: #687770 !important; font-size: 0.6875rem !important; }

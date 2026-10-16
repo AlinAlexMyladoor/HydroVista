@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "outDir": ".test-build", "module": "commonjs", "target": "es2020", "lib": ["es2020","dom"],
+    "skipLibCheck": true, "strict": true, "baseUrl": ".", "paths": {"@/*": ["src/*"]},
+    "rootDir": "src/lib"
+  },
+  "files": ["src/lib/dem.ts", "src/lib/section-mesh.ts"]
+}
