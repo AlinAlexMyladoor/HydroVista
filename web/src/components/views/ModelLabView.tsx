@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
-import { api, Experiment, ModelMetrics } from "@/lib/api";
+import { api, ClassificationExperiment, Experiment, ForecastExperiment, ModelMetrics } from "@/lib/api";
 
 const f = (v: number | null | undefined) => (v == null ? "undefined" : v.toFixed(3));
 
@@ -26,7 +26,7 @@ function Confusion({ title, m }: { title: string; m: ModelMetrics }) {
   );
 }
 
-function ExperimentCard({ e }: { e: Experiment }) {
+function ExperimentCard({ e }: { e: ClassificationExperiment }) {
   const rf = e.models.random_forest, bl = e.models.threshold_baseline;
   const cmp = (["precision", "recall", "f1", "iou"] as const).map((k) => ({ metric: k.toUpperCase(), "Random Forest": rf.metrics[k] ?? 0, [`Threshold (${bl.threshold_db} dB)`]: bl.metrics[k] ?? 0 }));
   const imp = Object.entries(rf.feature_importance).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
@@ -66,6 +66,31 @@ function ExperimentCard({ e }: { e: Experiment }) {
   );
 }
 
+function ForecastExperimentCard({ e }: { e: ForecastExperiment }) {
+  const metrics = e.model.metrics;
+  const p = e.provenance;
+  return (
+    <div className="rounded-lg p-4 flex flex-col gap-3" style={{ background: "#fff", border: "1px solid #DCE4DD" }}>
+      <div className="flex justify-between flex-wrap gap-2">
+        <div style={{ fontWeight: 700 }}>Future Flood Susceptibility · {e.model.type}</div>
+        <div style={{ fontSize: "0.6875rem", color: "#687770" }}>{p.csv_name} · test n={p.n_test}</div>
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        {(["precision", "recall", "f1", "iou"] as const).map((key) => (
+          <div key={key} className="rounded p-2" style={{ background: "#F1F5F9" }}>
+            <div style={{ fontSize: "0.5625rem", color: "#687770", textTransform: "uppercase" }}>{key}</div>
+            <div style={{ fontSize: "1rem", fontWeight: 700 }}>{f(metrics[key])}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: "0.6875rem", color: "#26332F" }}>
+        <b>Predictors:</b> {p.features.join(", ")} · grouped test regions {p.split.test_regions.join(", ")}
+      </div>
+      {e.warnings.length > 0 && <div style={{ fontSize: "0.6875rem", color: "#92400e" }}>{e.warnings.join(" ")}</div>}
+    </div>
+  );
+}
+
 export function ModelLabView() {
   const q = useQuery({ queryKey: ["experiments"], queryFn: api.modelLab.experiments, retry: 1 });
   const [showAll, setShowAll] = useState(false);
@@ -88,7 +113,11 @@ export function ModelLabView() {
             </div>
           </div>
         )}
-        {(showAll ? list : list.slice(0, 1)).map((e) => <ExperimentCard key={e.id} e={e} />)}
+        {(showAll ? list : list.slice(0, 1)).map((e) => (
+          e.task === "future_flood_susceptibility"
+            ? <ForecastExperimentCard key={e.id} e={e} />
+            : <ExperimentCard key={e.id} e={e} />
+        ))}
         {list.length > 1 && <button onClick={() => setShowAll((s) => !s)} style={{ alignSelf: "flex-start", fontSize: "0.75rem", color: "#2563EB", background: "none", border: "none", cursor: "pointer" }}>{showAll ? "Show latest only" : `Show all ${list.length} experiments`}</button>}
       </div>
     </div>

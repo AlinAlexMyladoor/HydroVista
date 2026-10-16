@@ -297,7 +297,8 @@ export interface ModelExplanation {
   limitation?: string;
   computed_at: string;
 }
-export interface Experiment {
+export interface ClassificationExperiment {
+  task: "flood_classification";
   id: string; created_at: string;
   models: {
     random_forest: { metrics: ModelMetrics; feature_importance: Record<string, number>; n_estimators: number };
@@ -310,6 +311,17 @@ export interface Experiment {
     versions: Record<string, string> };
   warnings: string[];
 }
+export interface ForecastExperiment {
+  task: "future_flood_susceptibility";
+  id: string; created_at: string;
+  model: { type: string; metrics: ModelMetrics; artifact: string };
+  provenance: {
+    csv_name: string; csv_sha256: string; n_rows: number; n_train: number; n_test: number; features: string[];
+    split: { method: string; test_size: number; seed: number; train_regions: string[]; test_regions: string[] };
+  };
+  warnings: string[];
+}
+export type Experiment = ClassificationExperiment | ForecastExperiment;
 
 // ─── API functions ────────────────────────────────────────────────────────────
 
