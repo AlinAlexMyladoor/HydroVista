@@ -1,0 +1,139 @@
+# Secrets and local configuration
+.env*
+!.env.example
+backend/.env*
+web/.env*
+backend/gee-key.json
+*.pem
+*.key
+*.crt
+
+# Local databases and runtime state
+*.db
+*.sqlite
+*.sqlite3
+backend/data/*.json
+
+# Generated model and experiment artifacts
+*.joblib
+backend/models/
+backend/artifacts/
+artifacts/
+
+# Python caches and test output
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Frontend dependencies and build output
+web/node_modules/
+web/.next/
+web/out/
+web/coverage/
+web/*.tsbuildinfo
+
+# OS/editor files
+.DS_Store
+.vscode/
+.idea/
+# Environment & Secrets
+.env
+.env*
+*.env
+**/.env*
+**/*.env
+!.env.example
+!**/.env.example
+*.pem
+*.key
+credentials*.json
+*service_account*.json
+*service-account*.json
+
+# GitHub Workflows (requires workflow scope on PAT)
+.github/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv
+venv/
+**/venv
+**/venv/
+env
+env/
+**/env
+**/env/
+ENV/
+.venv
+.venv/
+**/.venv
+**/.venv/
+dist/
+build/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.log
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# Large geospatial data (store in object storage, not git)
+data/**/*.tif
+data/**/*.tiff
+data/**/*.nc
+data/**/*.hdf5
+data/**/*.h5
+data/**/*.geojson.gz
+artifacts/**/*.tif
+artifacts/**/*.tiff
+artifacts/**/*.pkl
+artifacts/**/*.joblib
+ml/models/**/*.pkl
+ml/models/**/*.joblib
+ml/models/**/*.model
+
+# Docker
+docker-volumes/
+
+# OS
+.DS_Store
+**/.DS_Store
+Thumbs.db
+
+# Local databases and generated pipeline output
+*.db
+*.sqlite
+*.sqlite3
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+data/latest_*.json
+
+# Next.js incremental build metadata
+web/tsconfig.tsbuildinfo
+
+# analysis runtime outputs
+data/analysis_runs.sqlite*
+artifacts/experiments/
+backend/venv/
+web/node_modules/
+node_modules/
+.venv/

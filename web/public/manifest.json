@@ -1,0 +1,16 @@
+{
+  "name": "FloodLens AI — Flood Risk Intelligence",
+  "short_name": "FloodLens AI",
+  "description": "Geospatial decision-support platform for the Chalakudy River basin, Kerala",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F7F8F4",
+  "theme_color": "#246B62",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

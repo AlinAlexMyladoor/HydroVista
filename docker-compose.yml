@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: floodlens_db
+    environment:
+      POSTGRES_DB: floodlens
+      POSTGRES_USER: floodlens
+      POSTGRES_PASSWORD: floodlens
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U floodlens -d floodlens"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: floodlens_api
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://floodlens:floodlens@db:5432/floodlens
+      SYNC_DATABASE_URL: postgresql://floodlens:floodlens@db:5432/floodlens
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - ./data:/data
+      - ./artifacts:/artifacts
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: floodlens_web
+    env_file: .env
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+
+volumes:
+  pgdata:
