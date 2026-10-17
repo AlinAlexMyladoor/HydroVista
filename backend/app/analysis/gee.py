@@ -72,8 +72,8 @@ def capabilities() -> dict[str, Any]:
         installed = True
     except Exception:
         installed = False
-    project = os.getenv("EE_PROJECT_ID")
     service_account, key_file = _service_account_config()
+    project = _project_id(key_file)
     reasons = []
     if not installed:
         reasons.append("earthengine-api is not installed (pip install earthengine-api)")
@@ -110,6 +110,19 @@ def _service_account_config() -> tuple[str | None, str]:
     return service_account, key_file
 
 
+def _project_id(key_file: str) -> str | None:
+    project = os.getenv("EE_PROJECT_ID")
+    if project or not os.path.isfile(key_file):
+        return project
+    try:
+        import json
+
+        with open(key_file, encoding="utf-8") as f:
+            return json.load(f).get("project_id")
+    except (OSError, ValueError):
+        return None
+
+
 def init_ee() -> Any:
     global _initialised
     cap = capabilities()
@@ -122,8 +135,11 @@ def init_ee() -> Any:
             sa, key = _service_account_config()
             if not sa:
                 raise EEUnavailable("GEE service-account email is not configured")
+            project = _project_id(key)
+            if not project:
+                raise EEUnavailable("GEE project ID is not configured")
             credentials = ee.ServiceAccountCredentials(sa, key)
-            ee.Initialize(credentials=credentials, project=os.environ["EE_PROJECT_ID"])
+            ee.Initialize(credentials=credentials, project=project)
         except Exception as e:  # auth/permission/network
             raise EEUnavailable(f"Earth Engine initialisation failed: {type(e).__name__}: {e}") from e
         _initialised = True

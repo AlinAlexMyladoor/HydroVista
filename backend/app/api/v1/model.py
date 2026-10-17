@@ -118,7 +118,7 @@ async def get_explanation(
     model_path = _rf_model_path()
     if exp is None or not model_path.is_file():
         return {
-            "asset_id": asset_id, "feature_contributions": [], "base_value": None,
+            "asset_id": asset_id, "prediction": None, "feature_contributions": [], "base_value": None,
             "model_version": None, "status": "model_not_trained",
             "limitation": "The persisted Random Forest artifact is unavailable.",
             "computed_at": datetime.now(timezone.utc).isoformat(),
@@ -133,7 +133,7 @@ async def get_explanation(
     missing = [feature for feature in features if values.get(feature) is None]
     if missing:
         return {
-            "asset_id": asset_id, "feature_contributions": [], "base_value": None,
+            "asset_id": asset_id, "prediction": None, "feature_contributions": [], "base_value": None,
             "model_version": exp["id"], "status": "features_required",
             "required_features": features, "missing_features": missing,
             "limitation": "Exact TreeSHAP requires the model feature values for this pixel; no heuristic values are substituted.",
@@ -158,7 +158,7 @@ async def get_explanation(
     except Exception as exc:  # noqa: BLE001 - return structured explainability failure
         log.exception("model.shap_failed", asset_id=asset_id)
         return {
-            "asset_id": asset_id, "feature_contributions": [], "base_value": None,
+            "asset_id": asset_id, "prediction": None, "feature_contributions": [], "base_value": None,
             "model_version": exp["id"], "status": "explanation_failed",
             "limitation": f"TreeSHAP could not explain this feature vector: {type(exc).__name__}.",
             "computed_at": datetime.now(timezone.utc).isoformat(),
