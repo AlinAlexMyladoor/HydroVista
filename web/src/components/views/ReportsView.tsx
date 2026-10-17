@@ -7,7 +7,7 @@ import { api, type ReportCreate } from "@/lib/api";
 import { translations } from "@/lib/translations";
 
 export function ReportsView() {
-  const { language, setActiveRoute } = useStore();
+  const { language, focusMap } = useStore();
   const t = translations[language];
   const queryClient = useQueryClient();
 
@@ -82,14 +82,9 @@ export function ReportsView() {
         <div className="flex items-center gap-2">
           <span className="text-xl">📢</span>
           <h1 className="text-xl font-bold text-[#1E292B]">
-            {language === "en" ? "Community & Panchayat Field Reports" : "തദ്ദേശീയ പ്രളയ വിവര ശേഖരണം"}
+            {language === "en" ? "Community field reports" : "തദ്ദേശീയ പ്രളയ വിവര ശേഖരണം"}
           </h1>
         </div>
-        <p className="text-xs text-[#687770] mt-1">
-          {language === "en"
-            ? "Ground-truth observations from ward members, volunteers, and citizens across the Chalakudy basin."
-            : "ഗ്രാമപഞ്ചായത്ത് പ്രതിനിധികളും നാട്ടുകാരും നൽകുന്ന തത്സമയ ജലനിരപ്പ് വിവരങ്ങൾ."}
-        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 my-6">
@@ -124,7 +119,7 @@ export function ReportsView() {
                   placeholder={language === "en" ? "e.g., Ward 4 Volunteer / Suresh K." : "പേര് അല്ലെങ്കിൽ തസ്തിക"}
                   value={reporterName}
                   onChange={(e) => setReporterName(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-[#E2E8F0] rounded-lg text-[#26332F] focus:outline-none focus:border-[#0D9488]"
+                  className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-[#26332F] focus:ring-2 focus:ring-teal-500 focus:border-teal-600 focus:outline-none"
                 />
               </div>
 
@@ -177,7 +172,7 @@ export function ReportsView() {
                       step="0.0001"
                       value={lat}
                       onChange={(e) => setLat(e.target.value)}
-                      className="w-full px-2.5 py-1.5 font-mono bg-white border border-[#E2E8F0] rounded-md text-[11px] focus:outline-none focus:border-[#0D9488]"
+                      className="w-full rounded-md border border-[#E2E8F0] bg-white px-2.5 py-1.5 font-mono text-[11px] focus:ring-2 focus:ring-teal-500 focus:border-teal-600 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -190,7 +185,7 @@ export function ReportsView() {
                       step="0.0001"
                       value={lon}
                       onChange={(e) => setLon(e.target.value)}
-                      className="w-full px-2.5 py-1.5 font-mono bg-white border border-[#E2E8F0] rounded-md text-[11px] focus:outline-none focus:border-[#0D9488]"
+                      className="w-full rounded-md border border-[#E2E8F0] bg-white px-2.5 py-1.5 font-mono text-[11px] focus:ring-2 focus:ring-teal-500 focus:border-teal-600 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -207,7 +202,7 @@ export function ReportsView() {
                   placeholder="e.g., 30"
                   value={depthCm}
                   onChange={(e) => setDepthCm(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-[#E2E8F0] rounded-lg text-[#26332F] focus:outline-none focus:border-[#0D9488]"
+                  className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-[#26332F] focus:ring-2 focus:ring-teal-500 focus:border-teal-600 focus:outline-none"
                 />
               </div>
 
@@ -223,7 +218,7 @@ export function ReportsView() {
                   placeholder={language === "en" ? "Describe road condition, stranded households, or river overflow..." : "വിശദമായ വിവരങ്ങൾ നൽകുക..."}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-[#E2E8F0] rounded-lg text-[#26332F] focus:outline-none focus:border-[#0D9488]"
+                  className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-[#26332F] focus:ring-2 focus:ring-teal-500 focus:border-teal-600 focus:outline-none"
                 />
               </div>
 
@@ -233,7 +228,7 @@ export function ReportsView() {
               <button
                 type="submit"
                 disabled={submitMutation.isPending || description.trim().length < 10}
-                className="w-full py-2.5 bg-[#0D9488] hover:bg-[#0F766E] disabled:bg-[#94A3B8] text-white font-bold rounded-lg shadow-sm transition-all text-xs"
+                className="w-full rounded-lg bg-teal-600 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-teal-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 disabled:bg-slate-400 dark:bg-teal-500 dark:text-slate-950 dark:hover:bg-teal-400"
               >
                 {submitMutation.isPending ? "Submitting..." : (language === "en" ? "Broadcast Field Report" : "വിവരം സമർപ്പിക്കുക")}
               </button>
@@ -247,10 +242,6 @@ export function ReportsView() {
             <h3 className="text-xs font-bold text-[#1E292B] uppercase tracking-wider">
               {language === "en" ? "Recent Basin Observations" : "ഏറ്റവും പുതിയ വിവരങ്ങൾ"} ({reportsList.length})
             </h3>
-            <span className="text-[11px] text-[#0D9488] font-medium flex items-center gap-1">
-              <span className="animate-ping inline-flex h-1.5 w-1.5 rounded-full bg-[#0D9488] opacity-75"></span>
-              Live telemetry sync
-            </span>
           </div>
 
           <div className="space-y-3">
@@ -294,7 +285,11 @@ export function ReportsView() {
                     {rep.submitted_at ? new Date(rep.submitted_at).toLocaleString() : ""}
                   </span>
                   <button
-                    onClick={() => setActiveRoute("overview")}
+                    onClick={() => {
+                      if (!focusMap(Number(rep.lat), Number(rep.lon))) {
+                        setStatusMsg({ type: "error", text: "This report has no valid map coordinates." });
+                      }
+                    }}
                     className="text-[#0D9488] hover:underline font-medium"
                   >
                     View on 3D Map →

@@ -44,6 +44,9 @@ interface AppState {
   setInundationRunId: (id: string | null) => void;
   selectedAssetId: string | null;
   setSelectedAssetId: (id: string | null) => void;
+  mapFocusRequest: { lat: number; lon: number; assetId: string | null; bounds?: [[number, number], [number, number]]; requestId: number } | null;
+  focusMap: (lat: number, lon: number, assetId?: string | null) => boolean;
+  focusMapBounds: (west: number, south: number, east: number, north: number) => boolean;
   forecastHour: number;
   setForecastHour: (hour: number) => void;
   forecastHorizon: ForecastHorizon;
@@ -131,6 +134,37 @@ export const useStore = create<AppState>((set) => ({
   setInundationRunId: (id) => set({ inundationRunId: id }),
   selectedAssetId: null,
   setSelectedAssetId: (id) => set({ selectedAssetId: id }),
+  mapFocusRequest: null,
+  focusMap: (lat, lon, assetId = null) => {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) return false;
+    set((state) => ({
+      activeRoute: "map",
+      mapIs3D: true,
+      mapPitch: 60,
+      mapBearing: 30,
+      selectedAssetId: assetId,
+      mapFocusRequest: { lat, lon, assetId, requestId: (state.mapFocusRequest?.requestId ?? 0) + 1 },
+    }));
+    return true;
+  },
+  focusMapBounds: (west, south, east, north) => {
+    if (![west, south, east, north].every(Number.isFinite) || west < -180 || east > 180 || south < -90 || north > 90 || west >= east || south >= north) return false;
+    set((state) => ({
+      activeRoute: "map",
+      mapIs3D: true,
+      mapPitch: 50,
+      mapBearing: 20,
+      selectedAssetId: null,
+      mapFocusRequest: {
+        lat: (south + north) / 2,
+        lon: (west + east) / 2,
+        assetId: null,
+        bounds: [[west, south], [east, north]],
+        requestId: (state.mapFocusRequest?.requestId ?? 0) + 1,
+      },
+    }));
+    return true;
+  },
   forecastHour: 6,
   setForecastHour: (hour) => set({ forecastHour: hour }),
   forecastHorizon: 24,

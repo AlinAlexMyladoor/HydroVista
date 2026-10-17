@@ -77,14 +77,9 @@ export function ScenariosView() {
         <div className="flex items-center gap-2">
           <span className="text-xl">🎛️</span>
           <h1 className="text-xl font-bold text-[#1E292B]">
-            {language === "en" ? "Interactive Scenario Workbench & Rain Dial" : "പ്രളയസാധ്യതാ സിമുലേഷൻ പരീക്ഷണശാല"}
+            {language === "en" ? "Scenario simulator" : "പ്രളയസാധ്യതാ സിമുലേറ്റർ"}
           </h1>
         </div>
-        <p className="text-xs text-[#687770] mt-1">
-          {language === "en"
-            ? "Simulate hypothetical rainfall surges, reservoir spillage, and soil saturation to stress-test Chalakudy basin defenses."
-            : "ചാലക്കുടിപ്പുഴയിലെ മഴയുടെയും അണക്കെട്ട് തുറക്കലിന്റെയും അനുമാനങ്ങൾ പരിശോധിച്ച് മുൻകരുതലുകൾ എടുക്കുക."}
-        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 my-6">
@@ -138,7 +133,7 @@ export function ScenariosView() {
                 step="5"
                 value={rainfallMm}
                 onChange={(e) => setRainfallMm(Number(e.target.value))}
-                className="w-full accent-[#0D9488] cursor-pointer"
+                className="w-full cursor-pointer accent-teal-600 dark:accent-teal-500"
               />
               <div className="flex justify-between text-[10px] text-[#94A3B8] mt-1 font-mono">
                 <span>0 mm</span>
@@ -163,7 +158,7 @@ export function ScenariosView() {
                 step="6"
                 value={durationHours}
                 onChange={(e) => setDurationHours(Number(e.target.value))}
-                className="w-full accent-[#0D9488] cursor-pointer"
+                className="w-full cursor-pointer accent-teal-600 dark:accent-teal-500"
               />
               <div className="flex justify-between text-[10px] text-[#94A3B8] mt-1 font-mono">
                 <span>6h (Flash)</span>
@@ -249,7 +244,7 @@ export function ScenariosView() {
                   <div className="text-3xl animate-bounce mb-2">⟳</div>
                   <div className="text-xs font-medium">
                     {language === "en"
-                      ? "Evaluating HAND elevation models & culvert backwater equations..."
+                      ? "Calculating scenario exposure..."
                       : "ഹൈഡ്രോഡൈനാമിക് മോഡലുകൾ വിശകലനം ചെയ്യുന്നു..."}
                   </div>
                 </div>
@@ -263,9 +258,8 @@ export function ScenariosView() {
                         {language === "en" ? "Severe Risk Facilities" : "തീവ്ര അപകടത്തിൽ"}
                       </div>
                       <div className="text-2xl font-bold text-[#DC2626] mt-1">
-                        {scenarioResult.summary?.scenario_high_critical_count ?? Math.min(38, Math.round(rainfallMm / 6) + 8)}
+                        {scenarioResult.summary?.scenario_high_critical_count ?? "—"}
                       </div>
-                      <div className="text-[10px] text-[#7F1D1D] mt-0.5">High/critical priority structures</div>
                     </div>
 
                     <div className="bg-[#FFFBEB] border border-[#FCD34D] rounded-xl p-3">
@@ -273,43 +267,34 @@ export function ScenariosView() {
                         {language === "en" ? "Risk Escalation Delta" : "അപകട വർദ്ധനവ്"}
                       </div>
                       <div className="text-2xl font-bold text-[#D97706] mt-1">
-                        +{scenarioResult.summary?.delta_high_critical ?? Math.min(30, Math.round(rainfallMm / 6))}
+                        {scenarioResult.summary?.delta_high_critical ?? "—"}
                       </div>
-                      <div className="text-[10px] text-[#78350F] mt-0.5">Facilities pushed into danger zone</div>
                     </div>
 
                     <div className="bg-[#F0FDF4] border border-[#86EFAC] rounded-xl p-3">
                       <div className="text-[11px] text-[#166534] font-semibold">
-                        {language === "en" ? "24h Cumulative Precipitation" : "24 മണിക്കൂർ ആകെ മഴ"}
+                        {language === "en" ? "Scenario 24h rainfall" : "24 മണിക്കൂർ ആകെ മഴ"}
                       </div>
                       <div className="text-2xl font-bold text-[#15803D] mt-1">
-                        {(scenarioResult.summary?.combined_24h_mm ?? (rainfallMm + 34.2)).toFixed(1)}{" "}
+                        {scenarioResult.summary?.combined_24h_mm?.toFixed(1) ?? "—"}{" "}
                         <span className="text-xs font-normal">mm</span>
                       </div>
-                      <div className="text-[10px] text-[#14532D] mt-0.5">Catchment-wide precipitation</div>
                     </div>
 
                     <div className="bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl p-3">
                       <div className="text-[11px] text-[#334155] font-semibold">
-                        {language === "en" ? "Isolated Facilities (Cutoff)" : "ഒറ്റപ്പെട്ടുപോകുന്നവ"}
+                        {language === "en" ? "Assets with increased risk" : "അപകടസാധ്യത വർധിച്ച ആസ്തികൾ"}
                       </div>
                       <div className="text-2xl font-bold text-[#0F172A] mt-1">
-                        {scenarioResult.summary?.escalated_count ?? Math.max(1, Math.round(rainfallMm / 15))}
+                        {scenarioResult.summary?.escalated_count ?? "—"}
                       </div>
-                      <div className="text-[10px] text-[#475569] mt-0.5">Access roads impassable</div>
                     </div>
                   </div>
 
-                  <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0] text-xs space-y-1.5">
-                    <div className="font-semibold text-[#1E292B]">
-                      {language === "en" ? "Hydrological Advisory:" : "പ്രത്യേക അറിയിപ്പ്:"}
-                    </div>
-                    <p className="text-[#687770] leading-relaxed text-[11px]">
-                      {rainfallMm > 150
-                        ? "Catastrophic catchment runoff projected. Poringalkuthu spillway gates must be stepped down in coordination with Sholayar reservoir to prevent Chalakudy municipal town flooding."
-                        : "Moderate backwater swelling expected at low-lying river bends (Meloor, Pariyaram, Kadukutty). Localized culvert ponding likely."}
-                    </p>
-                  </div>
+                  <details className="ux-disclosure rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-xs text-text-secondary">
+                    <summary>{language === "en" ? "Scenario interpretation" : "സാഹചര്യത്തിന്റെ വിശദീകരണം"}</summary>
+                    <p className="pt-2">This is a rainfall stress test based on the displayed inputs, not a hydraulic forecast or reservoir operating instruction.</p>
+                  </details>
                 </div>
               )}
             </div>

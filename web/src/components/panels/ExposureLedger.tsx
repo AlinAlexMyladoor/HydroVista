@@ -24,6 +24,7 @@ export function ExposureLedger() {
     assetTypeFilter, 
     setAssetTypeFilter, 
     setSelectedAssetId,
+    focusMap,
     setActivePanel 
   } = useStore();
   const t = translations[language];
@@ -182,7 +183,7 @@ export function ExposureLedger() {
                   key={item.asset_id}
                   className="hover:bg-surface-secondary/40 transition-colors group cursor-pointer"
                   onClick={() => {
-                    setSelectedAssetId(item.asset_id);
+                    focusMap(item.lat, item.lon, item.asset_id);
                   }}
                 >
                   <td className="py-2.5 px-3">
@@ -244,11 +245,11 @@ export function ExposureLedger() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedAssetId(item.asset_id);
-                          setActivePanel("map");
+                          focusMap(item.lat, item.lon, item.asset_id);
                         }}
-                        className="p-1 text-primary hover:bg-surface-secondary rounded transition-colors"
+                        className="p-1 text-primary hover:bg-surface-secondary rounded transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600"
                         title="View on Map"
+                        aria-label={`View ${item.asset_name || item.asset_type} on the 3D map`}
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                       </button>

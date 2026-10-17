@@ -65,6 +65,7 @@ export function FloodMap() {
   const demCounts = useRef({ ok: 0, failed: 0 });
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [mapFocusError, setMapFocusError] = useState<string | null>(null);
   const [showLegend, setShowLegend] = useState(true);
   const [showLayerMenu, setShowLayerMenu] = useState(false);
   const [readout, setReadout] = useState<{ lon: number; lat: number; elev: number | null } | null>(null);
@@ -74,6 +75,7 @@ export function FloodMap() {
     selectedAssetId, setSelectedAssetId, riskFilter, assetTypeFilter, visibleLayers, toggleLayer, language,
     mapIs3D, setMapIs3D, terrainExaggeration, setTerrainExaggeration, mapPitch, setMapPitch, mapBearing, setMapBearing,
     terrainStatus, terrainInfo, setTerrainStatus, inundationRunId,
+    mapFocusRequest,
   } = useStore();
   const en = language === "en";
   const { resolvedTheme, setTheme } = useTheme();
@@ -361,35 +363,31 @@ export function FloodMap() {
         const coords = (feat.geometry as GeoJSON.Point).coordinates.slice() as [number, number];
         setSelectedAssetId(String(props.asset_id ?? ""));
         popupRef.current?.remove();
-        const riskCat = String(props.risk_category ?? "unknown");
-        const palette: Record<string, [string, string, string]> = {
-          critical: ["#fef2f2", "#b91c1c", "#fecaca"], high: ["#fff7ed", "#c2410c", "#fed7aa"],
-          medium: ["#fffbeb", "#92400e", "#fde68a"], low: ["#f0fdf4", "#15803d", "#bbf7d0"],
-        };
-        const [bg, fg, bd] = palette[riskCat] ?? ["#f3f4f6", "#6b7280", "#e5e7eb"];
+        const rawRisk = String(props.risk_category ?? "unknown").toLowerCase();
+        const riskCat = ["critical", "high", "medium", "low"].includes(rawRisk) ? rawRisk : "unknown";
+        const score = props.risk_score != null && Number.isFinite(Number(props.risk_score)) ? Number(props.risk_score).toFixed(2) : "—";
         const elev = props.terrain_elevation_m != null && props.terrain_elevation_m !== "null"
-          ? `${Number(props.terrain_elevation_m).toFixed(0)} m` : "Not available (default factor 0.50)";
+          ? `${Number(props.terrain_elevation_m).toFixed(0)} m` : "Unavailable";
         const rain = props.rainfall_accumulation_mm != null && props.rainfall_accumulation_mm !== "null"
-          ? `${Number(props.rainfall_accumulation_mm).toFixed(1)} mm` : "Not available (default factor 0.30)";
+          ? `${Number(props.rainfall_accumulation_mm).toFixed(1)} mm` : "Unavailable";
         let warn = "";
         try { warn = (JSON.parse(String(props.data_warnings || "[]")) as string[])[0] ?? ""; } catch {}
         popupRef.current = new maplibregl.Popup({ offset: [0, -4], className: "custom-map-popup", maxWidth: "260px" })
           .setLngLat(coords)
           .setHTML(`
-            <div style="font-family:'Inter',sans-serif;padding:12px;min-width:220px;">
-              <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                <span style="padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;background:${bg};color:${fg};border:1px solid ${bd};">${esc(riskCat)} risk</span>
-                <span style="font-size:11px;font-weight:700;color:#26332F;">${Number(props.risk_score ?? 0).toFixed(2)}</span>
+            <div class="hv-map-popup">
+              <div class="hv-map-popup-heading">
+                <span class="hv-risk-badge hv-risk-${riskCat}">${esc(riskCat)} risk</span>
+                <span class="hv-map-popup-score">${score}</span>
               </div>
-              <h4 style="margin:0 0 2px;font-size:13px;font-weight:600;color:#26332F;">${esc(props.asset_name || "Infrastructure facility")}</h4>
-              <p style="margin:0 0 8px;font-size:11px;color:#687770;text-transform:capitalize;">${esc(String(props.asset_type ?? "").replace(/_/g, " "))}</p>
-              <div style="background:#F7F8F4;border:1px solid #DCE4DD;border-radius:5px;padding:8px;font-size:11px;">
-                <div style="display:flex;justify-content:space-between;margin-bottom:3px;"><span style="color:#687770;">Elevation</span><b>${esc(elev)}</b></div>
-                <div style="display:flex;justify-content:space-between;margin-bottom:3px;"><span style="color:#687770;">24h rainfall</span><b>${esc(rain)}</b></div>
-                <div style="display:flex;justify-content:space-between;"><span style="color:#687770;">Data quality</span><b>${esc(qualityBadge(String(props.data_quality ?? "")))}</b></div>
+              <h4 class="hv-map-popup-title">${esc(props.asset_name || "Infrastructure facility")}</h4>
+              <p class="hv-map-popup-type">${esc(String(props.asset_type ?? "").replace(/_/g, " "))}</p>
+              <div class="hv-map-popup-metrics">
+                <div><span>Elevation</span><b>${esc(elev)}</b></div>
+                <div><span>24h rainfall</span><b>${esc(rain)}</b></div>
+                <div><span>Data quality</span><b>${esc(qualityBadge(String(props.data_quality ?? "")))}</b></div>
               </div>
-              ${warn ? `<div style="margin-top:6px;font-size:10px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:4px 6px;">⚠ ${esc(warn)}</div>` : ""}
-              <div style="margin-top:6px;font-size:10px;color:#9ca3af;">Risk level: terrain + rainfall + facility priority</div>
+              ${warn ? `<div class="hv-map-popup-warning">${esc(warn)}</div>` : ""}
             </div>`)
           .addTo(map);
       });
@@ -605,15 +603,48 @@ export function FloodMap() {
     });
   }, [reportsData, mapLoaded]);
 
-  // fly to selected asset
+  // Fly directly to selected assets with a composed 3D camera move.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoaded || !selectedAssetId || !exposureData?.items) return;
+    if (mapFocusRequest?.assetId === selectedAssetId) return;
     const a = exposureData.items.find((x) => x.asset_id === selectedAssetId);
-    if (a?.lat != null && a?.lon != null) {
-      map.flyTo({ center: [a.lon, a.lat], zoom: Math.max(map.getZoom(), 14), speed: 1.4 });
+    if (a && Number.isFinite(a.lat) && Number.isFinite(a.lon) && Math.abs(a.lat) <= 90 && Math.abs(a.lon) <= 180) {
+      setMapIs3D(true);
+      map.flyTo({ center: [a.lon, a.lat], zoom: 16, pitch: 60, bearing: 30, speed: 0.75, curve: 1.35, duration: 2200, essential: true });
+      setMapPitch(60);
+      setMapBearing(30);
     }
-  }, [selectedAssetId, exposureData, mapLoaded]);
+  }, [selectedAssetId, exposureData, mapLoaded, mapFocusRequest, setMapIs3D, setMapPitch, setMapBearing]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded || !mapFocusRequest) return;
+    const { lat, lon } = mapFocusRequest;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return;
+    try {
+      const pitch = mapFocusRequest.bounds ? 50 : 60;
+      const bearing = mapFocusRequest.bounds ? 20 : 30;
+      if (mapFocusRequest.bounds) {
+        map.fitBounds(mapFocusRequest.bounds, {
+          padding: { top: 90, right: 90, bottom: 90, left: 90 },
+          maxZoom: 14,
+          pitch,
+          bearing,
+          duration: 2200,
+          essential: true,
+        });
+      } else {
+        map.flyTo({ center: [lon, lat], zoom: 16, pitch, bearing, speed: 0.75, curve: 1.35, duration: 2200, essential: true });
+      }
+      setMapIs3D(true);
+      setMapPitch(pitch);
+      setMapBearing(bearing);
+      setMapFocusError(null);
+    } catch {
+      setMapFocusError(en ? "Could not move the map to this location." : "ഈ സ്ഥലത്തേക്ക് ഭൂപടം നീക്കാനായില്ല.");
+    }
+  }, [mapFocusRequest, mapLoaded, setMapIs3D, setMapPitch, setMapBearing, en]);
 
   // ─── Controls ──────────────────────────────────────────────────────────────
   const set3D = useCallback((next: boolean) => {
@@ -662,6 +693,7 @@ export function FloodMap() {
           {!mapLoaded ? (en ? "Loading map…" : "ഭൂപടം ലോഡ് ചെയ്യുന്നു…") : (en ? "Loading infrastructure data…" : "ഡാറ്റ ലോഡ് ചെയ്യുന്നു…")}
         </div>
       )}
+      {mapFocusError && <div className="absolute top-3 right-3 z-30 rounded-md border border-rose-200 bg-white px-3 py-2 text-xs text-rose-700 shadow dark:border-rose-900 dark:bg-slate-900 dark:text-rose-300" role="alert">{mapFocusError}</div>}
       {exposureError && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-md px-3 py-1.5"
           style={{ background: "#fffbeb", border: "1px solid #fde68a", fontSize: "0.6875rem", color: "#92400e" }} role="alert">

@@ -158,7 +158,7 @@ function RainfallForecastPanel() {
 // ─── Exposure Ranking Table ────────────────────────────────────────────────────
 function ExposureRankingPanel() {
   const language = useStore((s) => s.language);
-  const setSelectedAssetId = useStore((s) => s.setSelectedAssetId);
+  const focusMap = useStore((s) => s.focusMap);
   const setActiveRoute = useStore((s) => s.setActiveRoute);
   const inundationRunId = useStore((s) => s.inundationRunId);
 
@@ -234,7 +234,7 @@ function ExposureRankingPanel() {
               return (
                 <div
                   key={item.asset_id}
-                  className="grid"
+                  className="grid rounded-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-teal-600"
                   style={{
                     gridTemplateColumns: "1fr 48px 40px 80px",
                     gap: 4,
@@ -243,7 +243,16 @@ function ExposureRankingPanel() {
                     borderBottom: "1px solid #F7F8F4",
                     cursor: "pointer",
                   }}
-                  onClick={() => { setSelectedAssetId(item.asset_id); setActiveRoute("map"); }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Show ${item.asset_name || item.asset_type} on the 3D map`}
+                  onClick={() => focusMap(item.lat, item.lon, item.asset_id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      focusMap(item.lat, item.lon, item.asset_id);
+                    }
+                  }}
                 >
                   <span style={{ fontSize: "0.625rem", fontWeight: 500, color: "#26332F", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {item.asset_name || `${item.asset_type} #${i + 1}`}

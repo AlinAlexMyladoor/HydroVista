@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 export function IsolationClockPanel() {
-  const { language, setSelectedAssetId, setActivePanel } = useStore();
+  const { language, focusMap } = useStore();
   const t = translations[language];
   const [threshold, setThreshold] = useState<number>(0.6);
 
@@ -184,8 +184,7 @@ export function IsolationClockPanel() {
                     </div>
                     <button
                       onClick={() => {
-                        setSelectedAssetId(facility.facility_id);
-                        setActivePanel("map");
+                        focusMap(facility.lat, facility.lon, facility.facility_id);
                       }}
                       className="p-1 text-primary hover:bg-surface-secondary rounded"
                       title="Inspect facility on Map"

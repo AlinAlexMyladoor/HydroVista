@@ -6,6 +6,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, AnalysisParams, AnalysisRun, AnalysisStatus, APIError } from "@/lib/api";
 import { useStore } from "@/lib/store";
+import { Info } from "lucide-react";
 
 if (typeof window !== "undefined") maplibregl.setWorkerUrl("/maplibre-gl-worker.mjs");
 
@@ -22,9 +23,11 @@ const num = (v: string) => (v === "" || Number.isNaN(Number(v)) ? NaN : Number(v
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
     <label className="flex flex-col gap-1" style={{ fontSize: "0.6875rem", color: "#26332F" }}>
-      <span style={{ fontWeight: 600 }}>{label}</span>
+      <span className="flex items-center justify-between gap-2" style={{ fontWeight: 600 }}>
+        {label}
+        {hint && <button type="button" className="text-text-secondary" title={hint} aria-label={`More information: ${hint}`}><Info size={13} /></button>}
+      </span>
       {children}
-      {hint && <span style={{ color: "#687770", fontSize: "0.5625rem" }}>{hint}</span>}
     </label>
   );
 }
@@ -78,8 +81,7 @@ function ResultPanel({ run, live }: { run: AnalysisRun; live?: AnalysisStatus })
     st.setInundationRunId(run.id);
     st.setLayerVisible("inundation", true);
     st.setLayerVisible("terrain", true);
-    st.setMapIs3D(true);
-    st.setActiveRoute("map");
+    st.focusMapBounds(run.params.west, run.params.south, run.params.east, run.params.north);
   };
   if (run.status === "failed") {
     return (
@@ -109,19 +111,20 @@ function ResultPanel({ run, live }: { run: AnalysisRun; live?: AnalysisStatus })
       </div>
       <ResultMap run={run} />
       <table style={{ fontSize: "0.75rem", width: "100%", borderCollapse: "collapse" }}>
-        <thead><tr style={{ textAlign: "left", color: "#687770", fontSize: "0.625rem", textTransform: "uppercase" }}><th>Measure</th><th style={{ textAlign: "right" }}>km²</th><th>Definition</th></tr></thead>
-        <tbody>{rows.map(([k, v, d]) => (
-          <tr key={k} style={{ borderTop: "1px solid #EEF2EF" }}><td style={{ padding: "4px 0" }}>{k}</td><td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{v.toFixed(2)}</td><td style={{ color: "#687770", paddingLeft: 8 }}>{d}</td></tr>
+        <thead><tr style={{ textAlign: "left", color: "#687770", fontSize: "0.625rem", textTransform: "uppercase" }}><th>Measure</th><th style={{ textAlign: "right" }}>Area · km²</th></tr></thead>
+        <tbody>{rows.map(([k, v]) => (
+          <tr key={k} style={{ borderTop: "1px solid #EEF2EF" }}><td style={{ padding: "6px 0" }}>{k}</td><td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{v.toFixed(2)}</td></tr>
         ))}</tbody>
       </table>
+      <details className="ux-disclosure text-xs text-text-secondary">
+        <summary>Metric definitions & limitations</summary>
+        <ul className="list-disc pl-5 pt-2 space-y-1">{rows.map(([k, , d]) => <li key={k}><b>{k}:</b> {d}</li>)}{r.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}</ul>
+      </details>
       <div style={{ fontSize: "0.6875rem" }}>
         <b>Scenes:</b> {r.scene_counts.pre_event} pre-event, {r.scene_counts.event} event ·{" "}
         <b>Resolution:</b> {r.processing.scale_m} m · <b>Compute:</b> {r.processing.seconds}s · <b>Attempts:</b> {r.run.attempts}
-        <div style={{ color: "#687770", marginTop: 2 }}>Event acquisitions: {r.acquisition_dates.event.join(", ") || "—"}</div>
-        <div style={{ color: "#687770" }}>Pre-event acquisitions: {r.acquisition_dates.pre_event.join(", ") || "—"}</div>
-        <div style={{ color: "#687770" }}>Datasets: {Object.values(r.datasets).join(" · ")}</div>
       </div>
-      <ul style={{ fontSize: "0.625rem", color: "#687770", paddingLeft: 16, listStyle: "disc" }}>{r.limitations.map((l) => <li key={l}>{l}</li>)}</ul>
+      <details className="ux-disclosure text-xs text-text-secondary"><summary>Acquisitions & datasets</summary><p className="pt-2">Event: {r.acquisition_dates.event.join(", ") || "—"}<br />Pre-event: {r.acquisition_dates.pre_event.join(", ") || "—"}<br />{Object.values(r.datasets).join(" · ")}</p></details>
       {r.vectors?.available ? (
         <button onClick={openIn3D} style={{ alignSelf: "flex-start", background: "#0F766E", color: "#fff", border: "none", borderRadius: 6, padding: "7px 10px", fontWeight: 600, fontSize: "0.75rem", cursor: "pointer" }}>
           Drape on 3D terrain map ({r.vectors.feature_count} polygons{r.vectors.truncated ? `, largest of ${r.vectors.total_polygons}` : ""})
@@ -129,7 +132,7 @@ function ResultPanel({ run, live }: { run: AnalysisRun; live?: AnalysisStatus })
       ) : (
         <div style={{ fontSize: "0.6875rem", color: "#92400e" }}>No polygon output for this run{r.vectors?.reason ? `: ${r.vectors.reason}` : ""}. The raster tiles above are still valid.</div>
       )}
-      <a href={api.analysis.exportCsvUrl(run.id)} style={{ fontSize: "0.6875rem", color: "#2563EB", fontWeight: 600 }}>Download CSV (areas, scene counts, parameters)</a>
+      <a href={api.analysis.exportCsvUrl(run.id)} style={{ fontSize: "0.6875rem", color: "#0F766E", fontWeight: 600 }}>Download CSV</a>
     </div>
   );
 }
@@ -183,7 +186,6 @@ export function AnalysisView() {
         <div className="flex flex-col gap-4">
           <div>
             <h1 style={{ fontSize: "1.125rem", fontWeight: 700 }}>Flood Analysis Workspace</h1>
-            <p style={{ fontSize: "0.6875rem", color: "#687770" }}>Sentinel-1 candidate inundation via Google Earth Engine. Runs are stored with their parameters.</p>
           </div>
 
           {cap.data && !cap.data.ready && (
@@ -224,7 +226,7 @@ export function AnalysisView() {
               <Field label="Min. backscatter drop (dB)" hint="event − pre ≤ −value counts as new water">{numInput("min_drop_db", "0.5")}</Field>
             </div>
             <button onClick={submit} disabled={busy || invalid || (cap.data ? !cap.data.ready : false)}
-              style={{ background: busy || invalid || (cap.data && !cap.data.ready) ? "#9ca3af" : "#2563EB", color: "#fff", borderRadius: 6, padding: "8px 10px", fontWeight: 600, fontSize: "0.8125rem", border: "none", cursor: busy || invalid ? "not-allowed" : "pointer" }}>
+              style={{ background: busy || invalid || (cap.data && !cap.data.ready) ? "#9ca3af" : "#0D9488", color: "#fff", borderRadius: 6, padding: "8px 10px", fontWeight: 600, fontSize: "0.8125rem", border: "none", cursor: busy || invalid ? "not-allowed" : "pointer" }}>
               {busy ? "Submitting…" : "Run analysis"}
             </button>
             {invalid && <div style={{ fontSize: "0.625rem", color: "#991b1b" }}>Fill every field with a valid value.</div>}

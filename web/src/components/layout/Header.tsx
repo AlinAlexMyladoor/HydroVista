@@ -36,9 +36,9 @@ export function Header() {
     language,
     setLanguage,
     isOffline,
-    setSelectedAssetId,
     activeRoute,
     setActiveRoute,
+    focusMap,
     searchQuery,
     setSearchQuery,
   } = useStore();
@@ -111,7 +111,7 @@ export function Header() {
             className="flex items-center justify-center rounded-md flex-shrink-0"
             style={{
               width: 32, height: 32,
-              background: "linear-gradient(135deg, #155E59 0%, #1E7A73 100%)",
+              background: "linear-gradient(135deg, #0D9488 0%, #0F766E 100%)",
             }}
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -128,7 +128,7 @@ export function Header() {
           </div>
 
           <div>
-            <div style={{ fontSize: "0.9375rem", fontWeight: 700, letterSpacing: "-0.02em", color: "#26332F", lineHeight: 1.2 }}>
+            <div style={{ fontSize: "1rem", fontWeight: 750, letterSpacing: "-0.02em", color: "#26332F", lineHeight: 1.2 }}>
               HydroVista
             </div>
             <div style={{ fontSize: "0.5625rem", fontWeight: 500, color: "#687770", letterSpacing: "0.03em", textTransform: "uppercase", lineHeight: 1 }}>
@@ -151,8 +151,8 @@ export function Header() {
                   padding: "0.3125rem 0.625rem",
                   fontSize: "0.8125rem",
                   fontWeight: isActive ? 600 : 500,
-                  color: isActive ? "#155E59" : "#687770",
-                  background: isActive ? "#E8F0EA" : "transparent",
+                  color: isActive ? "#0F766E" : "#687770",
+                  background: isActive ? "#CCFBF1" : "transparent",
                   border: "none",
                   cursor: "pointer",
                   whiteSpace: "nowrap",
@@ -237,13 +237,14 @@ export function Header() {
               {searchResults.map((asset) => (
                 <button
                   key={asset.osm_id}
-                  onMouseDown={() => {
-                    setSelectedAssetId(asset.osm_id);
-                    setActiveRoute("map");
-                    setSearchQuery("");
+                  disabled={!Number.isFinite(asset.lat) || !Number.isFinite(asset.lon) || Math.abs(asset.lat) > 90 || Math.abs(asset.lon) > 180}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    if (focusMap(asset.lat, asset.lon, asset.osm_id)) setSearchQuery("");
                   }}
-                  className="w-full text-left px-3 py-2 hover:bg-[#E8F0EA] transition-colors flex items-center justify-between"
+                  className="w-full text-left px-3 py-2 hover:bg-[#E8F0EA] focus-visible:outline-2 focus-visible:outline-teal-600 disabled:cursor-not-allowed disabled:opacity-50 transition-colors flex items-center justify-between"
                   style={{ fontSize: "0.75rem", border: "none", cursor: "pointer" }}
+                  title={!Number.isFinite(asset.lat) || !Number.isFinite(asset.lon) ? "Map coordinates unavailable" : undefined}
                 >
                   <div>
                     <div style={{ fontWeight: 500, color: "#26332F" }}>

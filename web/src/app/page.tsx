@@ -79,7 +79,7 @@ export default function Home() {
   const t = translations[language];
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden" style={{ backgroundColor: "#F7F8F4", color: "#26332F" }}>
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-background text-text dark:bg-slate-950 dark:text-slate-50">
       {/* Application Header */}
       <Header />
 

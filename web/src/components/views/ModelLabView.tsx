@@ -43,8 +43,8 @@ function ExperimentCard({ e }: { e: ClassificationExperiment }) {
           <div style={{ fontWeight: 600, fontSize: "0.75rem" }}>Model comparison (same held-out regions)</div>
           <div style={{ height: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={cmp}><CartesianGrid vertical={false} stroke="#EEF2EF" /><XAxis dataKey="metric" tick={{ fontSize: 11 }} /><YAxis domain={[0, 1]} tick={{ fontSize: 11 }} /><Tooltip formatter={(v) => Number(v).toFixed(3)} /><Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="Random Forest" fill="#2563EB" /><Bar dataKey={`Threshold (${bl.threshold_db} dB)`} fill="#F97316" /></BarChart>
+              <BarChart data={cmp}><CartesianGrid vertical={false} stroke="#94A3B8" strokeOpacity={0.1} /><XAxis dataKey="metric" tick={{ fontSize: 11 }} /><YAxis domain={[0, 1]} tick={{ fontSize: 11 }} /><Tooltip formatter={(v) => Number(v).toFixed(3)} /><Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="Random Forest" fill="#2563EB" radius={[4, 4, 0, 0]} /><Bar dataKey={`Threshold (${bl.threshold_db} dB)`} fill="#F97316" radius={[4, 4, 0, 0]} /></BarChart>
             </ResponsiveContainer>
           </div>
           <div style={{ fontSize: "0.625rem", color: "#687770" }}>Undefined metrics (no positives predicted/present) are drawn as 0 here; exact values: RF F1 {f(rf.metrics.f1)}, baseline F1 {f(bl.metrics.f1)}, RF IoU {f(rf.metrics.iou)}, baseline IoU {f(bl.metrics.iou)}.</div>
@@ -54,14 +54,15 @@ function ExperimentCard({ e }: { e: ClassificationExperiment }) {
           <div style={{ fontWeight: 600, fontSize: "0.75rem" }}>Feature importance (Random Forest, impurity-based)</div>
           <div style={{ height: 180 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={imp} layout="vertical"><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 11 }} /><Tooltip formatter={(v) => Number(v).toFixed(3)} /><Bar dataKey="value" fill="#16A34A" /></BarChart>
+              <BarChart data={imp} layout="vertical"><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 11 }} /><Tooltip formatter={(v) => Number(v).toFixed(3)} /><Bar dataKey="value" fill="#16A34A" radius={[0, 4, 4, 0]} /></BarChart>
             </ResponsiveContainer>
           </div>
         </div>
       </div>
-      <div style={{ fontSize: "0.6875rem", color: "#26332F" }}>
-        <b>Provenance:</b> split {p.split.method}, seed {p.split.seed}, test fraction {p.split.test_size}; train regions {p.split.train_regions.length}, test regions {p.split.test_regions.length} ({p.split.test_regions.join(", ")}). Positive fraction train {p.class_balance.train_positive_fraction.toFixed(2)} / test {p.class_balance.test_positive_fraction.toFixed(2)}. Features: {p.features.join(", ")}. scikit-learn {p.versions["scikit-learn"]}. CSV sha256 {p.csv_sha256.slice(0, 16)}…
-      </div>
+      <details className="ux-disclosure text-xs text-text-secondary">
+        <summary>Experiment provenance</summary>
+        <p className="pt-2">Split {p.split.method}, seed {p.split.seed}, test fraction {p.split.test_size}; train regions {p.split.train_regions.length}, test regions {p.split.test_regions.length}. Positive fraction train {p.class_balance.train_positive_fraction.toFixed(2)} / test {p.class_balance.test_positive_fraction.toFixed(2)}. Features: {p.features.join(", ")}. scikit-learn {p.versions["scikit-learn"]}. CSV SHA-256 {p.csv_sha256.slice(0, 16)}…</p>
+      </details>
     </div>
   );
 }
@@ -100,17 +101,18 @@ export function ModelLabView() {
       <div className="max-w-5xl mx-auto p-6 flex flex-col gap-4">
         <div>
           <h1 style={{ fontSize: "1.125rem", fontWeight: 700 }}>Model Lab</h1>
-          <p style={{ fontSize: "0.6875rem", color: "#687770" }}>Random Forest versus a radar-threshold baseline, evaluated on spatially separated regions. Everything shown is read from saved experiment files.</p>
         </div>
         {q.isLoading && <div style={{ fontSize: "0.75rem", color: "#687770" }}>Loading…</div>}
         {q.isError && <div role="alert" style={{ fontSize: "0.75rem", color: "#991b1b" }}>Backend unreachable: experiments could not be loaded.</div>}
         {q.data && list.length === 0 && (
           <div className="rounded-lg p-5" style={{ background: "#fff", border: "1px dashed #CBD5E1", fontSize: "0.8125rem" }}>
             <b>No experiments yet.</b> No model has been trained, so no accuracy figures exist or are shown.
-            <div style={{ marginTop: 8, color: "#687770", fontSize: "0.75rem" }}>
-              To produce one you need a labelled feature table (columns <code>label, region_id, vv</code> plus optional <code>vh, elevation, slope, vv_change</code>) built from an independent flood reference, then:
-              <pre style={{ background: "#F1F5F9", padding: 8, borderRadius: 6, marginTop: 6, overflowX: "auto" }}>cd backend{"\n"}python -m app.analysis.ml_lab train --csv data/labeled_flood_features.csv</pre>
-            </div>
+            <details className="ux-disclosure mt-3 text-xs text-text-secondary">
+              <summary>Training requirements</summary>
+              <div className="pt-2">Provide labelled features from an independent reference (<code>label, region_id, vv</code>, optionally <code>vh, elevation, slope, vv_change</code>), then run:
+                <pre className="mt-2 overflow-x-auto rounded-md bg-slate-100 p-2 dark:bg-slate-800">cd backend{"\n"}python -m app.analysis.ml_lab train --csv data/labeled_flood_features.csv</pre>
+              </div>
+            </details>
           </div>
         )}
         {(showAll ? list : list.slice(0, 1)).map((e) => (

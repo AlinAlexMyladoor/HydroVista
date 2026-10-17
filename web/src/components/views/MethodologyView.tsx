@@ -3,17 +3,17 @@
 import React from "react";
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <section className="rounded-lg p-4" style={{ background: "#fff", border: "1px solid #DCE4DD" }}>
-    <h2 style={{ fontWeight: 700, fontSize: "0.9375rem", marginBottom: 6 }}>{title}</h2>
-    <div style={{ fontSize: "0.75rem", lineHeight: 1.6 }}>{children}</div>
-  </section>
+  <details className="ux-disclosure rounded-lg p-4 bg-white border border-[#DCE4DD]">
+    <summary className="text-sm">{title}</summary>
+    <div className="pt-3 text-xs leading-relaxed text-text-secondary">{children}</div>
+  </details>
 );
 
 export function MethodologyView() {
   return (
-    <div className="flex-1 overflow-y-auto" style={{ background: "#F7F8F4", color: "#26332F" }}>
-      <div className="max-w-4xl mx-auto p-6 flex flex-col gap-4">
-        <h1 style={{ fontSize: "1.125rem", fontWeight: 700 }}>Methodology, data and limitations</h1>
+    <div className="flex-1 overflow-y-auto bg-background text-text">
+      <div className="max-w-4xl mx-auto p-6 flex flex-col gap-3">
+        <h1 className="text-lg font-semibold">Methodology & data notes</h1>
 
         <Section title="Product definitions">
           <ul style={{ paddingLeft: 16, listStyle: "disc" }}>
@@ -52,7 +52,7 @@ export function MethodologyView() {
             <li><b>Elevation (map and cross-section):</b> Terrarium DEM tiles (Mapzen / AWS Open Data; SRTM/ASTER/other mix), sampled in the browser. Elevation is not flood depth.</li>
             <li><b>Roads and assets:</b> OpenStreetMap via Overpass; completeness varies.</li>
             <li><b>Sentinel imagery layer:</b> Copernicus Data Space (Sentinel-2 L2A, cloud-masked), needs backend credentials; acquisition time is shown.</li>
-            <li><b>Not implemented:</b> flood depth, population exposure, validated inundation, building/road exposure overlay, susceptibility model.</li>
+            <li><b>Interpretation:</b> flood depth and independently validated flood extent are not produced. Population exposure is an estimate from available WorldPop data; asset risk is a relative heuristic, not a flood probability.</li>
           </ul>
         </Section>
 

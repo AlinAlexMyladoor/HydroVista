@@ -7,13 +7,14 @@ import { api, type Asset } from "@/lib/api";
 import { translations } from "@/lib/translations";
 
 export function InfrastructureView() {
-  const { language, setSelectedAssetId, setActiveRoute } = useStore();
+  const { language, focusMap } = useStore();
   const t = translations[language];
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
   const [selectedType, setSelectedType] = useState<string>("all");
   const [selectedRisk, setSelectedRisk] = useState<string>("all");
+  const [focusError, setFocusError] = useState<string | null>(null);
 
   const { data: assetsData, isLoading: assetsLoading } = useQuery({
     queryKey: ["all-assets"],
@@ -58,9 +59,8 @@ export function InfrastructureView() {
     return matchesSearch && matchesType && matchesRisk;
   });
 
-  const handleSelectAsset = (assetId: string) => {
-    setSelectedAssetId(assetId);
-    setActiveRoute("overview");
+  const handleSelectAsset = (assetId: string, lat: number, lon: number) => {
+    setFocusError(focusMap(lat, lon, assetId) ? null : "This asset has no valid map coordinates.");
   };
 
   const getRiskBadge = (asset: any) => {
@@ -82,14 +82,9 @@ export function InfrastructureView() {
           <div className="flex items-center gap-2">
             <span className="text-xl">🏥</span>
             <h1 className="text-xl font-bold text-[#1E292B]">
-              {language === "en" ? "Critical Lifeline & Infrastructure Registry" : "അത്യാവശ്യ സേവനങ്ങളും അടിസ്ഥാന സൗകര്യങ്ങളും"}
+              {language === "en" ? "Infrastructure risk" : "അടിസ്ഥാന സൗകര്യ അപകടസാധ്യത"}
             </h1>
           </div>
-          <p className="text-xs text-[#687770] mt-1">
-            {language === "en"
-              ? "Geo-referenced hospitals, relief camps, electrical substations, and bridges monitored for inundation cutoff."
-              : "ആശുപത്രികൾ, ദുരിതാശ്വാസ ക്യാമ്പുകൾ, സബ് സ്റ്റേഷനുകൾ, പാലങ്ങൾ എന്നിവയുടെ വിവരങ്ങൾ."}
-          </p>
         </div>
 
         <button
@@ -150,6 +145,7 @@ export function InfrastructureView() {
       </div>
 
       {/* Asset Table */}
+      {focusError && <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200" role="alert">{focusError}</div>}
       <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
@@ -157,17 +153,14 @@ export function InfrastructureView() {
               <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[#687770] font-semibold">
                 <th className="py-3 px-4">Facility / Infrastructure</th>
                 <th className="py-3 px-4">Type</th>
-                <th className="py-3 px-4">Elevation (MSL)</th>
-                <th className="py-3 px-4">HAND Metric</th>
+                <th className="py-3 px-4">Elevation</th>
                 <th className="py-3 px-4">Vulnerability Tier</th>
-                <th className="py-3 px-4">Isolation Estimate</th>
-                <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F1F5F9]">
               {filteredAssets.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-[#94A3B8]">
+                  <td colSpan={4} className="py-10 text-center text-[#94A3B8]">
                     {language === "en" ? "No infrastructure matching filter criteria." : "വിവരങ്ങൾ ലഭ്യമല്ല."}
                   </td>
                 </tr>
@@ -176,42 +169,34 @@ export function InfrastructureView() {
                   const assetId = asset.osm_id || asset.id || `asset-${index}`;
                   const exp = exposureMap.get(assetId);
                   const elevation = asset.elevation_m ?? exp?.terrain_elevation_m;
-                  const isLow = elevation != null && elevation < 12;
                   return (
-                    <tr key={assetId} className="hover:bg-[#F8FAFC] transition-colors">
+                    <tr
+                      key={assetId}
+                      className="cursor-pointer hover:bg-[#F8FAFC] transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-600"
+                      role="link"
+                      tabIndex={0}
+                      aria-label={`Show ${asset.name || "asset"} on 3D map`}
+                      onClick={() => handleSelectAsset(assetId, Number(asset.lat), Number(asset.lon))}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          handleSelectAsset(assetId, Number(asset.lat), Number(asset.lon));
+                        }
+                      }}
+                    >
                       <td className="py-3 px-4">
                         <div className="font-semibold text-[#1E292B]">{asset.name}</div>
-                        <div className="text-[11px] text-[#687770]">{asset.address || "Chalakudy Basin"}</div>
+                        {asset.address && <div className="text-[11px] text-[#687770]">{asset.address}</div>}
                       </td>
                       <td className="py-3 px-4">
                         <span className="capitalize px-2 py-0.5 rounded text-[11px] font-medium bg-[#F1F5F9] text-[#475569]">
                           {asset.asset_type}
                         </span>
                       </td>
-                      <td className="py-3 px-4 font-mono text-[#1E292B]">
-                        {elevation != null ? `${Number(elevation).toFixed(1)} m` : "—"}
-                      </td>
-                      <td className="py-3 px-4 font-mono text-[#687770]">
-                        {elevation != null ? `+${(Number(elevation) - 8.2).toFixed(1)} m` : "—"}
+                      <td className="py-3 px-4 font-mono text-[#1E292B]" title={exp?.terrain_source || undefined}>
+                        {elevation != null ? `${Math.round(Number(elevation))} m` : "—"}
                       </td>
                       <td className="py-3 px-4">{getRiskBadge(asset)}</td>
-                      <td className="py-3 px-4">
-                        {isLow ? (
-                          <span className="text-[#DC2626] font-semibold flex items-center gap-1">
-                            <span>⚠️</span> 3.5 hrs (Cutoff)
-                          </span>
-                        ) : (
-                          <span className="text-[#059669] font-medium">Safe access</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => handleSelectAsset(assetId)}
-                          className="px-2.5 py-1 bg-[#26332F] hover:bg-[#1E292B] text-white rounded text-[11px] font-medium shadow-xs transition-colors"
-                        >
-                          {language === "en" ? "Map View →" : "മാപ്പ് →"}
-                        </button>
-                      </td>
                     </tr>
                   );
                 })
