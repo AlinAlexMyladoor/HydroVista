@@ -44,7 +44,7 @@ async def submit_report(
             status="unverified",
         )
         db.add(new_report)
-        await db.flush()
+        await db.commit()
 
         log.info("report.submitted", id=str(new_report.id), lat=report.lat, lon=report.lon)
 
@@ -55,17 +55,21 @@ async def submit_report(
             lon=new_report.lon,
             description=new_report.description,
             reported_depth_cm=new_report.reported_depth_cm,
+            reporter_name=new_report.reporter_name,
             status=new_report.status,
             disclaimer=DISCLAIMER,
         )
     except Exception as exc:
+        try:
+            await db.rollback()
+        except Exception as rollback_exc:
+            log.error("report.rollback_failed", error=str(rollback_exc))
         log.error("report.submit_failed", error=str(exc))
         raise HTTPException(
             status_code=503,
             detail={
                 "error": "report_submission_failed",
                 "message": "Could not save report. Database may be unavailable.",
-                "detail": str(exc),
             },
         )
 
@@ -95,6 +99,7 @@ async def list_reports(
                     "lon": r.lon,
                     "description": r.description,
                     "reported_depth_cm": r.reported_depth_cm,
+                    "reporter_name": r.reporter_name,
                     "status": r.status,
                     "disclaimer": DISCLAIMER,
                 }
@@ -110,9 +115,4 @@ async def list_reports(
         }
     except Exception as exc:
         log.error("reports.list_failed", error=str(exc))
-        return {
-            "items": [],
-            "meta": {"total": 0, "page": 1, "page_size": page_size, "pages": 0},
-            "error": "Database unavailable",
-            "disclaimer": DISCLAIMER,
-        }
+        raise HTTPException(status_code=503, detail={"error": "reports_unavailable", "message": "Reports are temporarily unavailable."}) from exc

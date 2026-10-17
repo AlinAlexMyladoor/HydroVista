@@ -31,7 +31,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       let detail = `HTTP ${res.status}`;
       try {
         const err = await res.json();
-        detail = err.detail?.message || err.detail || err.error || detail;
+        const rawDetail = err.detail;
+        detail = typeof rawDetail === "string"
+          ? rawDetail
+          : Array.isArray(rawDetail)
+            ? rawDetail.map((issue: any) => {
+                const field = Array.isArray(issue.loc) ? issue.loc.filter((part: unknown) => part !== "body").join(".") : "request";
+                return `${field}: ${issue.msg || "Invalid value"}`;
+              }).join("; ")
+            : rawDetail?.message || (rawDetail ? JSON.stringify(rawDetail) : err.error || detail);
         const fe = err.detail?.errors;
         if (Array.isArray(fe) && fe.length) detail += " — " + fe.map((e: { field: string; message: string }) => `${e.field}: ${e.message}`).join("; ");
       } catch {}
@@ -135,6 +143,7 @@ export interface ExposureScore {
   flood_susceptibility: number | null;
   rainfall_accumulation_mm: number | null;
   terrain_elevation_m: number | null;
+  terrain_source?: string | null;
   evidence: string[];
   data_quality: "good" | "partial" | "limited";
   data_warnings: string[];
@@ -146,6 +155,7 @@ export interface ExposureResponse {
   meta: { total: number; page: number; page_size: number; pages: number };
   rainfall_24h_mm: number | null;
   forecast_time: string | null;
+  terrain_coverage?: { sampled_assets: number; total_assets: number; sources: string[] };
   warnings: string[];
   disclaimer: string;
 }
@@ -223,6 +233,18 @@ export interface ReportCreate {
   description: string;
   reported_depth_cm?: number;
   reporter_name?: string;
+}
+
+export interface ReportItem extends ReportCreate {
+  id: string;
+  submitted_at: string;
+  status: string;
+  disclaimer: string;
+}
+export interface ReportsResponse {
+  items: ReportItem[];
+  meta: { total: number; page: number; page_size: number; pages: number };
+  disclaimer: string;
 }
 
 export interface AnalysisParams {
@@ -406,7 +428,7 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    list: () => request("/api/v1/reports"),
+    list: () => request<ReportsResponse>("/api/v1/reports"),
   },
 
   brief: () => request<BriefResponse>("/api/v1/brief"),

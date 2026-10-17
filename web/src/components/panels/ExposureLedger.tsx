@@ -58,6 +58,7 @@ export function ExposureLedger() {
       "Risk Score",
       "Risk Level",
       "Elevation (m)",
+      "Elevation source",
       "Rainfall 24h (mm)",
       "Evidence",
     ];
@@ -70,6 +71,7 @@ export function ExposureLedger() {
       i.risk_score.toFixed(3),
       i.risk_category,
       i.terrain_elevation_m?.toFixed(1) || "",
+      `"${i.terrain_source || ""}"`,
       i.rainfall_accumulation_mm?.toFixed(1) || "",
       `"${(i.evidence || []).join("; ")}"`,
     ]);
@@ -192,9 +194,9 @@ export function ExposureLedger() {
                     </div>
                   </td>
 
-                  <td className="py-2.5 px-3 tabular font-mono text-text">
+                  <td className="py-2.5 px-3 tabular font-mono text-text" title={item.terrain_source || undefined}>
                     {item.terrain_elevation_m !== null
-                      ? `${item.terrain_elevation_m.toFixed(1)} m`
+                      ? <>{item.terrain_elevation_m.toFixed(1)} m{item.terrain_source && <div className="text-[9px] text-text-secondary font-sans">{item.terrain_source}</div>}</>
                       : "—"}
                   </td>
 

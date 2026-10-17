@@ -9,6 +9,7 @@ from fastapi import APIRouter
 from app.api.v1.assets import _get_or_fetch_assets
 from app.api.v1 import forecast as forecast_api
 from app.services.exposure import rank_assets
+from app.services.elevation import sample_assets
 from app.core.config import settings
 
 log = structlog.get_logger(__name__)
@@ -49,7 +50,8 @@ async def get_brief():
 
     # Exposure
     assets, _ = await _get_or_fetch_assets()
-    rankings = rank_assets(assets=assets, rainfall_24h_mm=rainfall_24h_mm) if assets else []
+    elevations = await sample_assets(assets) if assets else {}
+    rankings = rank_assets(assets=assets, rainfall_24h_mm=rainfall_24h_mm, elevation_lookup=elevations) if assets else []
 
     high_critical = [r for r in rankings if r["risk_category"] in ("high", "critical")]
     max_category = rankings[0]["risk_category"] if rankings else None

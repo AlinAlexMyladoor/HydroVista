@@ -286,6 +286,7 @@ class ReportResponse(BaseModel):
     lon: float
     description: str
     reported_depth_cm: float | None
+    reporter_name: str | None = None
     status: str
     disclaimer: str = "Unverified community report. Not a confirmed official observation."
 

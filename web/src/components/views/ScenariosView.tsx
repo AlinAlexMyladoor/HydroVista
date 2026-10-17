@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useStore } from "@/lib/store";
-import { api, type ScenarioResponse } from "@/lib/api";
+import { api, type ScenarioResponse, APIError } from "@/lib/api";
 import { translations } from "@/lib/translations";
 
 export function ScenariosView() {
@@ -59,30 +59,8 @@ export function ScenariosView() {
       });
       setScenarioResult(res);
       setActiveScenario(res);
-    } catch (err: any) {
-      console.warn("Failed to create scenario via backend, generating simulated physics response:", err);
-      const fallback: ScenarioResponse = {
-        scenario_id: `scen-${Date.now()}`,
-        rainfall_mm: rainfallMm,
-        duration_hours: durationHours,
-        forecast_hour: 24,
-        closure_threshold: 0.3,
-        baseline_24h_mm: 34.2,
-        scenario_24h_mm: rainfallMm + 34.2,
-        summary: {
-          baseline_high_critical_count: 8,
-          scenario_high_critical_count: Math.min(38, Math.round(rainfallMm / 6) + 8),
-          delta_high_critical: Math.min(30, Math.round(rainfallMm / 6)),
-          escalated_count: Math.round(rainfallMm / 8),
-          combined_24h_mm: rainfallMm + 34.2,
-        },
-        method: "empirical_intensity_duration",
-        assumptions: ["Uniform basin distribution", "Saturated antecedent condition"],
-        disclaimer: "Deterministic stress simulation",
-        computed_at: new Date().toISOString(),
-      };
-      setScenarioResult(fallback);
-      setActiveScenario(fallback);
+    } catch (err) {
+      setErrorMsg(err instanceof APIError ? err.detail : (err as Error).message);
     } finally {
       setIsRunning(false);
     }
@@ -264,6 +242,7 @@ export function ScenariosView() {
                   </div>
                 </div>
               )}
+              {errorMsg && <div role="alert" className="mb-3 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-800">Scenario request failed: {errorMsg}</div>}
 
               {isRunning && (
                 <div className="py-16 text-center text-[#0D9488]">

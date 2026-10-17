@@ -19,6 +19,7 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass, asdict
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -144,6 +145,42 @@ def init_ee() -> Any:
             raise EEUnavailable(f"Earth Engine initialisation failed: {type(e).__name__}: {e}") from e
         _initialised = True
     return ee
+
+
+def sentinel2_thumbnail_url(bbox: list[float]) -> tuple[str, str]:
+    """Build a recent, cloud-masked true-colour Sentinel-2 image via Earth Engine."""
+    ee = init_ee()
+    roi = ee.Geometry.Rectangle(bbox)
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=90)
+    collection = (
+        ee.ImageCollection(S2)
+        .filterBounds(roi)
+        .filterDate(start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
+        .filter(ee.Filter.lte("CLOUDY_PIXEL_PERCENTAGE", 80))
+    )
+    if not collection.size().getInfo():
+        raise NoScenesError("No Sentinel-2 scenes found in the last 90 days")
+
+    def mask_clouds(image: Any) -> Any:
+        scl = image.select("SCL")
+        clear = (
+            scl.neq(3).And(scl.neq(8)).And(scl.neq(9))
+            .And(scl.neq(10)).And(scl.neq(11))
+        )
+        return image.updateMask(clear)
+
+    rgb = collection.map(mask_clouds).median().select(["B4", "B3", "B2"])
+    acquired = ee.Date(collection.aggregate_max("system:time_start")).format("YYYY-MM-dd'T'HH:mm:ss'Z'").getInfo()
+    url = rgb.getThumbURL({
+        "region": roi,
+        "dimensions": 1024,
+        "format": "png",
+        "min": 0,
+        "max": 3000,
+        "gamma": 1.15,
+    })
+    return url, acquired
 
 
 def _collection(ee: Any, roi: Any, p: FloodParams):

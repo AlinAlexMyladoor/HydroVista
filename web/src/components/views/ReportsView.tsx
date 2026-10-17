@@ -23,6 +23,7 @@ export function ReportsView() {
     queryKey: ["citizen-reports"],
     queryFn: () => api.reports.list(),
     staleTime: 30_000,
+    retry: false,
   });
 
   const submitMutation = useMutation({
@@ -39,20 +40,30 @@ export function ReportsView() {
     onError: (err: any) => {
       setStatusMsg({
         type: "error",
-        text: err?.message || (language === "en" ? "Failed to transmit report. Saved locally." : "സന്ദേശം അയക്കാൻ സാധിച്ചില്ല."),
+        text: err?.message || (language === "en" ? "Could not submit the report. Please check the details and try again." : "സന്ദേശം അയക്കാൻ സാധിച്ചില്ല."),
       });
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!description) return;
+    if (description.trim().length < 10) return;
+    const latitude = Number(lat);
+    const longitude = Number(lon);
+    if (!Number.isFinite(latitude) || latitude < 9.5 || latitude > 11.5) {
+      setStatusMsg({ type: "error", text: "Latitude must be between 9.5° and 11.5° for this service area." });
+      return;
+    }
+    if (!Number.isFinite(longitude) || longitude < 76 || longitude > 77.5) {
+      setStatusMsg({ type: "error", text: "Longitude must be between 76° and 77.5° for this service area." });
+      return;
+    }
     submitMutation.mutate({
-      lat: parseFloat(lat) || 10.3072,
-      lon: parseFloat(lon) || 76.3314,
-      reported_depth_cm: depthCm ? parseFloat(depthCm) : undefined,
-      description,
-      reporter_name: reporterName || "Anonymous Field Observer",
+      lat: latitude,
+      lon: longitude,
+      reported_depth_cm: depthCm.trim() ? Number(depthCm) : undefined,
+      description: description.trim(),
+      reporter_name: reporterName.trim() || "Anonymous Field Observer",
     });
   };
 
@@ -108,6 +119,8 @@ export function ReportsView() {
                 </label>
                 <input
                   type="text"
+                  autoComplete="name"
+                  maxLength={100}
                   placeholder={language === "en" ? "e.g., Ward 4 Volunteer / Suresh K." : "പേര് അല്ലെങ്കിൽ തസ്തിക"}
                   value={reporterName}
                   onChange={(e) => setReporterName(e.target.value)}
@@ -157,7 +170,11 @@ export function ReportsView() {
                   <div>
                     <span className="text-[10px] text-[#687770]">Latitude</span>
                     <input
-                      type="text"
+                      type="number"
+                      required
+                      min="9.5"
+                      max="11.5"
+                      step="0.0001"
                       value={lat}
                       onChange={(e) => setLat(e.target.value)}
                       className="w-full px-2.5 py-1.5 font-mono bg-white border border-[#E2E8F0] rounded-md text-[11px] focus:outline-none focus:border-[#0D9488]"
@@ -166,7 +183,11 @@ export function ReportsView() {
                   <div>
                     <span className="text-[10px] text-[#687770]">Longitude</span>
                     <input
-                      type="text"
+                      type="number"
+                      required
+                      min="76"
+                      max="77.5"
+                      step="0.0001"
                       value={lon}
                       onChange={(e) => setLon(e.target.value)}
                       className="w-full px-2.5 py-1.5 font-mono bg-white border border-[#E2E8F0] rounded-md text-[11px] focus:outline-none focus:border-[#0D9488]"
@@ -181,6 +202,8 @@ export function ReportsView() {
                 </label>
                 <input
                   type="number"
+                  min="0"
+                  max="500"
                   placeholder="e.g., 30"
                   value={depthCm}
                   onChange={(e) => setDepthCm(e.target.value)}
@@ -195,6 +218,8 @@ export function ReportsView() {
                 <textarea
                   rows={3}
                   required
+                  minLength={10}
+                  maxLength={1000}
                   placeholder={language === "en" ? "Describe road condition, stranded households, or river overflow..." : "വിശദമായ വിവരങ്ങൾ നൽകുക..."}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -202,9 +227,12 @@ export function ReportsView() {
                 />
               </div>
 
+              {description.trim().length > 0 && description.trim().length < 10 && (
+                <div className="text-[11px] text-amber-700">Please enter at least 10 characters.</div>
+              )}
               <button
                 type="submit"
-                disabled={submitMutation.isPending}
+                disabled={submitMutation.isPending || description.trim().length < 10}
                 className="w-full py-2.5 bg-[#0D9488] hover:bg-[#0F766E] disabled:bg-[#94A3B8] text-white font-bold rounded-lg shadow-sm transition-all text-xs"
               >
                 {submitMutation.isPending ? "Submitting..." : (language === "en" ? "Broadcast Field Report" : "വിവരം സമർപ്പിക്കുക")}
@@ -239,9 +267,9 @@ export function ReportsView() {
                   <div>
                     <div className="font-semibold text-xs text-[#1E292B] flex items-center gap-2">
                       <span>{rep.reporter_name || "Community Observer"}</span>
-                      {rep.verified !== false && (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#ECFDF5] text-[#059669]">
-                          VERIFIED
+                      {rep.status === "unverified" && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700">
+                          UNVERIFIED
                         </span>
                       )}
                     </div>
@@ -263,7 +291,7 @@ export function ReportsView() {
 
                 <div className="flex items-center justify-between mt-3 text-[10px] text-[#94A3B8]">
                   <span>
-                    {rep.created_at ? new Date(rep.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Just now"}
+                    {rep.submitted_at ? new Date(rep.submitted_at).toLocaleString() : ""}
                   </span>
                   <button
                     onClick={() => setActiveRoute("overview")}

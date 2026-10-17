@@ -12,6 +12,7 @@ from app.api.v1.assets import _get_or_fetch_assets
 from app.api.v1.forecast import _forecast_cache
 from app.schemas.schemas import ScenarioRequest
 from app.services.scenario import compute_scenario
+from app.services.elevation import sample_assets_detailed
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
@@ -29,6 +30,7 @@ async def create_scenario(request: ScenarioRequest):
     Results are scenario-modelled, NOT physically simulated.
     """
     assets, asset_warnings = await _get_or_fetch_assets()
+    elevations, elevation_sources = await sample_assets_detailed(assets) if assets else ({}, {})
 
     # Get baseline rainfall from forecast cache
     baseline_24h_mm: float | None = None
@@ -49,6 +51,8 @@ async def create_scenario(request: ScenarioRequest):
         closure_threshold=closure_threshold,
         assets=assets,
         baseline_24h_rain_mm=baseline_24h_mm,
+        elevation_lookup=elevations,
+        elevation_source_lookup=elevation_sources,
     )
 
     result["warnings"] = asset_warnings

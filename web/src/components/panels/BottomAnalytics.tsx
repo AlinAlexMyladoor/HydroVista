@@ -168,10 +168,12 @@ function ExposureRankingPanel() {
     retry: 2,
   });
 
+  const { data: cachedRuns } = useQuery({ queryKey: ["analysis-runs"], queryFn: api.analysis.runs, staleTime: 60_000 });
+  const latestRunId = inundationRunId ?? cachedRuns?.runs.find((run) => run.status === "completed")?.id ?? null;
   const { data: inundationRun } = useQuery({
-    queryKey: ["analysis-run", inundationRunId, "population"],
-    queryFn: () => api.analysis.run(inundationRunId!),
-    enabled: Boolean(inundationRunId),
+    queryKey: ["analysis-run", latestRunId, "population"],
+    queryFn: () => api.analysis.run(latestRunId!),
+    enabled: Boolean(latestRunId),
     retry: 1,
   });
 
@@ -191,7 +193,7 @@ function ExposureRankingPanel() {
       </div>
       {inundationRun?.status === "completed" && (
         <div style={{ fontSize: "0.5625rem", color: "#155E59", marginBottom: 4 }}>
-          Exposed population: {(inundationRun.result?.exposed_population ?? 0).toLocaleString()}
+          Flooded area: {(inundationRun.result?.areas_km2?.candidate_inundation_final ?? 0).toFixed(2)} km² · Exposed population: {(inundationRun.result?.exposed_population ?? 0).toLocaleString()}
         </div>
       )}
 

@@ -17,7 +17,6 @@ import {
   Info,
   Home,
   RefreshCw,
-  AlertTriangle,
   Moon,
   Sun,
 } from "lucide-react";
@@ -102,26 +101,6 @@ export function Header() {
       className="flex-shrink-0 bg-white border-b border-[#DCE4DD] z-30 relative"
       style={{ boxShadow: "0 1px 4px 0 rgba(21,94,89,0.06)" }}
     >
-      {/* Research Prototype Banner */}
-      <div
-        className="px-4 py-1 flex items-center justify-between gap-4"
-        style={{ background: "#fffbeb", borderBottom: "1px solid #fde68a" }}
-      >
-        <div className="flex items-center gap-1.5" style={{ color: "#92400e", fontSize: "0.6875rem", fontWeight: 500 }}>
-          <AlertTriangle style={{ width: 12, height: 12, flexShrink: 0 }} />
-          <span>
-            {language === "en"
-              ? "Research Prototype — Evaluative model. Not an official disaster advisory. Refer to KSDMA / IMD for official warnings."
-              : "ഗവേഷണ പ്രോട്ടോടൈപ്പ് — ഔദ്യോഗിക ദുരന്ത ഉപദേശമല്ല. ഔദ്യോഗിക മുന്നറിയിപ്പുകൾക്ക് KSDMA / IMD കാണുക."}
-          </span>
-        </div>
-        <div className="hidden sm:flex items-center gap-3" style={{ fontSize: "0.6875rem", color: "#687770" }}>
-          <span>Chalakudy Basin · 10.31°N, 76.33°E</span>
-          <span style={{ color: "#9ca3af" }}>|</span>
-          <span>Open-Meteo · OSM · Terrarium DEM</span>
-        </div>
-      </div>
-
       {/* Main Header Bar */}
       <div className="px-4 flex items-center gap-0" style={{ height: 48 }}>
 

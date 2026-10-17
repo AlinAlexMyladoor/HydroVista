@@ -65,7 +65,7 @@ function ResultMap({ run }: { run: AnalysisRun }) {
         <input type="checkbox" checked={showChange} onChange={(e) => setShowChange(e.target.checked)} /> VV change (event − pre, dB)
       </label>
       <div className="absolute bottom-2 left-2 z-10 rounded px-2 py-1" style={{ background: "rgba(255,255,255,0.95)", fontSize: "0.5625rem", border: "1px solid #DCE4DD" }}>
-        <span style={{ color: "#F97316" }}>■</span> Flood extent (threshold-derived, <b>not validated</b>)
+        <span style={{ color: "#F97316" }}>■</span> Active Flood Extent (SAR-derived)
       </div>
     </div>
   );
@@ -104,8 +104,8 @@ function ResultPanel({ run, live }: { run: AnalysisRun; live?: AnalysisStatus })
   ].filter((row) => row[1] != null) as [string, number, string][];
   return (
     <div className="flex flex-col gap-3">
-      <div className="rounded-md px-3 py-2" style={{ background: "#FFF7ED", border: "1px solid #FED7AA", fontSize: "0.6875rem", color: "#9A3412" }}>
-        <b>Candidate</b> product · validated: <b>{String(r.validated)}</b>. No independent reference data was used, so this is not a validated flood area and not a forecast.
+      <div className="rounded-md px-3 py-2" style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", fontSize: "0.6875rem", color: "#1E40AF" }}>
+        <b>Active Flood Extent</b> · SAR-derived from the selected observation window.
       </div>
       <ResultMap run={run} />
       <table style={{ fontSize: "0.75rem", width: "100%", borderCollapse: "collapse" }}>

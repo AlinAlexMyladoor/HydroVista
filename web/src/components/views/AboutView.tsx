@@ -30,17 +30,6 @@ export function AboutView() {
       </div>
 
       <div className="max-w-4xl mx-auto w-full py-6 space-y-6">
-        {/* Research Disclaimer Banner */}
-        <div className="bg-[#FFFBEB] border border-[#FCD34D] rounded-xl p-4 text-xs text-[#92400E] flex items-start gap-3">
-          <span className="text-lg">⚠️</span>
-          <div>
-            <strong className="font-bold">Research Prototype & Statutory Disclaimer:</strong>
-            <p className="mt-1 leading-relaxed text-[11px] text-[#78350F]">
-              HydroVista is an applied geospatial AI and decision support system developed for community flood resilience and lifeline risk auditing. It is not an official warning platform and does not replace emergency orders or evacuation protocols issued by the Kerala State Disaster Management Authority (KSDMA) or the District Disaster Management Authority (DDMA). In an emergency, follow local civil defence directives.
-            </p>
-          </div>
-        </div>
-
         {/* Basin Profile Card */}
         <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-xs space-y-4">
           <h2 className="text-sm font-bold text-[#1E292B] uppercase tracking-wider flex items-center gap-2">

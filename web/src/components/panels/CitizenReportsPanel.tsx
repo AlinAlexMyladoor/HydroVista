@@ -31,6 +31,8 @@ export function CitizenReportsPanel() {
   const { data: reports, isLoading } = useQuery({
     queryKey: ["reports-list"],
     queryFn: () => api.reports.list(),
+    retry: false,
+    staleTime: 30_000,
   });
 
   const mutation = useMutation({
@@ -45,7 +47,7 @@ export function CitizenReportsPanel() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!description.trim()) return;
+    if (description.trim().length < 10) return;
     mutation.mutate({
       lat,
       lon,
@@ -55,7 +57,7 @@ export function CitizenReportsPanel() {
     });
   };
 
-  const reportList = Array.isArray(reports) ? reports : [];
+  const reportList = reports?.items ?? [];
 
   return (
     <div className="h-full flex flex-col bg-background overflow-hidden select-none">
@@ -96,6 +98,8 @@ export function CitizenReportsPanel() {
                 </label>
                 <input
                   type="number"
+                  min="9.5"
+                  max="11.5"
                   step="0.0001"
                   value={lat}
                   onChange={(e) => setLat(parseFloat(e.target.value))}
@@ -109,6 +113,8 @@ export function CitizenReportsPanel() {
                 </label>
                 <input
                   type="number"
+                  min="76"
+                  max="77.5"
                   step="0.0001"
                   value={lon}
                   onChange={(e) => setLon(parseFloat(e.target.value))}
@@ -144,11 +150,16 @@ export function CitizenReportsPanel() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="E.g., Water spilling over service road near Chalakudy Railway Bridge..."
+                minLength={10}
+                maxLength={1000}
                 rows={2}
                 className="w-full bg-background border border-border rounded px-2.5 py-1.5 text-xs text-text focus:outline-none focus:border-primary placeholder:text-text-secondary"
                 required
               />
             </div>
+            {description.trim().length > 0 && description.trim().length < 10 && (
+              <div className="text-[11px] text-amber-700">Please enter at least 10 characters.</div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
               <div>
@@ -165,7 +176,7 @@ export function CitizenReportsPanel() {
               </div>
               <button
                 type="submit"
-                disabled={mutation.isPending || !description.trim()}
+                disabled={mutation.isPending || description.trim().length < 10}
                 className="btn-primary py-2 flex items-center justify-center gap-1.5 text-xs disabled:opacity-50"
               >
                 <Send className="w-3.5 h-3.5" />
@@ -177,6 +188,11 @@ export function CitizenReportsPanel() {
               <div className="p-2 bg-green-50 text-green-800 text-2xs rounded border border-green-200 flex items-center gap-1.5 font-medium animate-fade-in">
                 <CheckCircle className="w-3.5 h-3.5 text-green-600" />
                 <span>Report successfully posted as unverified community observation.</span>
+              </div>
+            )}
+            {mutation.isError && (
+              <div role="alert" className="p-2 bg-red-50 text-red-800 text-2xs rounded border border-red-200">
+                Could not save report: {mutation.error instanceof Error ? mutation.error.message : "Reports are temporarily unavailable."}
               </div>
             )}
           </form>
@@ -215,7 +231,7 @@ export function CitizenReportsPanel() {
                     </span>
                     <span className="text-2xs text-text-secondary font-mono flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      {r.created_at ? new Date(r.created_at).toLocaleTimeString() : "Recent"}
+                  {r.submitted_at ? new Date(r.submitted_at).toLocaleTimeString() : "Recent"}
                     </span>
                   </div>
 

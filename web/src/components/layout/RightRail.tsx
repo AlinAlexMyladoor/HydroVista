@@ -42,10 +42,14 @@ function RiskAssessmentCard() {
     retry: 2,
   });
 
+  const { data: cachedRuns } = useQuery({
+    queryKey: ["analysis-runs"], queryFn: api.analysis.runs, staleTime: 60_000,
+  });
+  const latestRunId = inundationRunId ?? cachedRuns?.runs.find((run) => run.status === "completed")?.id ?? null;
   const { data: inundationRun } = useQuery({
-    queryKey: ["analysis-run", inundationRunId, "population"],
-    queryFn: () => api.analysis.run(inundationRunId!),
-    enabled: Boolean(inundationRunId),
+    queryKey: ["analysis-run", latestRunId, "population"],
+    queryFn: () => api.analysis.run(latestRunId!),
+    enabled: Boolean(latestRunId),
     retry: 1,
   });
 
@@ -55,7 +59,7 @@ function RiskAssessmentCard() {
   const isHighOrCritical = riskCategory === "high" || riskCategory === "critical";
   const rainfallMm = brief?.rainfall_24h_mm;
   const exposedPopulation = inundationRun?.status === "completed"
-    ? inundationRun.result?.exposed_population ?? 0
+    ? inundationRun.result?.exposed_population ?? null
     : null;
   const catLabel: Record<string, string> = {
     critical: en ? "Critical" : "ഗുരുതര",
@@ -125,12 +129,16 @@ function RiskAssessmentCard() {
           </div>
           <div className="metric-label">{en ? "Forecast rainfall (24 h)" : "പ്രവചിത മഴ (24h)"}</div>
         </div>
-        <div className="metric-tile" title={en ? "Requires a validated inundation model or observed flood extent (Sentinel-1)." : ""}>
+        <div className="metric-tile" title={en ? "Candidate inundation area from the latest completed Sentinel-1 analysis." : ""}>
           <Zap style={{ width: 14, height: 14, color: "#9ca3af", marginBottom: 2 }} />
-          <div className="metric-value" style={{ fontSize: "0.8125rem", color: "#9ca3af" }}>{en ? "No model" : "മോഡലില്ല"}</div>
-          <div className="metric-label">{en ? "Flooded area (needs inundation model)" : "വെള്ളപ്പൊക്ക വിസ്തീർണ്ണം"}</div>
+          <div className="metric-value" style={{ fontSize: "0.8125rem", color: inundationRun?.result ? "#155E59" : "#9ca3af" }}>
+            {inundationRun?.status === "completed" && inundationRun.result?.areas_km2?.candidate_inundation_final != null
+              ? `${inundationRun.result.areas_km2.candidate_inundation_final.toFixed(2)} km²`
+              : en ? "Run analysis" : "വിശകലനം നടത്തുക"}
+          </div>
+          <div className="metric-label">{en ? "Candidate flooded area" : "പ്രളയ സാധ്യതാ വിസ്തീർണ്ണം"}</div>
         </div>
-        <div className="metric-tile" title={en ? "Needs a population raster and a flood extent." : ""}>
+        <div className="metric-tile" title={en ? "Population intersecting the latest completed inundation analysis." : ""}>
           <Users style={{ width: 14, height: 14, color: "#9ca3af", marginBottom: 2 }} />
           <div className="metric-value" style={{ fontSize: "0.8125rem", color: exposedPopulation == null ? "#9ca3af" : "#155E59" }}>
             {exposedPopulation == null ? (en ? "Run analysis" : "വിശകലനം നടത്തുക") : exposedPopulation.toLocaleString()}
@@ -508,7 +516,11 @@ function ExposureSummaryCard() {
   });
 
   const topItems = exposure?.items?.slice(0, 4) ?? [];
-  const hasElevationWarning = exposure?.items?.some(i => i.data_warnings?.some(w => w.includes("Elevation")));
+  const terrainCoverage = exposure?.terrain_coverage;
+  const missingTerrainCount = terrainCoverage
+    ? terrainCoverage.total_assets - terrainCoverage.sampled_assets
+    : exposure?.items?.filter(i => i.data_warnings?.some(w => w.includes("Elevation"))).length ?? 0;
+  const hasElevationWarning = missingTerrainCount > 0;
 
   return (
     <div className="intel-card">
@@ -525,7 +537,14 @@ function ExposureSummaryCard() {
       {hasElevationWarning && (
         <div className="mb-2 flex items-center gap-1 rounded" style={{ background: "#fffbeb", border: "1px solid #fde68a", padding: "2px 6px", fontSize: "0.5625rem", color: "#92400e" }}>
           <Info style={{ width: 9, height: 9 }} />
-          {language === "en" ? "Terrain factor uses default (elevation unavailable)" : "ഭൂപ്രകൃതി ഘടകം: ഡിഫോൾട്ട്"}
+          {language === "en"
+            ? `${missingTerrainCount} asset${missingTerrainCount === 1 ? "" : "s"} use the default terrain factor; elevation is unavailable.`
+            : `${missingTerrainCount} സ്ഥാപനങ്ങൾക്ക് ഉയര ഡാറ്റ ലഭ്യമല്ല; ഡിഫോൾട്ട് ടെറൈൻ ഘടകം ഉപയോഗിക്കുന്നു.`}
+        </div>
+      )}
+      {terrainCoverage && terrainCoverage.sources.length > 0 && (
+        <div className="mb-2 text-[9px] text-[#687770]">
+          Elevation sampled for {terrainCoverage.sampled_assets}/{terrainCoverage.total_assets} assets · {terrainCoverage.sources.join(", ")}
         </div>
       )}
 

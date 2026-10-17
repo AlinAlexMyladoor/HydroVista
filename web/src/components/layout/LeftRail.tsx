@@ -14,7 +14,6 @@ import {
   ChevronRight,
   Mountain,
   Droplets,
-  CloudRain,
   Waves,
   Navigation,
   Building2,
@@ -44,7 +43,6 @@ interface LayerItem {
 const LAYER_ICONS: Record<string, { icon: React.ElementType; iconColor: string }> = {
   "terrain":      { icon: Mountain,      iconColor: "#8B7355" },
   "flood-risk":   { icon: AlertCircle,   iconColor: "#C83F3A" },
-  "rainfall":     { icon: CloudRain,     iconColor: "#3299C6" },
   "rivers":       { icon: Waves,         iconColor: "#2563EB" },
   "roads":        { icon: Navigation,    iconColor: "#6b7280" },
   "buildings":    { icon: Building2,     iconColor: "#9ca3af" },
@@ -111,6 +109,7 @@ export function LeftRail() {
     if (!ds.is_available) return language === "en" ? "Unavailable" : "ലഭ്യമല്ല";
     if (!ds.last_success) return language === "en" ? "Available" : "ലഭ്യമാണ്";
     const minutes = Math.floor((Date.now() - new Date(ds.last_success).getTime()) / 60_000);
+    if (minutes < 1) return language === "en" ? "Updated just now" : "ഇപ്പോൾ പുതുക്കി";
     if (minutes < 60) return `${language === "en" ? "Updated" : "അവസാനം"} ${minutes}m ${language === "en" ? "ago" : "മുൻപ്"}`;
     const hours = Math.floor(minutes / 60);
     return `${language === "en" ? "Updated" : "അവസാനം"} ${hours}h ${language === "en" ? "ago" : "മുൻപ്"}`;
@@ -377,9 +376,7 @@ export function LeftRail() {
                     <span
                       className="status-dot"
                       style={{
-                        backgroundColor: ds.is_available
-                          ? (ds.last_success ? "#22c55e" : "#E7A23B")
-                          : "#9ca3af",
+                        backgroundColor: ds.is_available ? "#22c55e" : "#9ca3af",
                       }}
                     />
                     <span className="source-name flex-1">

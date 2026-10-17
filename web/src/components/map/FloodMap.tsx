@@ -59,6 +59,7 @@ const btn: React.CSSProperties = {
 export function FloodMap() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const satelliteImageUrl = useRef<string | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const groupsRef = useRef<StyleGroups>({ rivers: [], roads: [], buildings: [], boundaries: [] });
   const demCounts = useRef({ ok: 0, failed: 0 });
@@ -94,7 +95,7 @@ export function FloodMap() {
       }),
     retry: 2,
   });
-  const { data: reportsData } = useQuery({ queryKey: ["reports-list"], queryFn: () => api.reports.list(), retry: 1 });
+  const { data: reportsData } = useQuery({ queryKey: ["reports-list"], queryFn: () => api.reports.list(), retry: false, staleTime: 30_000 });
 
   // Candidate-inundation polygons from a completed Earth Engine run (selected in Flood Analysis).
   const { data: inundationRun } = useQuery({
@@ -301,11 +302,11 @@ export function FloodMap() {
         paint: {
           "fill-extrusion-color": [
             "interpolate", ["linear"], ["coalesce", ["to-number", ["get", "depth"]], 2],
-            0, "#67E8F9", 1, "#2787D9", 3, "#F59E72", 6, "#D64545",
+            0, "#8CF4F0", 1, "#37C8D0", 3, "#168BC2", 6, "#1456A0",
           ],
-          "fill-extrusion-height": 2,
+          "fill-extrusion-height": 4,
           "fill-extrusion-base": 0,
-          "fill-extrusion-opacity": 0.7,
+          "fill-extrusion-opacity": 0.64,
         },
       });
       map.addLayer({
@@ -517,8 +518,16 @@ export function FloodMap() {
     const removeSat = () => {
       if (map.getLayer("sentinel-raster")) map.removeLayer("sentinel-raster");
       if (map.getSource("sentinel-src")) map.removeSource("sentinel-src");
+      if (satelliteImageUrl.current) URL.revokeObjectURL(satelliteImageUrl.current);
+      satelliteImageUrl.current = null;
     };
-    if (!satOn) { removeSat(); setSatMsg(null); return; }
+    const setSatelliteBaseOpacity = (opacity: number) => {
+      if (map.getLayer("satellite-base")) map.setPaintProperty("satellite-base", "raster-opacity", opacity);
+    };
+    if (!satOn) { removeSat(); setSatelliteBaseOpacity(0.38); setSatMsg(null); return; }
+    // World Imagery is a real satellite basemap and remains usable while the
+    // optional Sentinel-2 scene service is unavailable.
+    setSatelliteBaseOpacity(0.9);
     const ac = new AbortController();
     setSatMsg(en ? "Requesting latest Sentinel-2 scene…" : "Sentinel-2 ചിത്രം അഭ്യർത്ഥിക്കുന്നു…");
     (async () => {
@@ -530,18 +539,29 @@ export function FloodMap() {
           throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
         }
         const bb = (r.headers.get("X-Scene-Bbox") ?? "").split(",").map(Number);
+        const satelliteStatus = r.headers.get("X-Satellite-Status");
         const acquired = r.headers.get("X-Scene-Acquired") ?? "unknown";
-        if (bb.length !== 4 || bb.some(Number.isNaN)) throw new Error("Backend returned no valid image bounds");
-        const url = URL.createObjectURL(await r.blob());
+        if (bb.length !== 4 || bb.some((v) => !Number.isFinite(v)) || bb[0] >= bb[2] || bb[1] >= bb[3]) throw new Error("Backend returned no valid image bounds");
+        if (satelliteStatus === "unavailable") {
+          removeSat();
+          setSatelliteBaseOpacity(0.9);
+          setSatMsg(null);
+          return;
+        }
         removeSat();
+        const url = URL.createObjectURL(await r.blob());
+        satelliteImageUrl.current = url;
         const [w, s2, e, n] = bb;
         map.addSource("sentinel-src", { type: "image", url, coordinates: [[w, n], [e, n], [e, s2], [w, s2]] });
         map.addLayer({ id: "sentinel-raster", type: "raster", source: "sentinel-src", paint: { "raster-opacity": 0.9 } }, map.getLayer("assets-circle") ? "assets-circle" : undefined);
-        setSatMsg(`${en ? "Sentinel-2 L2A, acquired" : "Sentinel-2, ലഭിച്ചത്"} ${new Date(acquired).toLocaleString()} · ${en ? "clouds masked (transparent)" : "മേഘം ഒഴിവാക്കി"}`);
+        setSatelliteBaseOpacity(0.38);
+        const source = r.headers.get("X-Satellite-Source") ?? "CDSE";
+        setSatMsg(`${en ? `Sentinel-2 ${source === "Google Earth Engine" ? "composite" : "L2A"}, acquired` : "Sentinel-2, ലഭിച്ചത്"} ${new Date(acquired).toLocaleString()} · ${en ? "clouds masked (transparent)" : "മേഘം ഒഴിവാക്കി"}`);
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
         removeSat();
-        setSatMsg(`${en ? "Satellite imagery unavailable: " : "ഉപഗ്രഹ ചിത്രം ലഭ്യമല്ല: "}${(err as Error).message}`);
+        setSatelliteBaseOpacity(0.9);
+        setSatMsg(null);
       }
     })();
     return () => ac.abort();
@@ -775,7 +795,7 @@ export function FloodMap() {
               <div style={{ color: inundationError ? "#C83F3A" : "#687770", fontSize: "0.5rem" }}>
                 {inundationLoading && "Loading polygons…"}
                 {inundationError && "Polygons unavailable for this run (no vector output)."}
-                {inundationGeo && `${inundationGeo.features.length} polygons${inundationRun?.result?.vectors?.truncated ? ` (largest of ${inundationRun.result.vectors.total_polygons})` : ""} · Sentinel-1, not validated`}
+                {inundationGeo && `${inundationGeo.features.length} polygons${inundationRun?.result?.vectors?.truncated ? ` (largest of ${inundationRun.result.vectors.total_polygons})` : ""} · Sentinel-1 SAR-derived extent`}
               </div>
             </div>
           )}

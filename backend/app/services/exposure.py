@@ -144,6 +144,7 @@ def rank_assets(
     assets: list[dict],
     rainfall_24h_mm: float | None,
     elevation_lookup: dict[str, float] | None = None,
+    elevation_source_lookup: dict[str, str] | None = None,
 ) -> list[dict]:
     """
     Compute exposure scores for a list of assets and return ranked list.
@@ -159,6 +160,7 @@ def rank_assets(
     list of exposure dicts, sorted by risk_score descending
     """
     elevation_lookup = elevation_lookup or {}
+    elevation_source_lookup = elevation_source_lookup or {}
     computed_at = datetime.now(timezone.utc).isoformat()
     results = []
 
@@ -195,6 +197,7 @@ def rank_assets(
             "flood_susceptibility": round(elevation_susceptibility(elevation_m), 3),
             "rainfall_accumulation_mm": rainfall_24h_mm,
             "terrain_elevation_m": elevation_m,
+            "terrain_source": elevation_source_lookup.get(asset_id),
             "evidence": evidence,
             "data_quality": data_quality,
             "data_warnings": warnings,

@@ -61,6 +61,7 @@ def compute_scenario(
     assets: list[dict],
     baseline_24h_rain_mm: float | None,
     elevation_lookup: dict[str, float] | None = None,
+    elevation_source_lookup: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """
     Compute scenario outputs.
@@ -92,6 +93,7 @@ def compute_scenario(
         assets=assets,
         rainfall_24h_mm=combined_24h_mm,
         elevation_lookup=elevation_lookup,
+        elevation_source_lookup=elevation_source_lookup,
     )
 
     # Baseline rankings (unchanged rainfall)
@@ -99,6 +101,7 @@ def compute_scenario(
         assets=assets,
         rainfall_24h_mm=baseline_24h_rain_mm,
         elevation_lookup=elevation_lookup,
+        elevation_source_lookup=elevation_source_lookup,
     )
 
     # Build susceptibility map for road graph flagging

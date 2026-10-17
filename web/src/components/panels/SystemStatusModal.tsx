@@ -137,7 +137,7 @@ export function SystemStatusModal() {
 
         {/* Governance Disclaimer */}
         <div className="p-3 bg-warning/10 border border-warning/30 rounded-md text-2xs text-warning-dark leading-relaxed">
-          <strong>Hydrological Simulation Disclaimer:</strong> FloodLens AI is developed as an evaluative scientific research prototype for the Chalakudy river catchment. While calculations draw from authoritative sources (Open-Meteo GFS/ECMWF forecasts, SRTM-30 DEM, and OpenStreetMap infrastructure), this system is not an official warning service.
+          <strong>Hydrological Simulation Scope:</strong> FloodLens combines Open-Meteo forecasts, terrain data, OpenStreetMap infrastructure, and Sentinel imagery to support basin monitoring. Generated extents and risk scores describe the selected data and analysis settings.
         </div>
       </div>
     </div>

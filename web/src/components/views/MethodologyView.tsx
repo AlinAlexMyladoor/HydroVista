@@ -20,6 +20,7 @@ export function MethodologyView() {
             <li><b>Candidate inundation</b> — pixels the threshold algorithm classes as water after exclusions. Not validated.</li>
             <li><b>Validated flood area</b> — requires an independent reference dataset and a validation procedure. Not produced by this app.</li>
             <li><b>Heuristic asset risk score</b> — a relative ranking from elevation proxy and NWP rainfall. Not a probability, not flood depth.</li>
+            <li><b>Asset elevation</b> — sampled from Mapzen Terrarium tiles, with Open-Meteo's Copernicus GLO-90 API as a live fallback. Elevation values include their source in the infrastructure ledger. Attribute Open-Meteo and Copernicus when using fallback values.</li>
             <li><b>Forecast</b> — rainfall forecast comes from Open-Meteo NWP. No flood forecast model is trained or evaluated here.</li>
           </ul>
         </Section>

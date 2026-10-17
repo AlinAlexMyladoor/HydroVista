@@ -9,6 +9,7 @@ from fastapi import APIRouter, Query
 from app.api.v1.assets import _get_or_fetch_assets
 from app.api.v1 import forecast as forecast_api
 from app.services.exposure import rank_assets
+from app.services.elevation import sample_assets_detailed
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
@@ -41,7 +42,13 @@ async def get_exposure(
         if hourly:
             forecast_time = hourly[-1].get("time")
 
-    rankings = rank_assets(assets=assets, rainfall_24h_mm=rainfall_24h_mm)
+    elevations, elevation_sources = await sample_assets_detailed(assets) if assets else ({}, {})
+    rankings = rank_assets(
+        assets=assets,
+        rainfall_24h_mm=rainfall_24h_mm,
+        elevation_lookup=elevations,
+        elevation_source_lookup=elevation_sources,
+    )
 
     if asset_type:
         rankings = [r for r in rankings if r.get("asset_type") == asset_type]
@@ -63,6 +70,11 @@ async def get_exposure(
         "rainfall_24h_mm": rainfall_24h_mm,
         "forecast_time": forecast_time,
         "scenario_id": scenario_id,
+        "terrain_coverage": {
+            "sampled_assets": len(elevations),
+            "total_assets": len(assets),
+            "sources": sorted(set(elevation_sources.values())),
+        },
         "warnings": asset_warnings,
         "disclaimer": (
             "Risk scores are relative rankings based on terrain susceptibility and "

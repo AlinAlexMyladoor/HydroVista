@@ -18,8 +18,10 @@ def _build_registry() -> list[DataSourceStatus]:
     """Availability reflects real state (cache / last calls), never hard-coded optimism."""
     from app.api.v1.forecast import _forecast_cache
     from app.analysis import gee
+    from app.services.elevation import source_status as elevation_source_status
 
     fc_ok = _forecast_cache is not None and not _forecast_cache.get("is_stale", True)
+    elevation_status = elevation_source_status()
 
     gee_checked_at = datetime.now(timezone.utc)
     gee_ok = False
@@ -41,7 +43,9 @@ def _build_registry() -> list[DataSourceStatus]:
             name=name,
             is_available=gee_ok,
             last_checked=gee_checked_at,
-            last_success=gee_checked_at if gee_ok else None,
+            # Initializing Earth Engine only verifies credentials/connectivity. It
+            # does not query this collection or mean a new scene was acquired.
+            last_success=None,
             requires_credentials=True,
             known_limitations=limitation,
         )
@@ -67,12 +71,12 @@ def _build_registry() -> list[DataSourceStatus]:
         ),
         DataSourceStatus(
             slug="terrarium-dem",
-            name="Terrarium DEM tiles (Mapzen / AWS Open Data)",
-            is_available=True,
-            last_checked=None,
-            last_success=None,
+            name="Terrain elevation (Terrarium / Copernicus DEM)",
+            is_available=bool(elevation_status["is_available"]),
+            last_checked=elevation_status["last_checked"],
+            last_success=elevation_status["last_success"],
             requires_credentials=False,
-            known_limitations="Browser-side tiles (SRTM/ASTER/other mix, ~30 m, z11 over the basin). Backend does not ingest a DEM; exposure terrain factor uses default when elevation is unavailable.",
+            known_limitations=f"Backend samples Terrarium tiles first and falls back to Open-Meteo's Copernicus GLO-90 elevation API. Last successful sources: {elevation_status['sources']}",
         ),
         sat("sentinel-1", "Sentinel-1 SAR (Google Earth Engine)", "COPERNICUS/S1_GRD"),
         sat("sentinel-2", "Sentinel-2 optical (Google Earth Engine)", "COPERNICUS/S2_SR_HARMONIZED"),
@@ -81,7 +85,9 @@ def _build_registry() -> list[DataSourceStatus]:
             name="WorldPop Population Raster",
             is_available=gee_ok,
             last_checked=gee_checked_at,
-            last_success=gee_checked_at if gee_ok else None,
+            # WorldPop is sampled during analysis runs, not during this status
+            # check, so don't report the connectivity check as a data update.
+            last_success=None,
             requires_credentials=True,
             known_limitations=(
                 f"Available through Google Earth Engine ({gee.WORLDPOP}); exposed population is calculated for completed flood runs."

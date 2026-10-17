@@ -14,8 +14,6 @@ export const LAYER_DEFS: LayerDef[] = [
   { id: "terrain",    label: "3D Terrain & Hillshade",       mlLabel: "3D ഭൂപ്രകൃതി",        defaultOn: true },
   { id: "inundation", label: "Flood Extent", mlLabel: "വെള്ളപ്പൊക്ക പരിധി", defaultOn: true },
   { id: "flood-risk", label: "Asset Risk Level", mlLabel: "അപകട നില",       defaultOn: true },
-  { id: "rainfall",   label: "Rainfall Raster",              mlLabel: "മഴ റാസ്റ്റർ",         defaultOn: false,
-    unavailable: "No gridded rainfall source is connected. Point forecast is shown in the charts." },
   { id: "rivers",     label: "Rivers & Water Bodies (OSM)",  mlLabel: "നദികൾ & ജലാശയങ്ങൾ",  defaultOn: true },
   { id: "roads",      label: "Road Network (OSM)",           mlLabel: "റോഡ് ശൃംഖല",          defaultOn: true },
   { id: "buildings",  label: "Buildings (OSM)",              mlLabel: "കെട്ടിടങ്ങൾ",           defaultOn: false },
