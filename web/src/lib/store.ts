@@ -4,7 +4,7 @@
  */
 import { create } from "zustand";
 import { DEFAULT_LAYER_IDS } from "@/lib/layers";
-import type { ExposureScore, ForecastResponse, Asset, ScenarioResponse } from "@/lib/api";
+import type { ExposureScore, ForecastResponse, Asset, ScenarioResponse, InundationGeoJSON } from "@/lib/api";
 
 // Top-level route (maps to Next.js routes)
 export type AppRoute = "overview" | "map" | "analytics" | "scenarios" | "infrastructure" | "reports" | "about" | "analysis" | "modellab" | "methodology";
@@ -42,6 +42,8 @@ interface AppState {
   setLayerVisible: (layerId: string, visible: boolean) => void;
   inundationRunId: string | null;
   setInundationRunId: (id: string | null) => void;
+  drapedInundation: { runId: string; geojson: InundationGeoJSON } | null;
+  setDrapedInundation: (value: { runId: string; geojson: InundationGeoJSON } | null) => void;
   selectedAssetId: string | null;
   setSelectedAssetId: (id: string | null) => void;
   mapFocusRequest: { lat: number; lon: number; assetId: string | null; bounds?: [[number, number], [number, number]]; requestId: number } | null;
@@ -132,6 +134,8 @@ export const useStore = create<AppState>((set) => ({
     }),
   inundationRunId: null,
   setInundationRunId: (id) => set({ inundationRunId: id }),
+  drapedInundation: null,
+  setDrapedInundation: (value) => set({ drapedInundation: value }),
   selectedAssetId: null,
   setSelectedAssetId: (id) => set({ selectedAssetId: id }),
   mapFocusRequest: null,
@@ -152,8 +156,8 @@ export const useStore = create<AppState>((set) => ({
     set((state) => ({
       activeRoute: "map",
       mapIs3D: true,
-      mapPitch: 50,
-      mapBearing: 20,
+      mapPitch: 60,
+      mapBearing: 30,
       selectedAssetId: null,
       mapFocusRequest: {
         lat: (south + north) / 2,

@@ -131,6 +131,21 @@ export interface RiverDischargeResponse {
   is_stale?: boolean;
 }
 
+export interface RiverStageForecastResponse {
+  station: string;
+  river: string;
+  observed_at: string;
+  observed_stage_m: number;
+  forecast: { time: string; stage_m: number; lower_m: number; upper_m: number; lead_hours: number }[];
+  model: string;
+  validation: { method: string; mae_m: number; empirical_90pct_abs_error_m: number };
+  source: string;
+  source_url: string;
+  rainfall_source_url: string;
+  retrieved_at: string;
+  known_limitations: string;
+}
+
 export interface TerrainDistributionResponse {
   source: string;
   bounds: number[] | null;
@@ -406,6 +421,7 @@ export const api = {
   forecast: {
     latest: () => request<ForecastResponse>("/api/v1/forecast/latest"),
     discharge: () => request<RiverDischargeResponse>("/api/v1/forecast/discharge"),
+    stage: () => request<RiverStageForecastResponse>("/api/v1/forecast/stage"),
     dataSources: () => request<{ sources: DataSourceStatus[] }>("/api/v1/data-sources"),
   },
 

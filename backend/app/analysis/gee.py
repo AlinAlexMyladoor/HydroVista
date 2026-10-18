@@ -298,7 +298,7 @@ def run_flood_analysis(p: FloodParams) -> dict[str, Any]:
     ).get("population").getInfo()
     exposed_population = max(0, round(float(population_value or 0.0)))
 
-    vis = {"min": 0, "max": 1, "palette": ["F97316"]}
+    vis = {"min": 0, "max": 1, "palette": ["00A6C7"]}
     tile_url = candidate.getMapId(vis)["tile_fetcher"].url_format
     nodata_url = nodata_img.getMapId({"min": 0, "max": 1, "palette": ["9CA3AF"]})["tile_fetcher"].url_format
     change_url = diff.getMapId({"min": -8, "max": 8, "palette": ["2166AC", "FFFFFF", "B2182B"]})["tile_fetcher"].url_format

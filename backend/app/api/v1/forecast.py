@@ -8,6 +8,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Query
 
 from app.services.weather import fetch_forecast, fetch_river_discharge_forecast, WeatherDataError
+from app.services.river_stage import fetch_stage_forecast, StageForecastUnavailable
 from app.core.config import settings
 
 log = structlog.get_logger(__name__)
@@ -97,6 +98,24 @@ async def get_river_discharge_forecast():
         if _discharge_cache:
             return {**_discharge_cache, "is_stale": True}
         raise HTTPException(status_code=503, detail="River discharge forecast is temporarily unavailable") from exc
+
+
+@router.get("/forecast/stage")
+async def get_river_stage_forecast():
+    """Return a gauge-conditioned 48-hour stage forecast for Arangaly, Chalakudy."""
+    try:
+        return await fetch_stage_forecast()
+    except StageForecastUnavailable as exc:
+        log.warning("forecast.stage_unavailable", reason=str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "stage_forecast_unavailable",
+                "message": str(exc),
+                "station": "Arangaly",
+                "source": "Central Water Commission via NWIC",
+            },
+        ) from exc
 
 
 @router.get("/forecast/{run_id}")

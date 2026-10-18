@@ -21,7 +21,7 @@ export function MethodologyView() {
             <li><b>Validated flood area</b> — requires an independent reference dataset and a validation procedure. Not produced by this app.</li>
             <li><b>Heuristic asset risk score</b> — a relative ranking from elevation proxy and NWP rainfall. Not a probability, not flood depth.</li>
             <li><b>Asset elevation</b> — sampled from Mapzen Terrarium tiles, with Open-Meteo's Copernicus GLO-90 API as a live fallback. Elevation values include their source in the infrastructure ledger. Attribute Open-Meteo and Copernicus when using fallback values.</li>
-            <li><b>Forecast</b> — rainfall forecast comes from Open-Meteo NWP. No flood forecast model is trained or evaluated here.</li>
+            <li><b>River stage outlook</b> — a 48-hour XGBoost/gradient-boosted model for the CWC Arangaly gauge, trained on hourly gauge history and Open-Meteo precipitation, with chronological holdout error. It is model guidance, not an official warning or hydraulic flood forecast.</li>
           </ul>
         </Section>
 
@@ -49,6 +49,8 @@ export function MethodologyView() {
         <Section title="Other data on the dashboard">
           <ul style={{ paddingLeft: 16, listStyle: "disc" }}>
             <li><b>Rainfall:</b> Open-Meteo NWP at the basin centroid — model output, not gauge data.</li>
+            <li><b>Arangaly river stage:</b> CWC telemetry through NWIC, paired with Open-Meteo ERA5 rainfall history and NWP rainfall forecasts. Stale or missing gauge records suppress the stage forecast.</li>
+            <li><b>River discharge:</b> Open-Meteo Flood API / GloFAS daily model at a nearby 5 km grid cell; not a gauge reading and not interchangeable with water level.</li>
             <li><b>Elevation (map and cross-section):</b> Terrarium DEM tiles (Mapzen / AWS Open Data; SRTM/ASTER/other mix), sampled in the browser. Elevation is not flood depth.</li>
             <li><b>Roads and assets:</b> OpenStreetMap via Overpass; completeness varies.</li>
             <li><b>Sentinel imagery layer:</b> Copernicus Data Space (Sentinel-2 L2A, cloud-masked), needs backend credentials; acquisition time is shown.</li>

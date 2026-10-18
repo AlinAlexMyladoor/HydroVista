@@ -39,6 +39,7 @@ export function AboutView() {
           <ul className="mt-3 list-inside list-disc space-y-2 text-sm text-text-secondary">
             <li>MapLibre GL JS for mapping and OpenStreetMap contributors for infrastructure data.</li>
             <li>Open-Meteo for weather forecasts and, where needed, Copernicus GLO-90 elevation data.</li>
+            <li>Central Water Commission river-level telemetry via the National Water Data Portal for the Arangaly stage outlook.</li>
             <li>Mapzen Terrarium terrain tiles and Copernicus Sentinel satellite datasets.</li>
           </ul>
         </details>

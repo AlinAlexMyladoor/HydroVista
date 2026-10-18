@@ -26,6 +26,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
 import structlog
@@ -77,6 +78,7 @@ async def fetch_forecast(
     lat: float = BASIN_LAT,
     lon: float = BASIN_LON,
     forecast_days: int = 7,
+    past_days: int = 0,
 ) -> dict[str, Any]:
     """
     Fetch 7-day hourly forecast from Open-Meteo.
@@ -93,6 +95,7 @@ async def fetch_forecast(
         "longitude": lon,
         "hourly": ",".join(FORECAST_VARIABLES),
         "forecast_days": forecast_days,
+        "past_days": past_days,
         "timezone": "Asia/Kolkata",
         "timeformat": "iso8601",
     }
@@ -122,7 +125,13 @@ async def fetch_forecast(
     parsed_hours: list[dict] = []
     for i, t in enumerate(times):
         try:
-            dt = datetime.fromisoformat(t).replace(tzinfo=timezone.utc)
+            dt = datetime.fromisoformat(t)
+            if dt.tzinfo is None:
+                try:
+                    dt = dt.replace(tzinfo=ZoneInfo(raw.get("timezone", "UTC")))
+                except Exception:
+                    dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.astimezone(timezone.utc)
         except ValueError:
             continue
 
@@ -215,7 +224,13 @@ async def fetch_historical(
     parsed_hours = []
     for i, t in enumerate(times):
         try:
-            dt = datetime.fromisoformat(t).replace(tzinfo=timezone.utc)
+            dt = datetime.fromisoformat(t)
+            if dt.tzinfo is None:
+                try:
+                    dt = dt.replace(tzinfo=ZoneInfo(raw.get("timezone", "UTC")))
+                except Exception:
+                    dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.astimezone(timezone.utc)
         except ValueError:
             continue
         parsed_hours.append({

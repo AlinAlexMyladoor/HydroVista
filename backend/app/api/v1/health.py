@@ -19,9 +19,11 @@ def _build_registry() -> list[DataSourceStatus]:
     from app.api.v1.forecast import _forecast_cache
     from app.analysis import gee
     from app.services.elevation import source_status as elevation_source_status
+    from app.services.river_stage import stage_source_status
 
     fc_ok = _forecast_cache is not None and not _forecast_cache.get("is_stale", True)
     elevation_status = elevation_source_status()
+    stage_status = stage_source_status()
 
     gee_checked_at = datetime.now(timezone.utc)
     gee_ok = False
@@ -59,6 +61,15 @@ def _build_registry() -> list[DataSourceStatus]:
             last_success=(_forecast_cache or {}).get("retrieved_at") if _forecast_cache else None,
             requires_credentials=False,
             known_limitations="NWP model output at basin centroid. Not rain-gauge data.",
+        ),
+        DataSourceStatus(
+            slug="cwc-river-stage",
+            name="CWC Arangaly River Gauge",
+            is_available=stage_status["is_available"],
+            last_checked=stage_status["last_checked"],
+            last_success=stage_status["last_success"],
+            requires_credentials=False,
+            known_limitations=stage_status["known_limitations"],
         ),
         DataSourceStatus(
             slug="osm",

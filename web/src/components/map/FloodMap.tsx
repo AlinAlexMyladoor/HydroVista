@@ -28,6 +28,17 @@ const HILLSHADE_SOURCE = "terrain-hillshade-dem";
 const SATELLITE_BASE_SOURCE = "satellite-base";
 const DEM_TIMEOUT_MS = 20000;
 
+function raiseFloodOverlays(map: maplibregl.Map) {
+  // Keep every satellite raster below the flood layers. Reasserting this after
+  // each asynchronous image insertion avoids relying on the layer's old index.
+  if (map.getLayer("sentinel-raster") && map.getLayer("inundation-extrusion")) {
+    map.moveLayer("sentinel-raster", "inundation-extrusion");
+  }
+  for (const id of ["inundation-extrusion", "inundation-fill", "inundation-outline"]) {
+    if (map.getLayer(id)) map.moveLayer(id);
+  }
+}
+
 function sanitizeExpression(expr: unknown): unknown {
   if (!Array.isArray(expr)) return expr;
   const [op, ...args] = expr;
@@ -76,7 +87,7 @@ export function FloodMap() {
   const {
     selectedAssetId, setSelectedAssetId, riskFilter, assetTypeFilter, visibleLayers, toggleLayer, language,
     mapIs3D, setMapIs3D, terrainExaggeration, setTerrainExaggeration, mapPitch, setMapPitch, mapBearing, setMapBearing,
-    terrainStatus, terrainInfo, setTerrainStatus, inundationRunId, forecastHour,
+    terrainStatus, terrainInfo, setTerrainStatus, inundationRunId, drapedInundation, forecastHour,
     mapFocusRequest,
   } = useStore();
   const en = language === "en";
@@ -111,6 +122,8 @@ export function FloodMap() {
     queryKey: ["analysis-geojson", inundationRunId], queryFn: () => api.analysis.geojson(inundationRunId!),
     enabled: !!inundationRunId && inundationRun?.status === "completed", retry: 1, staleTime: 10 * 60_000,
   });
+  const transferredInundation = drapedInundation?.runId === inundationRunId ? drapedInundation.geojson : null;
+  const visibleInundationGeo = transferredInundation ?? inundationGeo;
 
   // ─── Initialise map once ───────────────────────────────────────────────────
   useEffect(() => {
@@ -266,7 +279,7 @@ export function FloodMap() {
         id: "satellite-base",
         type: "raster",
         source: SATELLITE_BASE_SOURCE,
-        paint: { "raster-opacity": 0.38, "raster-saturation": 0.1, "raster-contrast": 0.08 },
+        paint: { "raster-opacity": 0.28, "raster-saturation": 0.1, "raster-contrast": 0.08 },
       });
       const atmosphericMap = map as unknown as { setFog?: (config: Record<string, unknown>) => void };
       atmosphericMap.setFog?.({
@@ -303,26 +316,27 @@ export function FloodMap() {
 
       // Candidate polygons drape over terrain; the shallow extrusion is a visual aid,
       // not a measured depth product (the current GEE output has no depth attribute).
-      map.addSource("inundation-source", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addSource("inundation-source", {
+        type: "geojson",
+        data: (visibleInundationGeo as unknown as GeoJSON.FeatureCollection | undefined) ?? { type: "FeatureCollection", features: [] },
+      });
       map.addLayer({
         id: "inundation-extrusion", type: "fill-extrusion", source: "inundation-source",
         paint: {
-          "fill-extrusion-color": [
-            "interpolate", ["linear"], ["coalesce", ["to-number", ["get", "depth"]], 2],
-            0, "#8CF4F0", 1, "#37C8D0", 3, "#168BC2", 6, "#1456A0",
-          ],
-          "fill-extrusion-height": ["coalesce", ["to-number", ["get", "depth"]], 2.5],
+          "fill-extrusion-color": "#0284C7",
+          // Fixed display height for visibility; this analysis does not estimate flood depth.
+          "fill-extrusion-height": 1.8,
           "fill-extrusion-base": 0,
-          "fill-extrusion-opacity": 0.36,
+          "fill-extrusion-opacity": 0.6,
         },
       });
       map.addLayer({
         id: "inundation-fill", type: "fill", source: "inundation-source",
-        paint: { "fill-color": "#27B7D5", "fill-opacity": 0.34 },
+        paint: { "fill-color": "#0EA5E9", "fill-opacity": 0.48 },
       });
       map.addLayer({
         id: "inundation-outline", type: "line", source: "inundation-source",
-        paint: { "line-color": "#087F9B", "line-width": ["interpolate", ["linear"], ["zoom"], 9, 0.4, 14, 1.4], "line-opacity": 0.78 },
+        paint: { "line-color": "#0369A1", "line-width": ["interpolate", ["linear"], ["zoom"], 9, 0.4, 14, 1.4], "line-opacity": 0.95 },
       });
 
       map.addSource("assets-source", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
@@ -361,6 +375,7 @@ export function FloodMap() {
         source: "reports-source",
         paint: { "circle-radius": 6, "circle-color": "#3299C6", "circle-stroke-width": 1.5, "circle-stroke-color": "#FFFFFF", "circle-opacity": 0.85 },
       });
+      raiseFloodOverlays(map);
 
       map.on("click", "assets-circle", (e) => {
         const feat = e.features?.[0];
@@ -507,16 +522,17 @@ export function FloodMap() {
     const src = map.getSource("inundation-source") as maplibregl.GeoJSONSource | undefined;
     if (!src) return;
     type GeoData = Parameters<maplibregl.GeoJSONSource["setData"]>[0];
-    src.setData((inundationGeo as unknown as GeoData) ?? ({ type: "FeatureCollection", features: [] } as GeoData));
-  }, [inundationGeo, mapLoaded]);
+    src.setData((visibleInundationGeo as unknown as GeoData) ?? ({ type: "FeatureCollection", features: [] } as GeoData));
+  }, [visibleInundationGeo, mapLoaded]);
 
   useEffect(() => {
     const map = mapRef.current;
     const p = inundationRun?.result?.parameters;
-    if (!map || !mapLoaded || !inundationGeo || !p) return;
+    if (mapFocusRequest?.bounds) return; // The cinematic flyTo owns this camera transition.
+    if (!map || !mapLoaded || !visibleInundationGeo || !p) return;
     // maxBounds (the basin) still clamps the camera; this only frames the analysed box when it overlaps.
     map.fitBounds([[p.west, p.south], [p.east, p.north]], { padding: 60, duration: 900, pitch: useStore.getState().mapIs3D ? 62 : 0 });
-  }, [inundationGeo, inundationRun, mapLoaded]);
+  }, [visibleInundationGeo, inundationRun, mapLoaded, mapFocusRequest]);
 
   // ─── Satellite imagery (Sentinel-2 via backend proxy; real image or an explicit error) ───
   const [satMsg, setSatMsg] = useState<string | null>(null);
@@ -536,7 +552,8 @@ export function FloodMap() {
     if (!satOn) { removeSat(); setSatelliteBaseOpacity(0.38); setSatMsg(null); return; }
     // World Imagery is a real satellite basemap and remains usable while the
     // optional Sentinel-2 scene service is unavailable.
-    setSatelliteBaseOpacity(0.9);
+    // Satellite imagery is a context layer, never an opaque flood-analysis mask.
+    setSatelliteBaseOpacity(0.48);
     const ac = new AbortController();
     setSatMsg(en ? "Requesting latest Sentinel-2 scene…" : "Sentinel-2 ചിത്രം അഭ്യർത്ഥിക്കുന്നു…");
     (async () => {
@@ -553,7 +570,7 @@ export function FloodMap() {
         if (bb.length !== 4 || bb.some((v) => !Number.isFinite(v)) || bb[0] >= bb[2] || bb[1] >= bb[3]) throw new Error("Backend returned no valid image bounds");
         if (satelliteStatus === "unavailable") {
           removeSat();
-          setSatelliteBaseOpacity(0.9);
+          setSatelliteBaseOpacity(0.48);
           setSatMsg(null);
           return;
         }
@@ -562,14 +579,16 @@ export function FloodMap() {
         satelliteImageUrl.current = url;
         const [w, s2, e, n] = bb;
         map.addSource("sentinel-src", { type: "image", url, coordinates: [[w, n], [e, n], [e, s2], [w, s2]] });
-        map.addLayer({ id: "sentinel-raster", type: "raster", source: "sentinel-src", paint: { "raster-opacity": 0.9 } }, map.getLayer("assets-circle") ? "assets-circle" : undefined);
-        setSatelliteBaseOpacity(0.38);
+        map.addLayer({ id: "sentinel-raster", type: "raster", source: "sentinel-src", paint: { "raster-opacity": 0.54 } }, map.getLayer("inundation-extrusion") ? "inundation-extrusion" : undefined);
+        raiseFloodOverlays(map);
+        map.once("idle", () => raiseFloodOverlays(map));
+        setSatelliteBaseOpacity(0.28);
         const source = r.headers.get("X-Satellite-Source") ?? "CDSE";
         setSatMsg(`${en ? `Sentinel-2 ${source === "Google Earth Engine" ? "composite" : "L2A"}, acquired` : "Sentinel-2, ലഭിച്ചത്"} ${new Date(acquired).toLocaleString()} · ${en ? "clouds masked (transparent)" : "മേഘം ഒഴിവാക്കി"}`);
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
         removeSat();
-        setSatelliteBaseOpacity(0.9);
+        setSatelliteBaseOpacity(0.48);
         setSatMsg(null);
       }
     })();
@@ -634,17 +653,15 @@ export function FloodMap() {
     const { lat, lon } = mapFocusRequest;
     if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return;
     try {
-      const pitch = mapFocusRequest.bounds ? 50 : 60;
-      const bearing = mapFocusRequest.bounds ? 20 : 30;
+      const pitch = 60;
+      const bearing = 30;
       if (mapFocusRequest.bounds) {
-        map.fitBounds(mapFocusRequest.bounds, {
+        const camera = map.cameraForBounds(mapFocusRequest.bounds, {
           padding: { top: 90, right: 90, bottom: 90, left: 90 },
-          maxZoom: 14,
-          pitch,
-          bearing,
-          duration: 2200,
-          essential: true,
+          maxZoom: 15,
         });
+        if (camera) map.flyTo({ ...camera, pitch, bearing, duration: 2400, essential: true });
+        else map.fitBounds(mapFocusRequest.bounds, { padding: 90, maxZoom: 15, pitch, bearing, duration: 2400, essential: true });
       } else {
         map.flyTo({ center: [lon, lat], zoom: 16, pitch, bearing, speed: 0.75, curve: 1.35, duration: 2200, essential: true });
       }
@@ -829,9 +846,9 @@ export function FloodMap() {
             <div role="status" style={{ fontSize: "0.5625rem", color: "#26332F", marginTop: 4, borderTop: "1px solid #DCE4DD", paddingTop: 4, maxWidth: 170 }}>
               <span style={{ color: "#087F9B" }}>■</span> {en ? "Candidate flood extent" : "സാധ്യതയുള്ള വെള്ളപ്പൊക്ക പരിധി"} · run {inundationRunId}
               <div style={{ color: inundationError ? "#C83F3A" : "#687770", fontSize: "0.5rem" }}>
-                {inundationLoading && "Loading polygons…"}
-                {inundationError && "Polygons unavailable for this run (no vector output)."}
-                {inundationGeo && `${inundationGeo.features.length} polygons${inundationRun?.result?.vectors?.truncated ? ` (largest of ${inundationRun.result.vectors.total_polygons})` : ""} · Sentinel-1 SAR · illustrative height only`}
+                {inundationLoading && !visibleInundationGeo && "Loading polygons…"}
+                {inundationError && !visibleInundationGeo && "Polygon file unavailable for this run."}
+                {visibleInundationGeo && `${visibleInundationGeo.features.length} polygons rendered${inundationRun?.result?.vectors?.truncated ? ` (largest of ${inundationRun.result.vectors.total_polygons})` : ""} · illustrative water height`}
               </div>
             </div>
           )}
