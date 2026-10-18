@@ -4,7 +4,7 @@ import { QueryProvider } from "@/components/providers/QueryProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: "HydroVista — River Basin Intelligence for Safer Communities",
+  title: "HydroVista",
   description:
     "Geospatial decision-support platform for the Chalakudy River basin, Kerala. " +
     "Flood risk assessment, infrastructure exposure analysis, and connectivity modelling.",
@@ -12,14 +12,15 @@ export const metadata: Metadata = {
   authors: [{ name: "HydroVista Research" }],
   robots: "noindex, nofollow",
   icons: {
-    icon: "/favicon.ico",
+    icon: "/hydrovista-icon.svg",
+    shortcut: "/hydrovista-icon.svg",
   },
 };
 
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#155E59",
+  themeColor: "#0B2545",
 };
 
 export default function RootLayout({

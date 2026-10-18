@@ -9,15 +9,12 @@ import {
   AlertTriangle,
   Clock,
   ChevronRight,
-  CheckCircle2,
   Sliders,
   Play,
   HelpCircle,
-  TrendingUp,
   CloudRain,
   Users,
-  Zap,
-  Info,
+  Droplets,
 } from "lucide-react";
 
 // ─── Shared utility ────────────────────────────────────────────────────────────
@@ -95,24 +92,6 @@ function RiskAssessmentCard() {
           <div style={{ fontSize: "0.625rem", color: "#687770" }}>
             {en ? "Chalakudy Basin · Next 24 hours" : "ചാലക്കുടി · അടുത്ത 24 മണിക്കൂർ"}
           </div>
-          <div className="mt-2 flex items-end gap-2">
-            {forecastOk ? (
-              <>
-                <span style={{ fontSize: "2.25rem", fontWeight: 800, color: tone, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
-                  {Math.round(rainfallMm as number)} mm
-                </span>
-                <span style={{ fontSize: "0.625rem", color: "#687770", marginBottom: 4, lineHeight: 1.3 }}>
-                  {en ? "forecast 24 h rainfall (Open-Meteo NWP)" : "24 മണിക്കൂർ മഴ പ്രവചനം (Open-Meteo)"}
-                </span>
-              </>
-            ) : (
-              <span style={{ fontSize: "0.75rem", color: "#687770" }}>
-                {en
-                  ? "Forecast unavailable — no rainfall input, so no risk level is shown."
-                  : "പ്രവചനം ലഭ്യമല്ല — അപകട നില കാണിക്കുന്നില്ല."}
-              </span>
-            )}
-          </div>
           <div style={{ fontSize: "0.5625rem", color: "#687770", marginTop: 4 }}>
             {en
               ? "Relative ranking from terrain + NWP rainfall. Not a calibrated flood probability."
@@ -130,7 +109,7 @@ function RiskAssessmentCard() {
           <div className="metric-label">{en ? "Forecast rainfall (24 h)" : "പ്രവചിത മഴ (24h)"}</div>
         </div>
         <div className="metric-tile" title={en ? "Candidate inundation area from the latest completed Sentinel-1 analysis." : ""}>
-          <Zap style={{ width: 14, height: 14, color: "#9ca3af", marginBottom: 2 }} />
+          <Droplets style={{ width: 14, height: 14, color: "#3299C6", marginBottom: 2 }} />
           <div className="metric-value" style={{ fontSize: "0.8125rem", color: inundationRun?.result ? "#155E59" : "#9ca3af" }}>
             {inundationRun?.status === "completed" && inundationRun.result?.areas_km2?.candidate_inundation_final != null
               ? `${inundationRun.result.areas_km2.candidate_inundation_final.toFixed(2)} km²`
@@ -143,7 +122,7 @@ function RiskAssessmentCard() {
           <div className="metric-value" style={{ fontSize: "0.8125rem", color: exposedPopulation == null ? "#9ca3af" : "#155E59" }}>
             {exposedPopulation == null ? (en ? "Run analysis" : "വിശകലനം നടത്തുക") : exposedPopulation.toLocaleString()}
           </div>
-          <div className="metric-label">{en ? "People affected (needs flood extent)" : "ബാധിക്കപ്പെടുന്നവർ"}</div>
+          <div className="metric-label">{en ? "People affected" : "ബാധിക്കപ്പെടുന്നവർ"}</div>
         </div>
       </div>
 
@@ -171,8 +150,6 @@ function IsolationClockCard() {
   });
 
   const items = (isolation?.items ?? []).slice(0, 4);
-  const hasDisconnected = items.some(i => !i.is_connected);
-
   return (
     <div className="intel-card">
       <div className="intel-card-header">
@@ -190,17 +167,9 @@ function IsolationClockCard() {
 
       <p style={{ fontSize: "0.5625rem", color: "#687770", marginBottom: 6 }}>
         {language === "en"
-          ? "Earliest time of loss of drivable access (modelled)"
-          : "ഡ്രൈവബിൾ ആക്സസ് നഷ്ടത്തിനുള്ള ഏറ്റവും നേരത്തെ (മോഡൽ)"}
+          ? "Earliest modeled access loss · simplified OSM road graph"
+          : "മോഡൽ ആക്സസ് നഷ്ടം · ലളിതമായ OSM റോഡ് ശൃംഖല"}
       </p>
-
-      {/* Disclaimer badge if synthetic graph */}
-      {isolation?.warnings?.some(w => w.includes("synthetic")) && (
-        <div className="mb-2 flex items-center gap-1 rounded" style={{ background: "#fffbeb", border: "1px solid #fde68a", padding: "2px 6px", fontSize: "0.5625rem", color: "#92400e" }}>
-          <Info style={{ width: 9, height: 9 }} />
-          {language === "en" ? "Uses simplified road graph — see About for limitations" : "ലളിതമായ റോഡ് ഗ്രാഫ്"}
-        </div>
-      )}
 
       <div className="space-y-1.5">
         {isLoading
@@ -255,7 +224,11 @@ function IsolationClockCard() {
                       flexShrink: 0,
                     }}
                   >
-                    {hours != null ? `~ ${Math.round(hours)} hours` : "—"}
+                    {hours != null
+                      ? `~ ${Math.round(hours)} h`
+                      : isConnected
+                        ? (language === "en" ? "> 24 h · Passable" : "> 24 മ · തുറന്നിരിക്കുന്നു")
+                        : (language === "en" ? "Impassable" : "കടന്നുപോകാനാകില്ല")}
                   </span>
                 </div>
               );
@@ -443,166 +416,6 @@ function RainDialCard() {
   );
 }
 
-// ─── Rainfall Forecast Compact ────────────────────────────────────────────────
-function RainfallForecastCard() {
-  const { language, setActiveRoute } = useStore();
-
-  const { data: forecast, isLoading } = useQuery({
-    queryKey: ["forecast-latest"],
-    queryFn: () => api.forecast.latest(),
-    retry: 1,
-  });
-
-  const acc24 = forecast?.rainfall_accumulations?.find(a => a.window_hours === 24);
-
-  return (
-    <div className="intel-card">
-      <div className="intel-card-header">
-        <div className="intel-card-title">
-          <CloudRain style={{ width: 13, height: 13, color: "#3299C6" }} />
-          {language === "en" ? "Rainfall Forecast" : "മഴ പ്രവചനം"}
-        </div>
-        <button onClick={() => setActiveRoute("analytics")} className="intel-card-action">
-          {language === "en" ? "Analytics →" : "→"}
-        </button>
-      </div>
-
-      {isLoading ? (
-        <div className="space-y-1.5"><Skeleton h="12px" /><Skeleton w="70%" h="12px" /></div>
-      ) : forecast ? (
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span style={{ fontSize: "1.5rem", fontWeight: 800, color: "#3299C6", fontVariantNumeric: "tabular-nums" }}>
-              {acc24?.accumulation_mm != null ? `${Math.round(acc24.accumulation_mm)} mm` : "—"}
-            </span>
-            <div>
-              <div style={{ fontSize: "0.625rem", color: "#687770" }}>
-                {language === "en" ? "24h accumulation" : "24h ഞ"}
-              </div>
-              {acc24?.note && (
-                <div style={{ fontSize: "0.5625rem", color: "#9ca3af" }}>{acc24.note}</div>
-              )}
-            </div>
-          </div>
-
-          {/* Mini sparkline from hourly data */}
-          {forecast.hourly && forecast.hourly.length > 0 && (
-            <div className="mt-1" style={{ fontSize: "0.5625rem", color: "#9ca3af" }}>
-              {language === "en" ? "Source: Open-Meteo NWP Forecast" : "ഉറവിടം: Open-Meteo"} ·{" "}
-              {forecast.is_stale
-                ? <span style={{ color: "#E7A23B" }}>{language === "en" ? "Stale data" : "പഴയ ഡാറ്റ"}</span>
-                : <span>{language === "en" ? "Retrieved" : "ശേഖരിച്ചത്"} {forecast.retrieved_at ? new Date(forecast.retrieved_at).toLocaleTimeString() : ""}</span>
-              }
-            </div>
-          )}
-        </div>
-      ) : (
-        <div style={{ fontSize: "0.6875rem", color: "#9ca3af" }}>
-          {language === "en" ? "Forecast unavailable — Open-Meteo may be unreachable" : "ഡാറ്റ ലഭ്യമല്ല"}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Exposure Summary Compact ──────────────────────────────────────────────────
-function ExposureSummaryCard() {
-  const { language, setActiveRoute } = useStore();
-
-  const { data: exposure, isLoading } = useQuery({
-    queryKey: ["exposure-list", "all", "all"],
-    queryFn: () => api.exposure.list({ page: 1 }),
-    retry: 2,
-  });
-
-  const topItems = exposure?.items?.slice(0, 4) ?? [];
-  const terrainCoverage = exposure?.terrain_coverage;
-  const missingTerrainCount = terrainCoverage
-    ? terrainCoverage.total_assets - terrainCoverage.sampled_assets
-    : exposure?.items?.filter(i => i.data_warnings?.some(w => w.includes("Elevation"))).length ?? 0;
-  const hasElevationWarning = missingTerrainCount > 0;
-
-  return (
-    <div className="intel-card">
-      <div className="intel-card-header">
-        <div className="intel-card-title">
-          <TrendingUp style={{ width: 13, height: 13, color: "#E7A23B" }} />
-          {language === "en" ? "Top Areas at Risk" : "ഉയർന്ന അപകടസാധ്യത"}
-        </div>
-        <button onClick={() => setActiveRoute("analytics")} className="intel-card-action">
-          {language === "en" ? "New all →" : "→"}
-        </button>
-      </div>
-
-      {hasElevationWarning && (
-        <div className="mb-2 flex items-center gap-1 rounded" style={{ background: "#fffbeb", border: "1px solid #fde68a", padding: "2px 6px", fontSize: "0.5625rem", color: "#92400e" }}>
-          <Info style={{ width: 9, height: 9 }} />
-          {language === "en"
-            ? `${missingTerrainCount} asset${missingTerrainCount === 1 ? "" : "s"} use the default terrain factor; elevation is unavailable.`
-            : `${missingTerrainCount} സ്ഥാപനങ്ങൾക്ക് ഉയര ഡാറ്റ ലഭ്യമല്ല; ഡിഫോൾട്ട് ടെറൈൻ ഘടകം ഉപയോഗിക്കുന്നു.`}
-        </div>
-      )}
-      {terrainCoverage && terrainCoverage.sources.length > 0 && (
-        <div className="mb-2 text-[9px] text-[#687770]">
-          Elevation sampled for {terrainCoverage.sampled_assets}/{terrainCoverage.total_assets} assets · {terrainCoverage.sources.join(", ")}
-        </div>
-      )}
-
-      {/* Table header */}
-      <div
-        className="grid gap-1 mb-1"
-        style={{ gridTemplateColumns: "1fr auto auto auto", fontSize: "0.5625rem", color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.03em" }}
-      >
-        <span>{language === "en" ? "Location" : "സ്ഥലം"}</span>
-        <span style={{ textAlign: "right" }}>Risk</span>
-        <span style={{ textAlign: "right" }}>Score</span>
-        <span style={{ textAlign: "right" }}>{language === "en" ? "Key Assets" : "സ്ഥാപനങ്ങൾ"}</span>
-      </div>
-
-      <div className="space-y-1">
-        {isLoading
-          ? [1,2,3,4].map(i => <Skeleton key={i} h="24px" />)
-          : topItems.map((item) => (
-              <div
-                key={item.asset_id}
-                className="grid gap-1 py-1.5 rounded"
-                style={{ gridTemplateColumns: "1fr auto auto auto", alignItems: "center", borderBottom: "1px solid #F7F8F4", cursor: "pointer" }}
-                onClick={() => setActiveRoute("infrastructure")}
-              >
-                <span style={{ fontSize: "0.6875rem", fontWeight: 500, color: "#26332F", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {item.asset_name || `${item.asset_type} asset`}
-                </span>
-                <span
-                  className="badge"
-                  style={{
-                    fontSize: "0.5rem",
-                    background: item.risk_category === "critical" ? "#fef2f2" : item.risk_category === "high" ? "#fff7ed" : "#fffbeb",
-                    color: item.risk_category === "critical" ? "#b91c1c" : item.risk_category === "high" ? "#c2410c" : "#92400e",
-                    border: `1px solid ${item.risk_category === "critical" ? "#fecaca" : "#fed7aa"}`,
-                  }}
-                >
-                  {Math.round(item.risk_score * 100)}%
-                </span>
-                <span style={{ fontSize: "0.5625rem", color: "#687770", fontVariantNumeric: "tabular-nums", textAlign: "right" }}>
-                  {item.risk_score.toFixed(2)}
-                </span>
-                <span style={{ fontSize: "0.5625rem", color: "#155E59", textAlign: "right", textTransform: "capitalize" }}>
-                  {item.asset_type.replace(/_/g, " ")}
-                </span>
-              </div>
-            ))
-        }
-      </div>
-
-      {exposure?.items && exposure.items.length === 0 && (
-        <div style={{ fontSize: "0.6875rem", color: "#9ca3af", textAlign: "center", padding: "8px 0" }}>
-          {language === "en" ? "No exposure data available" : "ഡാറ്റ ലഭ്യമല്ല"}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Right Intelligence Rail ───────────────────────────────────────────────────
 export function RightRail() {
   const { rightRailOpen } = useStore();
@@ -616,8 +429,6 @@ export function RightRail() {
       aria-label="Intelligence rail"
     >
       <RiskAssessmentCard />
-      <RainfallForecastCard />
-      <ExposureSummaryCard />
       <IsolationClockCard />
       <RainDialCard />
     </aside>

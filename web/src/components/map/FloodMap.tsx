@@ -74,7 +74,7 @@ export function FloodMap() {
   const {
     selectedAssetId, setSelectedAssetId, riskFilter, assetTypeFilter, visibleLayers, toggleLayer, language,
     mapIs3D, setMapIs3D, terrainExaggeration, setTerrainExaggeration, mapPitch, setMapPitch, mapBearing, setMapBearing,
-    terrainStatus, terrainInfo, setTerrainStatus, inundationRunId,
+    terrainStatus, terrainInfo, setTerrainStatus, inundationRunId, forecastHour,
     mapFocusRequest,
   } = useStore();
   const en = language === "en";
@@ -98,6 +98,9 @@ export function FloodMap() {
     retry: 2,
   });
   const { data: reportsData } = useQuery({ queryKey: ["reports-list"], queryFn: () => api.reports.list(), retry: false, staleTime: 30_000 });
+  const { data: forecast } = useQuery({ queryKey: ["forecast-latest"], queryFn: () => api.forecast.latest(), retry: 1 });
+  const forecastTimeline = forecast?.hourly?.filter((hour) => Date.parse(hour.time) >= Date.now() - 60 * 60_000) ?? [];
+  const forecastPoint = forecastTimeline[Math.min(forecastHour, Math.max(0, forecastTimeline.length - 1))];
 
   // Candidate-inundation polygons from a completed Earth Engine run (selected in Flood Analysis).
   const { data: inundationRun } = useQuery({
@@ -712,6 +715,15 @@ export function FloodMap() {
         <div style={{ fontSize: "0.5625rem", color: "#687770" }}>{en ? "Thrissur, Ernakulam, Kerala" : "തൃശ്ശൂർ, എറണാകുളം, കേരളം"}</div>
       </div>
 
+      {/* The selected forecast time and its real hourly precipitation are shown
+          on-map so timeline playback has an immediate, truthful visual cue. */}
+      <div className="absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-md px-3 py-1.5"
+        style={{ background: "rgba(255,255,255,0.95)", border: "1px solid #DCE4DD", boxShadow: "0 2px 8px rgba(21,94,89,0.10)", fontSize: "0.6875rem", color: "#26332F", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+        <span style={{ fontWeight: 700 }}>{forecastHour === 0 ? (en ? "Now" : "ഇപ്പോൾ") : (en ? "Forecast" : "പ്രവചനം")}</span>
+        {forecastPoint?.time && <> · {new Date(forecastPoint.time).toLocaleString(en ? "en-IN" : "ml-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })} IST</>}
+        <span style={{ color: "#087F8C" }}> · {forecastPoint?.precipitation_mm != null ? `${forecastPoint.precipitation_mm.toFixed(1)} mm` : (en ? "rainfall unavailable" : "മഴ ലഭ്യമല്ല")}</span>
+      </div>
+
       {/* 2D / 3D */}
       <div className="absolute top-3 right-3 z-10 flex items-center gap-1 rounded-lg p-1 map-glass">
         {([false, true] as const).map((v) => (
@@ -771,8 +783,8 @@ export function FloodMap() {
           {terrainStatus === "error" && terrainInfo}
         </div>
         {terrainStatus === "error" && (
-          <button onClick={retryTerrain} style={{ fontSize: "0.5625rem", color: "#155E59", border: "1px solid #DCE4DD", borderRadius: 4, background: "white", cursor: "pointer", padding: "2px 6px" }}>
-            <RefreshCw style={{ width: 9, height: 9, display: "inline", marginRight: 3 }} />{en ? "Retry terrain" : "വീണ്ടും"}
+          <button onClick={retryTerrain} style={{ minHeight: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.625rem", color: "#155E59", border: "1px solid #DCE4DD", borderRadius: 4, background: "white", cursor: "pointer", padding: "4px 6px" }}>
+            <RefreshCw style={{ width: 11, height: 11, marginRight: 4 }} />{en ? "Retry elevation" : "ഉയരം വീണ്ടും ലോഡ് ചെയ്യുക"}
           </button>
         )}
       </div>
@@ -797,7 +809,7 @@ export function FloodMap() {
 
       {/* Elevation readout */}
       {readout && (
-        <div className="absolute z-10 rounded px-2 py-1" style={{ bottom: 34, left: "50%", transform: "translateX(-50%)", background: "rgba(255,255,255,0.95)",
+        <div className="absolute z-10 rounded px-2 py-1" style={{ bottom: 38, left: 12, background: "rgba(255,255,255,0.95)",
           border: "1px solid #DCE4DD", fontSize: "0.625rem", color: "#26332F", fontVariantNumeric: "tabular-nums" }}>
           {en ? "Elevation" : "ഉയരം"}: <b>{readout.elev == null ? (en ? "no DEM data" : "ഡാറ്റ ഇല്ല") : `${Math.round(readout.elev)} m`}</b>
           {" · "}{readout.lat.toFixed(4)}°N {readout.lon.toFixed(4)}°E

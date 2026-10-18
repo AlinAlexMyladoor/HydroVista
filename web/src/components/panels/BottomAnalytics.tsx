@@ -18,10 +18,23 @@ import {
 import { CloudRain, TrendingUp, ChevronDown } from "lucide-react";
 import { TerrainSectionPanel } from "@/components/panels/TerrainSectionPanel";
 
+function ForecastAxisTick({ x = 0, y = 0, payload, color = "#687770" }: { x?: number; y?: number; payload?: { value?: string }; color?: string }) {
+  const [date, time] = String(payload?.value ?? "").split(", ");
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text textAnchor="middle" fill={color} fontSize={8}>
+        <tspan x={0} dy={0}>{date}</tspan>
+        <tspan x={0} dy={10}>{time}</tspan>
+      </text>
+    </g>
+  );
+}
+
 // ─── Rainfall Forecast Mini Panel ─────────────────────────────────────────────
 function RainfallForecastPanel() {
   const language = useStore((s) => s.language);
   const forecastHour = useStore((s) => s.forecastHour);
+  const forecastHorizon = useStore((s) => s.forecastHorizon);
   const { resolvedTheme } = useTheme();
   const chartText = resolvedTheme === "dark" ? "#CBD5E1" : "#687770";
   const chartBorder = resolvedTheme === "dark" ? "rgba(255,255,255,0.1)" : "#DCE4DD";
@@ -34,12 +47,16 @@ function RainfallForecastPanel() {
 
   const chartData = React.useMemo(() => {
     if (!forecast?.hourly?.length) return [];
+    const interval = forecastHorizon === 24 ? 1 : forecastHorizon === 72 ? 3 : 6;
     return forecast.hourly
-      .filter((_, i) => i % 3 === 0)
+      .filter((h) => Date.parse(h.time) >= Date.now() - 60 * 60_000)
+      .filter((_, i) => i % interval === 0)
       .slice(0, 24)
       .map((h, i) => {
         const date = new Date(h.time);
-        const hLabel = `${date.getHours()}h`;
+        const hLabel = date.toLocaleString("en-IN", {
+          day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false,
+        });
         return {
           hour: hLabel,
           precipitation: h.precipitation_mm ?? 0,
@@ -48,9 +65,10 @@ function RainfallForecastPanel() {
           index: i,
         };
       });
-  }, [forecast?.hourly]);
+  }, [forecast?.hourly, forecastHorizon]);
 
-  const currentIndex = Math.floor(forecastHour / 3);
+  const forecastInterval = forecastHorizon === 24 ? 1 : forecastHorizon === 72 ? 3 : 6;
+  const currentIndex = Math.floor(forecastHour / forecastInterval);
 
   const renderBarShape = React.useCallback(
     (props: any) => {
@@ -69,7 +87,7 @@ function RainfallForecastPanel() {
       <div className="h-full flex flex-col">
         <div className="analytics-panel-title">
           <CloudRain style={{ width: 12, height: 12, color: "#3299C6" }} />
-          {language === "en" ? "Rainfall Forecast (Chalakudy Basin)" : "മഴ പ്രവചനം"}
+          {language === "en" ? "Rainfall forecast" : "മഴ പ്രവചനം"}
         </div>
         <div className="skeleton flex-1 rounded" style={{ minHeight: 80 }} />
       </div>
@@ -81,7 +99,7 @@ function RainfallForecastPanel() {
       <div className="h-full flex flex-col">
         <div className="analytics-panel-title">
           <CloudRain style={{ width: 12, height: 12, color: "#3299C6" }} />
-          {language === "en" ? "Rainfall Forecast (Chalakudy Basin)" : "മഴ പ്രവചനം"}
+          {language === "en" ? "Rainfall forecast" : "മഴ പ്രവചനം"}
         </div>
         <div style={{ fontSize: "0.6875rem", color: "#9ca3af", marginTop: 8, textAlign: "center" }}>
           {language === "en"
@@ -96,7 +114,7 @@ function RainfallForecastPanel() {
     <div className="h-full flex flex-col">
       <div className="analytics-panel-title">
         <CloudRain style={{ width: 12, height: 12, color: "#3299C6" }} />
-        {language === "en" ? "Rainfall Forecast (Chalakudy Basin)" : "മഴ പ്രവചനം"}
+        {language === "en" ? "Rainfall forecast" : "മഴ പ്രവചനം"}
         {forecast?.is_stale && (
           <span className="badge badge-stale ml-1" style={{ fontSize: "0.5rem" }}>
             {language === "en" ? "Stale" : "പഴയ"}
@@ -115,10 +133,12 @@ function RainfallForecastPanel() {
             </defs>
             <XAxis
               dataKey="hour"
-              tick={{ fill: chartText, fontSize: 9 }}
+              tick={<ForecastAxisTick color={chartText} />}
               axisLine={false}
               tickLine={false}
-              interval={3}
+              interval={Math.max(1, Math.ceil(chartData.length / 5) - 1)}
+              tickMargin={5}
+              height={32}
             />
             <YAxis
               tick={{ fill: chartText, fontSize: 9 }}
@@ -146,7 +166,7 @@ function RainfallForecastPanel() {
       <div style={{ fontSize: "0.5rem", color: "#9ca3af", marginTop: 2 }}>
         {language === "en" ? "Source: Open-Meteo NWP" : "ഉറവിടം: Open-Meteo NWP"} ·{" "}
         {chartData.some((d) => !d.isForecast) && (
-          <><span style={{ color: "#3299C6" }}>█</span> {language === "en" ? "Past hours (model analysis, not gauge data)" : "കഴിഞ്ഞ മണിക്കൂറുകൾ (മോഡൽ)"}{" "}</>
+          <><span style={{ color: "#3299C6" }}>█</span> {language === "en" ? "Current data (not gauge data)" : "നിലവിലെ ഡാറ്റ (ഗേജ് അളവല്ല)"}{" "}</>
         )}
         <span style={{ color: "#DCEFF3", border: "1px solid #9ca3af" }}>█</span> {language === "en" ? "Forecast" : "പ്രവചനം"}
         {forecast?.retrieved_at && <> · {language === "en" ? "retrieved" : "ശേഖരിച്ചത്"} {new Date(forecast.retrieved_at).toLocaleTimeString()}</>}

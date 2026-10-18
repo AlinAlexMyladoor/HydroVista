@@ -1,17 +1,15 @@
 "use client";
 
 import React from "react";
+import { BrandLogo } from "@/components/layout/BrandLogo";
 
 export function AboutView() {
   return (
     <div className="flex-1 overflow-y-auto bg-background text-text p-6">
       <div className="max-w-4xl mx-auto space-y-5">
         <header className="flex items-center gap-3 border-b border-border pb-4">
-          <div className="grid size-11 place-items-center rounded-xl bg-teal-600 text-lg font-bold text-white dark:bg-teal-500">HV</div>
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">HydroVista</h1>
-            <p className="text-sm text-text-secondary">Chalakudy River Basin · Kerala</p>
-          </div>
+          <BrandLogo className="h-14 w-[250px]" />
+          <span className="text-sm text-text-secondary">Chalakudy River Basin · Kerala</span>
         </header>
 
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Basin overview">

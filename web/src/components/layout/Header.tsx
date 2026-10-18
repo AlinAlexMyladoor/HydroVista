@@ -1,14 +1,12 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import { useStore, AppRoute } from "@/lib/store";
 import { translations } from "@/lib/translations";
 import {
   Search,
   Languages,
-  Wifi,
   WifiOff,
-  ChevronDown,
   Map,
   BarChart2,
   Sliders,
@@ -17,12 +15,10 @@ import {
   Info,
   Home,
   RefreshCw,
-  Moon,
-  Sun,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { useTheme } from "@/components/providers/ThemeProvider";
+import { BrandLogo } from "@/components/layout/BrandLogo";
 
 interface NavItem {
   id: AppRoute;
@@ -42,8 +38,6 @@ export function Header() {
     searchQuery,
     setSearchQuery,
   } = useStore();
-  const { resolvedTheme, setTheme } = useTheme();
-
   const t = translations[language];
   const [searchFocused, setSearchFocused] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -91,10 +85,10 @@ export function Header() {
     : t.demoMode;
 
   const modeColor = status?.current_mode === "live"
-    ? "text-green-700"
+    ? "text-green-700 dark:text-emerald-300"
     : status?.current_mode === "degraded"
-    ? "text-amber-700"
-    : "text-gray-600";
+    ? "text-amber-700 dark:text-amber-300"
+    : "text-gray-600 dark:text-slate-300";
 
   return (
     <header
@@ -105,37 +99,7 @@ export function Header() {
       <div className="px-4 flex items-center gap-0" style={{ height: 48 }}>
 
         {/* ─── Logo & Wordmark ─── */}
-        <div className="flex items-center gap-2.5 flex-shrink-0 mr-5">
-          {/* SVG waterwave logo */}
-          <div
-            className="flex items-center justify-center rounded-md flex-shrink-0"
-            style={{
-              width: 32, height: 32,
-              background: "linear-gradient(135deg, #0D9488 0%, #0F766E 100%)",
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <path
-                d="M2 12 Q5 8, 8 12 Q11 16, 14 12 Q17 8, 20 12"
-                stroke="white" strokeWidth="1.8" fill="none" strokeLinecap="round"
-              />
-              <path
-                d="M2 8 Q5 4, 8 8 Q11 12, 14 8 Q17 4, 20 8"
-                stroke="rgba(255,255,255,0.55)" strokeWidth="1.4" fill="none" strokeLinecap="round"
-              />
-              <circle cx="10" cy="5" r="2.2" fill="rgba(255,255,255,0.85)" />
-            </svg>
-          </div>
-
-          <div>
-            <div style={{ fontSize: "1rem", fontWeight: 750, letterSpacing: "-0.02em", color: "#26332F", lineHeight: 1.2 }}>
-              HydroVista
-            </div>
-            <div style={{ fontSize: "0.5625rem", fontWeight: 500, color: "#687770", letterSpacing: "0.03em", textTransform: "uppercase", lineHeight: 1 }}>
-              River Basin Intelligence for Safer Communities
-            </div>
-          </div>
-        </div>
+        <BrandLogo className="mr-5 h-9 w-[156px]" />
 
         {/* ─── Navigation Items ─── */}
         <nav className="flex items-center gap-0.5 flex-shrink-0" aria-label="Primary navigation">
@@ -146,29 +110,22 @@ export function Header() {
               <button
                 key={item.id}
                 onClick={() => setActiveRoute(item.id)}
-                className="flex items-center gap-1.5 rounded-md transition-all"
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[0.8125rem] transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-teal-600 ${
+                  isActive
+                    ? "bg-teal-50 font-semibold text-teal-800 dark:bg-teal-400/15 dark:text-teal-200"
+                    : "font-medium text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+                }`}
                 style={{
-                  padding: "0.3125rem 0.625rem",
-                  fontSize: "0.8125rem",
-                  fontWeight: isActive ? 600 : 500,
-                  color: isActive ? "#0F766E" : "#687770",
-                  background: isActive ? "#CCFBF1" : "transparent",
                   border: "none",
                   cursor: "pointer",
                   whiteSpace: "nowrap",
                 }}
                 aria-current={isActive ? "page" : undefined}
+                aria-label={language === "ml" ? item.mlLabel : item.label}
                 title={language === "ml" ? item.mlLabel : item.label}
               >
-                <Icon
-                  style={{
-                    width: 14,
-                    height: 14,
-                    flexShrink: 0,
-                    color: isActive ? "#155E59" : "#9ca3af",
-                  }}
-                />
-                <span className="hidden lg:inline">
+                <Icon className="h-3.5 w-3.5 shrink-0 text-current" />
+                <span className="hidden xl:inline">
                   {language === "ml" ? item.mlLabel : item.label}
                 </span>
               </button>
@@ -199,19 +156,7 @@ export function Header() {
             onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
             placeholder={t.searchPlaceholder}
             aria-label="Search locations and infrastructure"
-            style={{
-              width: "100%",
-              paddingLeft: 28,
-              paddingRight: 8,
-              paddingTop: 5,
-              paddingBottom: 5,
-              background: "#F7F8F4",
-              border: "1px solid #DCE4DD",
-              borderRadius: 6,
-              fontSize: "0.75rem",
-              color: "#26332F",
-              outline: "none",
-            }}
+            className="w-full rounded-md border border-slate-200 bg-slate-50 py-1.5 pl-7 pr-2 text-xs text-slate-900 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:focus:border-teal-400"
           />
           <span
             style={{
@@ -267,12 +212,7 @@ export function Header() {
         <div className="flex items-center gap-2 ml-3">
           {/* Data freshness / system status */}
           <div
-            className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer"
-            style={{
-              background: "#F7F8F4",
-              border: "1px solid #DCE4DD",
-              fontSize: "0.6875rem",
-            }}
+            className="hidden cursor-pointer items-center gap-1.5 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[0.6875rem] dark:border-slate-700 dark:bg-slate-900"
             onClick={() => setActiveRoute("about")}
             title="View data freshness and system status"
           >
@@ -301,44 +241,16 @@ export function Header() {
           {/* Language Toggle */}
           <button
             onClick={() => setLanguage(language === "en" ? "ml" : "en")}
-            className="flex items-center gap-1 rounded transition-colors"
-            style={{
-              padding: "0.3125rem 0.5rem",
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              color: "#26332F",
-              background: "#FFFFFF",
-              border: "1px solid #DCE4DD",
-              cursor: "pointer",
-              letterSpacing: "0.01em",
-            }}
+            className="flex cursor-pointer items-center gap-1 rounded border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold tracking-tight text-slate-800 transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-teal-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
             title="Toggle between English and Malayalam (മലയാളം)"
             aria-label="Toggle language"
           >
-            <Languages style={{ width: 13, height: 13, color: "#155E59", flexShrink: 0 }} />
+            <Languages className="h-3.5 w-3.5 shrink-0 text-teal-700 dark:text-teal-300" />
             <span>
               {language === "en" ? "EN" : "ML"}
             </span>
-            {/* Show flag-like accent text */}
-            <span style={{ color: "#687770", fontWeight: 400, fontSize: "0.625rem" }}>
-              {language === "en" ? "| മല" : "| EN"}
-            </span>
           </button>
 
-          {/* User avatar placeholder */}
-          <div
-            className="flex items-center justify-center rounded-full flex-shrink-0"
-            style={{
-              width: 28, height: 28,
-              background: "#155E59",
-              color: "white",
-              fontSize: "0.6875rem",
-              fontWeight: 700,
-            }}
-            aria-hidden="true"
-          >
-            A
-          </div>
         </div>
       </div>
     </header>

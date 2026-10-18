@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
 import { translations } from "@/lib/translations";
 import { LAYER_DEFS } from "@/lib/layers";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import {
-  ChevronDown,
   Play,
   Pause,
   RotateCcw,
@@ -58,10 +57,16 @@ const LAYER_ITEMS: LayerItem[] = LAYER_DEFS.map((d) => ({
   ...d,
   ...(LAYER_ICONS[d.id] ?? { icon: Layers, iconColor: "#687770" }),
 }));
+const LAYER_GROUPS = [
+  { id: "base", en: "Map context", ml: "ഭൂപട പശ്ചാത്തലം", layers: ["terrain", "rivers", "roads", "buildings", "boundaries", "satellite"], open: true },
+  { id: "hazards", en: "Hazards", ml: "അപകടങ്ങൾ", layers: ["inundation", "flood-risk"], open: true },
+  { id: "infrastructure", en: "Infrastructure & reports", ml: "അടിസ്ഥാന സൗകര്യങ്ങളും റിപ്പോർട്ടുകളും", layers: ["hospitals", "schools", "shelters", "other-assets", "reports"], open: false },
+];
 
 // ─── Timeline hour marks ──────────────────────────────────────────────────────
 const TIMELINE_MARKS_24H = [0, 6, 12, 18, 24];
 const TIMELINE_MARKS_72H = [0, 12, 24, 36, 48, 60, 72];
+const TIMELINE_MARKS_168H = [0, 24, 48, 72, 96, 120, 144, 168];
 
 export function LeftRail() {
   const {
@@ -79,7 +84,6 @@ export function LeftRail() {
   } = useStore();
 
   const t = translations[language];
-  const [studyAreaOpen, setStudyAreaOpen] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
 
   const { data: status } = useQuery({
@@ -89,16 +93,28 @@ export function LeftRail() {
     retry: 1,
   });
 
-  const { data: forecast } = useQuery({
-    queryKey: ["forecast-latest"],
-    queryFn: () => api.forecast.latest(),
-    retry: 1,
-  });
-
-  // Build actual timeline from forecast data if available
-  const forecastTimestamps = forecast?.hourly?.map((h) => h.time) ?? [];
+  // The selected cursor controls the forecast chart and on-map weather readout.
   const maxHour = forecastHorizon;
-  const timelineMarks = forecastHorizon === 24 ? TIMELINE_MARKS_24H : TIMELINE_MARKS_72H;
+  const timelineMarks = forecastHorizon === 24
+    ? TIMELINE_MARKS_24H
+    : forecastHorizon === 72
+      ? TIMELINE_MARKS_72H
+      : TIMELINE_MARKS_168H;
+
+  // Advance the selected forecast hour while playing. The map and forecast
+  // chart subscribe to this shared value so playback stays synchronized.
+  useEffect(() => {
+    if (!isPlayingTimeline) return;
+    const timer = window.setInterval(() => {
+      const current = useStore.getState().forecastHour;
+      if (current >= maxHour) {
+        setIsPlayingTimeline(false);
+      } else {
+        setForecastHour(Math.min(current + 1, maxHour));
+      }
+    }, 1200 / playbackSpeed);
+    return () => window.clearInterval(timer);
+  }, [isPlayingTimeline, maxHour, playbackSpeed, setForecastHour, setIsPlayingTimeline]);
 
   const resetLayers = () => {
     LAYER_ITEMS.forEach((l) => setLayerVisible(l.id, l.defaultOn && !l.unavailable));
@@ -137,40 +153,15 @@ export function LeftRail() {
     >
       {/* ─── Study Area ─── */}
       <section className="border-b border-[#DCE4DD] p-3">
-        <div
-          className="flex items-center justify-between cursor-pointer"
-          onClick={() => setStudyAreaOpen(!studyAreaOpen)}
-          aria-expanded={studyAreaOpen}
-        >
+        <div className="flex items-center justify-between">
           <span style={{ fontWeight: 600, color: "#26332F", fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
             {language === "en" ? "Study Area" : "പഠനമേഖല"}
           </span>
-          <ChevronDown
-            style={{
-              width: 13, height: 13, color: "#687770",
-              transform: studyAreaOpen ? "rotate(180deg)" : "rotate(0deg)",
-              transition: "transform 150ms",
-            }}
-          />
         </div>
 
-        {/* Basin card */}
-        <div className="mt-2 flex items-center gap-2 rounded-md p-2"
+        <div className="mt-2 rounded-md px-2.5 py-2"
           style={{ background: "#F7F8F4", border: "1px solid #DCE4DD" }}>
-          {/* Mini river illustration */}
-          <div
-            className="flex-shrink-0 rounded"
-            style={{ width: 40, height: 32, background: "#DCEFF3", overflow: "hidden", position: "relative" }}
-          >
-            <svg width="40" height="32" viewBox="0 0 40 32" fill="none" aria-hidden="true">
-              <rect width="40" height="32" fill="#DCEFF3"/>
-              {/* Simplified basin topography */}
-              <path d="M0 20 Q10 14 20 18 Q30 22 40 16" stroke="#3299C6" strokeWidth="2" fill="none" opacity="0.7"/>
-              <path d="M0 26 Q12 22 20 24 Q32 26 40 22" stroke="#3299C6" strokeWidth="1.5" fill="none" opacity="0.5"/>
-              <ellipse cx="20" cy="18" rx="18" ry="8" fill="#155E59" opacity="0.12"/>
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0">
             <div style={{ fontWeight: 600, color: "#26332F", lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {language === "en" ? "Chalakudy River Basin" : "ചാലക്കുടിപ്പുഴ തടം"}
             </div>
@@ -178,7 +169,6 @@ export function LeftRail() {
               {language === "en" ? "Thrissur, Ernakulam, Kerala" : "തൃശ്ശൂർ, എറണാകുളം, കേരളം"}
             </div>
           </div>
-          <ChevronDown style={{ width: 12, height: 12, color: "#9ca3af", flexShrink: 0 }} />
         </div>
       </section>
 
@@ -233,7 +223,7 @@ export function LeftRail() {
           />
           <div className="flex justify-between" style={{ fontSize: "0.5625rem", color: "#9ca3af" }}>
             {timelineMarks.map((m) => (
-              <span key={m}>{m}h</span>
+              <span key={m}>{forecastHorizon === 168 && m > 0 ? `${m / 24}d` : `${m}h`}</span>
             ))}
           </div>
 
@@ -254,7 +244,10 @@ export function LeftRail() {
         {/* Playback controls */}
         <div className="flex items-center gap-2 mt-3">
           <button
-            onClick={() => setIsPlayingTimeline(!isPlayingTimeline)}
+            onClick={() => {
+              if (!isPlayingTimeline && forecastHour >= maxHour) setForecastHour(0);
+              setIsPlayingTimeline(!isPlayingTimeline);
+            }}
             className="flex items-center gap-1.5 rounded transition-colors"
             style={{
               padding: "0.3125rem 0.625rem",
@@ -267,11 +260,12 @@ export function LeftRail() {
               flex: 1,
               justifyContent: "center",
             }}
-            aria-label={isPlayingTimeline ? "Pause simulation" : "Play simulation"}
+            aria-label={isPlayingTimeline ? "Pause forecast playback" : "Play forecast playback"}
+            title={language === "en" ? "Moves through forecast rainfall hours; flood extent remains the latest analysis." : "മഴ പ്രവചന സമയങ്ങളിലൂടെ നീങ്ങുന്നു; വെള്ളപ്പൊക്ക പരിധി ഏറ്റവും പുതിയ വിശകലനമാണ്."}
           >
             {isPlayingTimeline
               ? <><Pause style={{ width: 11, height: 11 }} /> {language === "en" ? "Pause" : "നിർത്തുക"}</>
-              : <><Play style={{ width: 11, height: 11 }} /> {language === "en" ? "Play Simulation" : "സിമുലേഷൻ"}</>
+              : <><Play style={{ width: 11, height: 11 }} /> {language === "en" ? "Play Forecast" : "പ്രവചനം പ്ലേ ചെയ്യുക"}</>
             }
           </button>
 
@@ -331,39 +325,56 @@ export function LeftRail() {
           </button>
         </div>
 
-        <div className="space-y-1">
-          {LAYER_ITEMS.map((layer) => {
-            const Icon = layer.icon;
-            const isOn = !layer.unavailable && visibleLayers.has(layer.id);
-            return (
-              <label
-                key={layer.id}
-                className="flex items-center gap-2 rounded py-0.5 px-1 transition-colors hover:bg-[#F7F8F4]"
-                style={{ userSelect: "none", cursor: layer.unavailable ? "not-allowed" : "pointer", opacity: layer.unavailable ? 0.6 : 1 }}
-                title={layer.unavailable}
-              >
-                <input
-                  type="checkbox"
-                  checked={isOn}
-                  disabled={!!layer.unavailable}
-                  onChange={() => toggleLayer(layer.id)}
-                  className="layer-checkbox flex-shrink-0"
-                  aria-label={language === "en" ? layer.label : layer.mlLabel}
-                />
-                <Icon style={{ width: 13, height: 13, color: isOn ? layer.iconColor : "#9ca3af", flexShrink: 0 }} />
-                <span style={{ color: isOn ? "#26332F" : "#9ca3af", fontSize: "0.6875rem", lineHeight: 1.4 }}>
-                  {language === "en" ? layer.label : layer.mlLabel}
+        <div className="space-y-1.5">
+          {LAYER_GROUPS.map((group) => (
+            <details key={group.id} open={group.open} className="group/layers">
+              <summary className="cursor-pointer list-none px-1 py-1 font-semibold text-slate-500 hover:text-slate-700">
+                <span className="inline-flex items-center gap-1.5">
+                  <ChevronRight className="h-3 w-3 transition-transform group-open/layers:rotate-90" />
+                  {language === "en" ? group.en : group.ml}
                 </span>
-              </label>
-            );
-          })}
+              </summary>
+              <div className="space-y-1 pl-1">
+                {group.layers.map((id) => {
+                  const layer = LAYER_ITEMS.find((item) => item.id === id);
+                  if (!layer) return null;
+                  const Icon = layer.icon;
+                  const isOn = !layer.unavailable && visibleLayers.has(layer.id);
+                  return (
+                    <label
+                      key={layer.id}
+                      className="flex items-center gap-2 rounded py-0.5 px-1 transition-colors hover:bg-[#F7F8F4]"
+                      style={{ userSelect: "none", cursor: layer.unavailable ? "not-allowed" : "pointer", opacity: layer.unavailable ? 0.6 : 1 }}
+                      title={layer.unavailable}
+                    >
+                      <input type="checkbox" checked={isOn} disabled={!!layer.unavailable}
+                        onChange={() => toggleLayer(layer.id)} className="layer-checkbox flex-shrink-0"
+                        aria-label={language === "en" ? layer.label : layer.mlLabel} />
+                      <Icon style={{ width: 13, height: 13, color: isOn ? layer.iconColor : "#9ca3af", flexShrink: 0 }} />
+                      <span style={{ color: isOn ? "#26332F" : "#9ca3af", fontSize: "0.6875rem", lineHeight: 1.4 }}>
+                        {language === "en" ? layer.label : layer.mlLabel}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </details>
+          ))}
         </div>
       </section>
 
       {/* ─── Data Sources ─── */}
       <section className="p-3">
-        <div style={{ fontWeight: 600, color: "#26332F", fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+        <div className="mb-2 flex items-center justify-between" style={{ fontWeight: 600, color: "#26332F", fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
           {language === "en" ? "Data Sources" : "ഡാറ്റ സ്രോതസ്സ്"}
+          <button
+            onClick={() => setActiveRoute("about")}
+            className="flex items-center gap-0.5 normal-case tracking-normal"
+            style={{ fontSize: "0.625rem", color: "#155E59", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+          >
+            {language === "en" ? "View all" : "എല്ലാം"}
+            <ChevronRight style={{ width: 10, height: 10 }} />
+          </button>
         </div>
 
         <div className="space-y-1.5">
@@ -406,14 +417,6 @@ export function LeftRail() {
           }
         </div>
 
-        <button
-          onClick={() => setActiveRoute("about")}
-          className="mt-3 flex items-center gap-1"
-          style={{ fontSize: "0.625rem", color: "#155E59", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: 0 }}
-        >
-          {language === "en" ? "View all data sources" : "എല്ലാ ഡാറ്റ സ്രോതസ്സുകളും"}
-          <ChevronRight style={{ width: 10, height: 10 }} />
-        </button>
       </section>
     </aside>
   );

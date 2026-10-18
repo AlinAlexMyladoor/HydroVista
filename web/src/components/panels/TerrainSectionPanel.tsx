@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Mountain, RotateCcw, RefreshCw, AlertTriangle } from "lucide-react";
+import { Mountain, RefreshCw, AlertTriangle } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { sampleSwath, type SwathSpec, type SwathResult } from "@/lib/dem";
 import { buildSectionMesh, ELEVATION_STOPS, type SectionMesh } from "@/lib/section-mesh";
@@ -430,6 +430,11 @@ export function TerrainSectionPanel() {
     retry: 1,
   });
 
+  const retryElevation = useCallback(() => {
+    setResetToken((n) => n + 1);
+    void refetch();
+  }, [refetch]);
+
   const tooMuchMissing = !!swath && swath.missingCount / swath.totalCount > 0.05;
   const mesh = useMemo(
     () => (swath && !tooMuchMissing && swath.maxM != null ? buildSectionMesh(swath, vertExag) : null),
@@ -458,12 +463,15 @@ export function TerrainSectionPanel() {
             />
           </label>
           <button
-            onClick={() => setResetToken((n) => n + 1)}
-            title={en ? "Reset camera" : "ക്യാമറ റീസെറ്റ്"}
-            aria-label="Reset 3D camera"
-            style={{ background: "none", border: "none", cursor: "pointer", color: "#155E59", padding: 0, display: "flex" }}
+            type="button"
+            onClick={retryElevation}
+            disabled={isFetching}
+            title={en ? "Retry elevation data and reset the 3D view" : "ഉയര ഡാറ്റ വീണ്ടും ലോഡ് ചെയ്ത് 3D കാഴ്ച പുനഃക്രമീകരിക്കുക"}
+            aria-label={en ? "Retry elevation data and reset 3D view" : "ഉയര ഡാറ്റ വീണ്ടും ലോഡ് ചെയ്യുക"}
+            aria-busy={isFetching}
+            style={{ background: "none", border: "none", cursor: isFetching ? "wait" : "pointer", color: "#155E59", padding: 5, display: "flex", opacity: isFetching ? 0.55 : 1 }}
           >
-            <RotateCcw style={{ width: 11, height: 11 }} />
+            <RefreshCw style={{ width: 13, height: 13 }} className={isFetching ? "animate-spin" : undefined} />
           </button>
         </div>
       </div>
@@ -486,7 +494,8 @@ export function TerrainSectionPanel() {
             </span>
             <span style={{ color: "#9ca3af", fontSize: "0.5625rem" }}>{(error as Error)?.message}</span>
             <button
-              onClick={() => refetch()}
+              onClick={retryElevation}
+              disabled={isFetching}
               style={{ fontSize: "0.625rem", color: "#155E59", border: "1px solid #DCE4DD", borderRadius: 4, padding: "2px 8px", background: "white", cursor: "pointer" }}
             >
               <RefreshCw style={{ width: 9, height: 9, display: "inline", marginRight: 3 }} />
@@ -500,7 +509,8 @@ export function TerrainSectionPanel() {
               ? `No-data: ${swath.missingCount} of ${swath.totalCount} DEM samples unavailable (${swath.tiles.failed} tile requests failed).`
               : "DEM ഡാറ്റ ലഭ്യമല്ല."}
             <button
-              onClick={() => refetch()}
+              onClick={retryElevation}
+              disabled={isFetching}
               style={{ fontSize: "0.625rem", color: "#155E59", border: "1px solid #DCE4DD", borderRadius: 4, padding: "2px 8px", background: "white", cursor: "pointer" }}
             >
               {en ? "Retry" : "വീണ്ടും"}
