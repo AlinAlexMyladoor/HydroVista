@@ -245,6 +245,49 @@ async def fetch_historical(
     }
 
 
+async def fetch_river_discharge_forecast(
+    lat: float = BASIN_LAT,
+    lon: float = BASIN_LON,
+    forecast_days: int = 14,
+) -> dict[str, Any]:
+    """Fetch modelled daily river discharge from Open-Meteo's GloFAS Flood API."""
+    url = "https://flood-api.open-meteo.com/v1/flood"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "daily": "river_discharge",
+        "forecast_days": forecast_days,
+        "timezone": "GMT",
+        "timeformat": "iso8601",
+    }
+    try:
+        async with httpx.AsyncClient() as client:
+            raw = await _fetch_json(client, url, params)
+    except Exception as exc:
+        raise WeatherDataError("Open-Meteo river discharge request failed") from exc
+
+    daily = raw.get("daily", {})
+    times = daily.get("time", [])
+    discharge = daily.get("river_discharge", [])
+    return {
+        "source": "Open-Meteo Flood API (GloFAS)",
+        "source_url": "https://open-meteo.com/en/docs/flood-api",
+        "model": "GloFAS v4 Seamless",
+        "retrieved_at": datetime.now(timezone.utc).isoformat(),
+        "lat": raw.get("latitude", lat),
+        "lon": raw.get("longitude", lon),
+        "units": raw.get("daily_units", {}).get("river_discharge", "m³/s"),
+        "daily": [
+            {"date": time, "river_discharge_m3s": _safe_float(discharge, i)}
+            for i, time in enumerate(times)
+        ],
+        "known_limitations": (
+            "Modelled discharge for a nearby river grid cell at about 5 km resolution; "
+            "the selected river may not match the basin outlet. This is not gauge data."
+        ),
+    }
+
+
 def _safe_float(lst: list, i: int) -> float | None:
     try:
         v = lst[i]

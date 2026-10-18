@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import structlog
 from fastapi import APIRouter, HTTPException, Query
 
-from app.services.weather import fetch_forecast, WeatherDataError
+from app.services.weather import fetch_forecast, fetch_river_discharge_forecast, WeatherDataError
 from app.core.config import settings
 
 log = structlog.get_logger(__name__)
@@ -17,6 +17,8 @@ router = APIRouter()
 _forecast_cache: dict | None = None
 _cache_timestamp: datetime | None = None
 CACHE_TTL_SECONDS = 900  # 15 min
+_discharge_cache: dict | None = None
+_discharge_cache_timestamp: datetime | None = None
 
 
 @router.get("/forecast/latest")
@@ -76,6 +78,25 @@ async def get_latest_forecast():
                 "recommendation": "Check network connectivity. Open-Meteo requires no API key.",
             },
         )
+
+
+@router.get("/forecast/discharge")
+async def get_river_discharge_forecast():
+    """Return modelled GloFAS discharge for the basin-centroid river grid cell."""
+    global _discharge_cache, _discharge_cache_timestamp
+    now = datetime.now(timezone.utc)
+    if _discharge_cache and _discharge_cache_timestamp and (now - _discharge_cache_timestamp).total_seconds() < CACHE_TTL_SECONDS:
+        return _discharge_cache
+    try:
+        result = await fetch_river_discharge_forecast(settings.BASIN_LAT, settings.BASIN_LON)
+        _discharge_cache = result
+        _discharge_cache_timestamp = now
+        return result
+    except WeatherDataError as exc:
+        log.warning("forecast.discharge_failed", error=str(exc))
+        if _discharge_cache:
+            return {**_discharge_cache, "is_stale": True}
+        raise HTTPException(status_code=503, detail="River discharge forecast is temporarily unavailable") from exc
 
 
 @router.get("/forecast/{run_id}")

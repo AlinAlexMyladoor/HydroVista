@@ -109,6 +109,28 @@ export interface ForecastResponse {
   stale_since: string | null;
 }
 
+export interface HistoricalRainfallResponse {
+  source: string;
+  source_url: string;
+  start_date: string;
+  end_date: string;
+  hourly: HourlyWeather[];
+  data_quality_notes: string[];
+}
+
+export interface RiverDischargeResponse {
+  source: string;
+  source_url: string;
+  model: string;
+  retrieved_at: string;
+  lat: number;
+  lon: number;
+  units: string;
+  daily: { date: string; river_discharge_m3s: number | null }[];
+  known_limitations: string;
+  is_stale?: boolean;
+}
+
 export interface Asset {
   osm_id: string;
   name: string | null;
@@ -368,6 +390,7 @@ export const api = {
 
   forecast: {
     latest: () => request<ForecastResponse>("/api/v1/forecast/latest"),
+    discharge: () => request<RiverDischargeResponse>("/api/v1/forecast/discharge"),
     dataSources: () => request<{ sources: DataSourceStatus[] }>("/api/v1/data-sources"),
   },
 
@@ -423,6 +446,10 @@ export const api = {
   historical: {
     events: () => request("/api/v1/historical/events"),
     compare: () => request("/api/v1/historical/compare"),
+    rainfall: (startDate: string, endDate: string) => {
+      const q = new URLSearchParams({ start_date: startDate, end_date: endDate });
+      return request<HistoricalRainfallResponse>(`/api/v1/historical/rainfall?${q}`);
+    },
   },
 
   reports: {

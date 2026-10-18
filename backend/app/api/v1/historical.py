@@ -1,9 +1,38 @@
 """Historical events endpoints."""
 from __future__ import annotations
 
-from fastapi import APIRouter
+from datetime import date
+
+from fastapi import APIRouter, HTTPException, Query
+
+from app.core.config import settings
+from app.services.weather import WeatherDataError, fetch_historical
 
 router = APIRouter()
+
+
+@router.get("/historical/rainfall")
+async def get_historical_rainfall(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+):
+    """Return Open-Meteo ERA5 hindcast rainfall for a date range at the basin centroid."""
+    if end_date < start_date:
+        raise HTTPException(status_code=422, detail="end_date must be on or after start_date")
+    if (end_date - start_date).days > 45:
+        raise HTTPException(status_code=422, detail="date range cannot exceed 46 days")
+    if end_date >= date.today():
+        raise HTTPException(status_code=422, detail="historical rainfall dates must be in the past")
+    try:
+        result = await fetch_historical(
+            lat=settings.BASIN_LAT,
+            lon=settings.BASIN_LON,
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+        )
+        return result
+    except WeatherDataError as exc:
+        raise HTTPException(status_code=503, detail="Historical rainfall is temporarily unavailable") from exc
 
 # Documented historical flood events for the Chalakudy / Kerala region.
 # Sources: Kerala State Disaster Management Authority, IMD, academic literature.
