@@ -1,6 +1,6 @@
 # data/
 
-## labeled_flood_features.csv  (you provide this — it is not in the repo)
+## labeled_flood_features.csv
 
 One row per labelled sample (pixel or small cell).
 
@@ -16,6 +16,11 @@ One row per labelled sample (pixel or small cell).
 
 Missing values in features are median-imputed; missing `label` is rejected. The grouped holdout needs at least three
 `region_id` groups, with both classes represented in the train and test regions.
+
+The Random Forest probability layer is sigmoid-calibrated from group-separated folds within the training regions;
+the spatially held-out test region is excluded from calibration. Calibration does not correct biased labels or
+make a score a guarantee of local flood conditions. Small positive test counts and near-perfect metrics are flagged
+in the evaluation response for review. CSVs with `is_flooded` instead of `label` are accepted, but still need `region_id`.
 
 Train (from `backend/`):
 

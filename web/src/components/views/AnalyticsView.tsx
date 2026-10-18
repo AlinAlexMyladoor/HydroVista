@@ -18,6 +18,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { LineChart } from "lucide-react";
 
 const fmt = (v: number | null | undefined, digits = 3) => (v == null ? "—" : v.toFixed(digits));
 type HistoricalEventsResponse = { events: { event_id: string; name: string; start_date: string; end_date: string; description: string; source: string; source_url?: string; flood_extent_available: boolean; notes?: string | null }[]; note?: string };
@@ -45,8 +46,19 @@ function ModelEvalPanel({ ev, isLoading, isError }: { ev: ModelEvaluation | unde
     ["Precision", fmt(m.precision)], ["Recall", fmt(m.recall)], ["F1", fmt(m.f1)],
     ["IoU", fmt(m.iou)], ["ROC-AUC", fmt(m.roc_auc)], ["Brier score", fmt(m.brier_score)],
   ];
+  const positiveTestCount = ev.confusion_matrix?.matrix?.[1]?.reduce((sum, n) => sum + n, 0) ?? 0;
+  const metricEntries = Object.entries(ev.metrics).filter(([name]) => ["precision", "recall", "f1", "iou", "roc_auc"].includes(name));
+  const perfectMetrics = metricEntries.filter(([, value]) => value != null && value >= 0.999).map(([name]) => name.toUpperCase());
+  const validationAlerts = [
+    ...ev.notes.filter((note) => /Only \d+ flooded|Small test set|Near-perfect|calibration was unavailable|uncalibrated/i.test(note)),
+    ...(positiveTestCount > 0 && positiveTestCount < 30 && !ev.notes.some((note) => /Only \d+ flooded/i.test(note)) ? [`Only ${positiveTestCount} flooded held-out samples; flood-class metrics are uncertain.`] : []),
+    ...(perfectMetrics.length && !ev.notes.some((note) => /Near-perfect/i.test(note)) ? [`Near-perfect ${perfectMetrics.join(", ")} score(s); audit for leakage, permanent-water memorization, and test-set support.`] : []),
+  ];
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {validationAlerts.length > 0 && <div role="status" className="lg:col-span-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <strong className="mr-1">Validation caution</strong>{validationAlerts.join(" ")}
+      </div>}
       <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-xs">
         <h3 className="text-sm font-bold text-[#1E292B] mb-1">Random Forest — held-out regions</h3>
         <p className="text-xs text-[#687770] mb-4">{ev.n_test} held-out rows · {ev.split?.test_regions.length} test regions · {ev.csv_name}</p>
@@ -73,7 +85,7 @@ function ModelEvalPanel({ ev, isLoading, isError }: { ev: ModelEvaluation | unde
             F1 {fmt(ev.baseline_comparison.metrics.f1)}, IoU {fmt(ev.baseline_comparison.metrics.iou)}.
           </div>
         )}
-        <details className="ux-disclosure mt-2 text-[11px] text-text-secondary"><summary>Metric interpretation</summary><p className="pt-2">A metric is undefined when its denominator is zero. Model probabilities are uncalibrated.</p></details>
+        <details className="ux-disclosure mt-2 text-[11px] text-text-secondary"><summary>Metric interpretation</summary><p className="pt-2">A metric is undefined when its denominator is zero. {ev.probability_calibration?.available ? "Sigmoid calibration uses group-separated out-of-fold predictions from training regions only." : "This saved model has no verified probability calibration; do not treat output scores as confidence."} Scores are not guarantees of local flood conditions.</p></details>
       </div>
       <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-xs">
         <h3 className="text-sm font-bold text-[#1E292B] mb-1">Feature importance (impurity-based)</h3>
@@ -85,7 +97,6 @@ function ModelEvalPanel({ ev, isLoading, isError }: { ev: ModelEvaluation | unde
             </div>
           ))}
         </div>
-        {ev.notes.length > 0 && <ul className="mt-4 text-[11px] text-[#92400e] list-disc pl-4">{ev.notes.map((n) => <li key={n}>{n}</li>)}</ul>}
       </div>
     </div>
   );
@@ -122,8 +133,7 @@ export function AnalyticsView() {
 
   // Prepare precipitation data
   const hourlyData = (forecast?.hourly || []).slice(0, 48).map((h, i) => ({
-    hour: `+${i}h`,
-    time: h.time ? new Date(h.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : `+${i}h`,
+    time: h.time ? new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(h.time)) : `+${i}h`,
     precipitation: h.precipitation_mm,
     temp: h.temperature_2m,
     humidity: h.relative_humidity_2m,
@@ -149,6 +159,23 @@ export function AnalyticsView() {
   ];
   const rainfall24h = forecast?.rainfall_accumulations?.find((a) => a.window_hours === 24)?.accumulation_mm;
   const rainfall72h = forecast?.rainfall_accumulations?.find((a) => a.window_hours === 72)?.accumulation_mm;
+  const evaluationFloodCount = modelEval?.confusion_matrix?.matrix?.[1]?.reduce((sum, n) => sum + n, 0) ?? null;
+  const kpiCards = activeTab === "precipitation" ? [
+    ["24h rainfall", rainfall24h == null ? "—" : `${rainfall24h.toFixed(1)} mm`, forecastError || !forecast ? "Forecast unavailable" : forecast.is_stale ? "Stale forecast" : "Open-Meteo forecast"],
+    ["72h rainfall", rainfall72h == null ? "—" : `${rainfall72h.toFixed(1)} mm`, forecastError || !forecast ? "Forecast unavailable" : forecast.is_stale ? "Stale forecast" : "Open-Meteo forecast"],
+    ["High-risk infrastructure", exposureLoading || exposureError || !exposure ? "—" : String(riskCounts.critical + riskCounts.high), exposureLoading || exposureError || !exposure ? "Risk data unavailable" : `${riskCounts.critical} critical · ${riskCounts.high} high`],
+    ["Forecast hours", String(hourlyData.length), "Hourly precipitation records"],
+  ] : activeTab === "risk_model" ? [
+    ["Held-out rows", modelEval?.status === "evaluated" ? String(modelEval.n_test ?? "—") : "—", "Spatially separated test set"],
+    ["Flood test samples", evaluationFloodCount == null ? "—" : String(evaluationFloodCount), "Positive examples in held-out set"],
+    ["F1 score", modelEval?.status === "evaluated" ? fmt(modelEval.metrics.f1) : "—", "Held-out classification metric"],
+    ["Brier score", modelEval?.status === "evaluated" ? fmt(modelEval.metrics.brier_score) : "—", "Held-out probability error · lower is better"],
+  ] : [
+    ["Documented events", historical?.events?.length == null ? "—" : String(historical.events.length), "Kerala flood records"],
+    ["Processed extents", historical?.events ? String(historical.events.filter((event) => event.flood_extent_available).length) : "—", "Available for spatial comparison"],
+    ["Gauge series", "Unavailable", "No verified event series loaded"],
+    ["Reference period", historical?.events?.length ? "2018–2019" : "—", "Documented event dates"],
+  ];
 
   return (
     <div className="flex-1 flex flex-col overflow-y-auto bg-[#F7F8F4] p-6 text-[#26332F]">
@@ -156,7 +183,7 @@ export function AnalyticsView() {
       <div className="flex items-center justify-between pb-6 border-b border-[#E2E8F0]">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xl">📊</span>
+            <LineChart className="h-5 w-5 text-teal-700 dark:text-teal-400" aria-hidden="true" />
             <h1 className="text-xl font-bold text-[#1E292B]">
               {language === "en" ? "Analytics" : "അപഗ്രഥനം"}
             </h1>
@@ -193,64 +220,16 @@ export function AnalyticsView() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 my-6">
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-xs">
-          <div className="text-[11px] font-semibold text-[#687770] uppercase tracking-wider">
-            {language === "en" ? "24h rainfall" : "24 മണിക്കൂർ മഴ"}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 my-6">
+        {kpiCards.map(([label, value, hint], index) => (
+          <div key={`${activeTab}-${label}`} className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-xs dark:bg-slate-900 dark:border-slate-800">
+            <div className="text-[11px] font-semibold text-[#687770] uppercase tracking-wider dark:text-slate-400">{label}</div>
+            <div className={`text-2xl font-bold mt-1 ${index === 1 && activeTab === "risk_model" && evaluationFloodCount != null && evaluationFloodCount < 30 ? "text-amber-700 dark:text-amber-300" : "text-[#1E292B] dark:text-slate-50"}`}>{value}</div>
+            <div className="text-[11px] text-[#687770] font-medium mt-1 dark:text-slate-400">{hint}</div>
           </div>
-          <div className="text-2xl font-bold text-[#1E292B] mt-1">
-            {rainfall24h?.toFixed(1) ?? "—"} <span className="text-xs font-normal text-[#687770]">mm</span>
-          </div>
-          <div className="text-[11px] text-[#0D9488] font-medium mt-1 flex items-center gap-1">
-            <span>●</span> {forecastError || !forecast ? "Forecast unavailable" : forecast.is_stale ? "Stale forecast" : "Open-Meteo forecast"}
-          </div>
-        </div>
-
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-xs">
-          <div className="text-[11px] font-semibold text-[#687770] uppercase tracking-wider">
-            {language === "en" ? "72h rainfall" : "72 മണിക്കൂർ ശേഖരണം"}
-          </div>
-          <div className="text-2xl font-bold text-[#1E292B] mt-1">
-            {rainfall72h?.toFixed(1) ?? "—"} <span className="text-xs font-normal text-[#687770]">mm</span>
-          </div>
-          <div className="text-[11px] text-[#F59E0B] font-medium mt-1 flex items-center gap-1">
-            <span>●</span> {forecastError || !forecast ? "Forecast unavailable" : forecast.is_stale ? "Stale forecast" : "Open-Meteo forecast"}
-          </div>
-        </div>
-
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-xs">
-          <div className="text-[11px] font-semibold text-[#687770] uppercase tracking-wider">
-            {language === "en" ? "High Risk Infrastructure" : "അപകടസാധ്യതയുള്ള സ്ഥാപനങ്ങൾ"}
-          </div>
-          <div className="text-2xl font-bold text-[#EF4444] mt-1">
-            {exposureLoading || exposureError || !exposure ? "—" : riskCounts.critical + riskCounts.high} <span className="text-xs font-normal text-[#687770]">high risk</span>
-          </div>
-          <div className="text-[11px] text-[#687770] font-medium mt-1">
-            {exposureLoading || exposureError || !exposure ? "Risk data unavailable" : `${riskCounts.critical} critical · ${riskCounts.high} high`}
-          </div>
-        </div>
-
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-xs">
-          <div className="text-[11px] font-semibold text-[#687770] uppercase tracking-wider">
-            {language === "en" ? "Flood Model (held-out F1)" : "മോഡൽ കൃത്യത"}
-          </div>
-          {modelEval?.status === "evaluated" ? (
-            <>
-              <div className="text-2xl font-bold text-[#10B981] mt-1">
-                {fmt(modelEval.metrics.f1)} <span className="text-xs font-normal text-[#687770]">F1</span>
-              </div>
-              <div className="text-[11px] text-[#687770] font-medium mt-1">
-                IoU {fmt(modelEval.metrics.iou)} · ROC-AUC {fmt(modelEval.metrics.roc_auc)} · n={modelEval.n_test}
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="text-2xl font-bold text-[#687770] mt-1">Not trained</div>
-              <div className="text-[11px] text-[#687770] font-medium mt-1">No evaluation exists yet</div>
-            </>
-          )}
-        </div>
+        ))}
       </div>
+
 
       {/* Main Content Tab Panes */}
       {activeTab === "precipitation" && (
@@ -269,7 +248,7 @@ export function AnalyticsView() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" strokeOpacity={0.1} />
-                  <XAxis dataKey="hour" tick={{ fontSize: 10, fill: "#687770" }} />
+                  <XAxis dataKey="time" interval={Math.max(0, Math.ceil(hourlyData.length / 8) - 1)} minTickGap={28} tick={{ fontSize: 10, fill: "#687770" }} />
                   <YAxis tick={{ fontSize: 10, fill: "#687770" }} unit=" mm" />
                   <Tooltip
                     contentStyle={{ backgroundColor: "#1E292B", borderRadius: "8px", border: "none", color: "#fff", fontSize: "12px" }}
@@ -313,6 +292,7 @@ export function AnalyticsView() {
 
       {activeTab === "historical" && (
         <div className="space-y-3">
+          <p className="text-xs text-text-secondary">Event dates are documented; verified rainfall series and processed flood extents are not currently loaded, so no quantitative comparison is shown.</p>
           {historical?.events?.map((event) => (
             <article key={event.event_id} className="rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-xs">
               <div className="flex flex-wrap items-start justify-between gap-3">

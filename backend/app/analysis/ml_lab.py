@@ -8,7 +8,8 @@ Nothing is reported unless you run it on real labelled data.
 
 Evaluation uses GroupShuffleSplit on region_id so train/test regions are disjoint
 (random pixel splits overstate skill because neighbouring pixels are correlated).
-Both models are scored on the SAME test rows. Probabilities are not claimed to be calibrated.
+Sigmoid probability calibration is fitted on group-separated out-of-fold predictions
+from training regions only; the held-out test region is never used for calibration.
 
 CLI:  python -m app.analysis.ml_lab train --csv data/labeled_flood_features.csv [--threshold-db -16]
 """
@@ -36,15 +37,39 @@ class ExperimentError(ValueError):
     pass
 
 
+class GroupCalibratedModel:
+    """Group-CV calibrated ensemble with a full-data estimator for explanations."""
+
+    def __init__(self, estimator: Any, calibrated_estimators: list[tuple[Any, Any]]):
+        self.estimator = estimator
+        self.calibrated_estimators = calibrated_estimators
+
+    def predict_proba(self, X: Any) -> np.ndarray:
+        calibrated = []
+        for estimator, calibrator in self.calibrated_estimators:
+            raw = estimator.predict_proba(X)[:, 1].reshape(-1, 1)
+            calibrated.append(calibrator.predict_proba(raw)[:, 1])
+        positive = np.mean(calibrated, axis=0)
+        return np.column_stack((1 - positive, positive))
+
+    def predict(self, X: Any) -> np.ndarray:
+        return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
+
+
 def load_table(csv_path: str) -> pd.DataFrame:
     if not os.path.isfile(csv_path):
         raise ExperimentError(
             f"{csv_path} not found. No labelled training table ships with the repo: build it from an independent "
             "flood reference (columns: label, region_id, vv, vh, elevation, slope) - see data/README.md."
         )
-    df = pd.read_csv(csv_path)
+    try:
+        df = pd.read_csv(csv_path)
+    except pd.errors.EmptyDataError as exc:
+        raise ExperimentError(f"{csv_path} is empty. Add labeled rows before training; required columns include label/is_flooded, region_id, and VV.") from exc
     # Earth Engine exports commonly use uppercase band names; keep the model schema stable.
     df = df.rename(columns={column: column.strip().lower() for column in df.columns})
+    if "label" not in df.columns and "is_flooded" in df.columns:
+        df = df.rename(columns={"is_flooded": "label"})
     missing = [c for c in ("label", "region_id", "vv") if c not in df.columns]
     if missing:
         raise ExperimentError(f"CSV is missing required columns: {missing}")
@@ -134,7 +159,9 @@ def train_experiment(
     import sklearn
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.impute import SimpleImputer
-    from sklearn.model_selection import GroupShuffleSplit
+    from sklearn.base import clone
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import GroupKFold, GroupShuffleSplit
     from sklearn.pipeline import make_pipeline
 
     df = load_table(csv_path)
@@ -146,11 +173,33 @@ def train_experiment(
         if len(set(y[idx])) < 2:
             raise ExperimentError(f"The {name} split contains a single class; add regions or change the seed/test_size")
 
-    model = make_pipeline(
+    base_model = make_pipeline(
         SimpleImputer(strategy="median"),
         RandomForestClassifier(n_estimators=n_estimators, class_weight="balanced", random_state=seed, n_jobs=-1),
     )
-    model.fit(X.iloc[tr], y[tr])
+
+    # Build calibration data from spatially held-out folds inside the training split.
+    # No observation from the final held-out test regions participates here.
+    train_groups = g[tr]
+    n_calibration_folds = min(5, len(set(train_groups)))
+    calibrated_estimators = []
+    n_calibration_samples = 0
+    if n_calibration_folds >= 2:
+        cv = GroupKFold(n_splits=n_calibration_folds)
+        for fit_idx, calibration_idx in cv.split(X.iloc[tr], y[tr], groups=train_groups):
+            if len(set(y[tr][calibration_idx])) < 2:
+                continue
+            fold_model = clone(base_model)
+            fold_model.fit(X.iloc[tr].iloc[fit_idx], y[tr][fit_idx])
+            fold_probability = fold_model.predict_proba(X.iloc[tr].iloc[calibration_idx])[:, 1]
+            calibrator = LogisticRegression(solver="lbfgs", random_state=seed)
+            calibrator.fit(fold_probability.reshape(-1, 1), y[tr][calibration_idx])
+            calibrated_estimators.append((fold_model, calibrator))
+            n_calibration_samples += len(calibration_idx)
+    calibration_available = n_calibration_samples >= 20 and len(calibrated_estimators) >= 2
+
+    base_model.fit(X.iloc[tr], y[tr])
+    model = GroupCalibratedModel(base_model, calibrated_estimators) if calibration_available else base_model
 
     test = df.iloc[te]
     scored = test["vv"].notna().to_numpy()  # baseline needs a VV value; compare both models on identical rows
@@ -167,7 +216,7 @@ def train_experiment(
         if sel.sum():
             per_region[str(rid)] = {"n": int(sel.sum()), "rf_f1": binary_metrics(yt[sel], rf_pred[sel]).f1, "baseline_f1": binary_metrics(yt[sel], base_pred[sel]).f1}
 
-    importances = dict(zip(features, [float(v) for v in model[-1].feature_importances_]))
+    importances = dict(zip(features, [float(v) for v in base_model[-1].feature_importances_]))
     warnings = []
     if len(yt) < 200:
         warnings.append(f"Small test set ({len(yt)} rows): metrics have wide uncertainty.")
@@ -175,7 +224,14 @@ def train_experiment(
         warnings.append(f"Only {int(yt.sum())} flooded test samples.")
     if int((~scored).sum()):
         warnings.append(f"{int((~scored).sum())} test rows without VV were excluded from both models' scores.")
-    warnings.append("Predicted probabilities are uncalibrated; do not present them as confidence.")
+    if calibration_available:
+        warnings.append("Probabilities use sigmoid calibration fitted on group-separated out-of-fold training predictions; they are calibrated model scores, not guarantees of local flood conditions.")
+    else:
+        warnings.append("Probability calibration was unavailable: too few spatial training folds or class examples. Do not present raw scores as confidence.")
+    score_values = {"precision": rf_m.precision, "recall": rf_m.recall, "f1": rf_m.f1, "iou": rf_m.iou, "roc_auc": prob_metrics["roc_auc"]}
+    perfect_scores = [name for name, value in score_values.items() if value is not None and value >= 0.999]
+    if perfect_scores:
+        warnings.append("Near-perfect held-out score(s) (" + ", ".join(perfect_scores) + "): audit for label leakage, permanent-water memorization, and test-set support before operational interpretation.")
 
     created = datetime.now(timezone.utc)
     exp_id = created.strftime("%Y%m%dT%H%M%SZ")
@@ -205,6 +261,7 @@ def train_experiment(
                       "train_regions": sorted(map(str, set(g[tr]))), "test_regions": sorted(map(str, set(g[te])))},
             "class_balance": {"train_positive_fraction": float(y[tr].mean()), "test_positive_fraction": float(y[te].mean())},
             "versions": {"scikit-learn": sklearn.__version__, "numpy": np.__version__, "pandas": pd.__version__},
+            "probability_calibration": {"method": "sigmoid", "training_only": True, "grouped_oof": True, "available": bool(calibration_available), "n_oof": int(n_calibration_samples)},
         },
         "warnings": warnings,
     }

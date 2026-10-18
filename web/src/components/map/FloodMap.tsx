@@ -69,6 +69,7 @@ export function FloodMap() {
   const [mapFocusError, setMapFocusError] = useState<string | null>(null);
   const [showLegend, setShowLegend] = useState(true);
   const [showLayerMenu, setShowLayerMenu] = useState(false);
+  const [showTerrainControls, setShowTerrainControls] = useState(false);
   const [readout, setReadout] = useState<{ lon: number; lat: number; elev: number | null } | null>(null);
   const [initKey, setInitKey] = useState(0);
 
@@ -300,7 +301,8 @@ export function FloodMap() {
         });
       }
 
-      // Candidate inundation follows the terrain and also rises as translucent flood water.
+      // Candidate polygons drape over terrain; the shallow extrusion is a visual aid,
+      // not a measured depth product (the current GEE output has no depth attribute).
       map.addSource("inundation-source", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       map.addLayer({
         id: "inundation-extrusion", type: "fill-extrusion", source: "inundation-source",
@@ -309,18 +311,18 @@ export function FloodMap() {
             "interpolate", ["linear"], ["coalesce", ["to-number", ["get", "depth"]], 2],
             0, "#8CF4F0", 1, "#37C8D0", 3, "#168BC2", 6, "#1456A0",
           ],
-          "fill-extrusion-height": 4,
+          "fill-extrusion-height": ["coalesce", ["to-number", ["get", "depth"]], 2.5],
           "fill-extrusion-base": 0,
-          "fill-extrusion-opacity": 0.64,
+          "fill-extrusion-opacity": 0.36,
         },
       });
       map.addLayer({
         id: "inundation-fill", type: "fill", source: "inundation-source",
-        paint: { "fill-color": "#F97316", "fill-opacity": 0.55 },
+        paint: { "fill-color": "#27B7D5", "fill-opacity": 0.34 },
       });
       map.addLayer({
         id: "inundation-outline", type: "line", source: "inundation-source",
-        paint: { "line-color": "#C2410C", "line-width": ["interpolate", ["linear"], ["zoom"], 9, 0.4, 14, 1.4], "line-opacity": 0.9 },
+        paint: { "line-color": "#087F9B", "line-width": ["interpolate", ["linear"], ["zoom"], 9, 0.4, 14, 1.4], "line-opacity": 0.78 },
       });
 
       map.addSource("assets-source", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
@@ -334,7 +336,8 @@ export function FloodMap() {
           "circle-stroke-width": 1.5,
           "circle-stroke-color": "#ffffff",
           "circle-opacity": 0.92,
-          "circle-pitch-alignment": "map",
+          "circle-pitch-alignment": "viewport",
+          "circle-pitch-scale": "viewport",
         },
       });
       map.addLayer({
@@ -447,6 +450,11 @@ export function FloodMap() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initKey]);
+
+  useEffect(() => {
+    const scale = mapRef.current?.getContainer().querySelector<HTMLElement>(".maplibregl-ctrl-scale");
+    if (scale) scale.style.display = mapIs3D ? "none" : "";
+  }, [mapIs3D, mapLoaded]);
 
   // ─── Terrain on/off + exaggeration ─────────────────────────────────────────
   const terrainLayerOn = visibleLayers.has("terrain");
@@ -708,13 +716,6 @@ export function FloodMap() {
         </div>
       )}
 
-      {/* Title card */}
-      <div className="absolute top-3 left-3 z-10 rounded-md px-3 py-2 map-glass"
-        style={{ background: "rgba(255,255,255,0.95)", border: "1px solid #DCE4DD", boxShadow: "0 2px 8px rgba(21,94,89,0.10)" }}>
-        <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#26332F" }}>{en ? "Chalakudy River Basin" : "ചാലക്കുടിപ്പുഴ തടം"}</div>
-        <div style={{ fontSize: "0.5625rem", color: "#687770" }}>{en ? "Thrissur, Ernakulam, Kerala" : "തൃശ്ശൂർ, എറണാകുളം, കേരളം"}</div>
-      </div>
-
       {/* The selected forecast time and its real hourly precipitation are shown
           on-map so timeline playback has an immediate, truthful visual cue. */}
       <div className="absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-md px-3 py-1.5"
@@ -724,40 +725,31 @@ export function FloodMap() {
         <span style={{ color: "#087F8C" }}> · {forecastPoint?.precipitation_mm != null ? `${forecastPoint.precipitation_mm.toFixed(1)} mm` : (en ? "rainfall unavailable" : "മഴ ലഭ്യമല്ല")}</span>
       </div>
 
-      {/* 2D / 3D */}
-      <div className="absolute top-3 right-3 z-10 flex items-center gap-1 rounded-lg p-1 map-glass">
+      {/* Compact map navigation toolbar */}
+      <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5 rounded-lg p-1 map-glass">
         {([false, true] as const).map((v) => (
           <button key={String(v)} onClick={() => set3D(v)} aria-pressed={mapIs3D === v}
-            style={{ padding: "0.3125rem 0.75rem", fontSize: "0.75rem", fontWeight: 600, border: "none", borderRadius: 5, cursor: "pointer",
-              background: mapIs3D === v ? "#155E59" : "white", color: mapIs3D === v ? "white" : "#687770" }}>
+            style={{ ...btn, fontSize: "0.6875rem", fontWeight: 700, background: mapIs3D === v ? "#155E59" : "white", color: mapIs3D === v ? "white" : "#687770" }}>
             {v ? "3D" : "2D"}
           </button>
         ))}
-        <button
-          onClick={toggleTheme}
-          className="flex items-center justify-center rounded transition-colors duration-200"
-          style={{ width: 28, height: 28, border: "none", cursor: "pointer", color: "var(--color-text-secondary)", background: "transparent" }}
-          title={resolvedTheme === "dark" ? "Use light theme" : "Use dark theme"}
-          aria-label={resolvedTheme === "dark" ? "Use light theme" : "Use dark theme"}
-        >
+        <button onClick={toggleTheme} style={btn} title={resolvedTheme === "dark" ? "Use light theme" : "Use dark theme"} aria-label={resolvedTheme === "dark" ? "Use light theme" : "Use dark theme"}>
           {resolvedTheme === "dark" ? <Sun style={{ width: 14, height: 14 }} /> : <Moon style={{ width: 14, height: 14 }} />}
         </button>
-      </div>
-
-      {/* Zoom / compass / reset / layers */}
-      <div className="absolute top-14 right-3 z-10 flex flex-col gap-1.5 rounded-lg p-1 map-glass">
+        <button style={{ ...btn, color: "#155E59", background: showTerrainControls ? "#E8F0EA" : "white" }} onClick={() => { setShowLayerMenu(false); setShowTerrainControls((show) => !show); }}
+          aria-label="Terrain controls" aria-expanded={showTerrainControls} title="Terrain controls"><Mountain style={{ width: 14, height: 14 }} /></button>
         <button style={btn} onClick={() => mapRef.current?.zoomIn()} aria-label="Zoom in" title="Zoom in"><Plus style={{ width: 14, height: 14 }} /></button>
         <button style={btn} onClick={() => mapRef.current?.zoomOut()} aria-label="Zoom out" title="Zoom out"><Minus style={{ width: 14, height: 14 }} /></button>
         <button style={btn} onClick={() => mapRef.current?.resetNorthPitch({ duration: 600 })} aria-label="Reset bearing and pitch" title="Reset north & pitch">
           <Compass style={{ width: 14, height: 14, transform: `rotate(${-mapBearing}deg)` }} />
         </button>
         <button style={{ ...btn, color: "#155E59" }} onClick={resetView} aria-label="Reset to basin view" title="Reset to basin view"><Navigation style={{ width: 14, height: 14 }} /></button>
-        <button style={{ ...btn, color: "#155E59", background: showLayerMenu ? "#E8F0EA" : "white" }} onClick={() => setShowLayerMenu((s) => !s)}
+        <button style={{ ...btn, color: "#155E59", background: showLayerMenu ? "#E8F0EA" : "white" }} onClick={() => { setShowTerrainControls(false); setShowLayerMenu((show) => !show); }}
           aria-label="Map layers" aria-expanded={showLayerMenu} title="Map layers"><Layers style={{ width: 14, height: 14 }} /></button>
       </div>
 
-      {/* Camera & terrain card */}
-      <div className="absolute top-14 right-14 z-10 rounded-md p-2 flex flex-col gap-1.5 map-glass"
+      {/* Terrain controls are optional to keep the 3D canvas clear. */}
+      {showTerrainControls && <div className="absolute top-14 right-14 z-10 rounded-md p-2 flex flex-col gap-1.5 map-glass"
         style={{ background: "rgba(255,255,255,0.96)", border: "1px solid #DCE4DD", width: 150 }}>
         <div className="flex items-center gap-1" style={{ ...label, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
           <Mountain style={{ width: 9, height: 9 }} /> {en ? "Terrain" : "ഭൂപ്രകൃതി"}
@@ -787,12 +779,12 @@ export function FloodMap() {
             <RefreshCw style={{ width: 11, height: 11, marginRight: 4 }} />{en ? "Retry elevation" : "ഉയരം വീണ്ടും ലോഡ് ചെയ്യുക"}
           </button>
         )}
-      </div>
+      </div>}
 
       {/* Layer menu */}
       {showLayerMenu && (
         <div className="absolute z-20 rounded-md p-3 animate-fade-in overflow-y-auto map-glass"
-          style={{ top: 56, right: 214, maxHeight: "70%", background: "white", border: "1px solid #DCE4DD", width: 230, boxShadow: "0 4px 16px rgba(21,94,89,0.12)" }}>
+          style={{ top: 56, right: 50, maxHeight: "70%", background: "white", border: "1px solid #DCE4DD", width: 230, boxShadow: "0 4px 16px rgba(21,94,89,0.12)" }}>
           <div style={{ fontWeight: 600, fontSize: "0.6875rem", color: "#26332F", borderBottom: "1px solid #DCE4DD", paddingBottom: 6, marginBottom: 6 }}>
             {en ? "Layer visibility" : "പാളി ദൃശ്യം"}
           </div>
@@ -835,11 +827,11 @@ export function FloodMap() {
           ))}
           {inundationRunId && (
             <div role="status" style={{ fontSize: "0.5625rem", color: "#26332F", marginTop: 4, borderTop: "1px solid #DCE4DD", paddingTop: 4, maxWidth: 170 }}>
-              <span style={{ color: "#F97316" }}>■</span> {en ? "Flood extent" : "വെള്ളപ്പൊക്ക പരിധി"} · run {inundationRunId}
+              <span style={{ color: "#087F9B" }}>■</span> {en ? "Candidate flood extent" : "സാധ്യതയുള്ള വെള്ളപ്പൊക്ക പരിധി"} · run {inundationRunId}
               <div style={{ color: inundationError ? "#C83F3A" : "#687770", fontSize: "0.5rem" }}>
                 {inundationLoading && "Loading polygons…"}
                 {inundationError && "Polygons unavailable for this run (no vector output)."}
-                {inundationGeo && `${inundationGeo.features.length} polygons${inundationRun?.result?.vectors?.truncated ? ` (largest of ${inundationRun.result.vectors.total_polygons})` : ""} · Sentinel-1 SAR-derived extent`}
+                {inundationGeo && `${inundationGeo.features.length} polygons${inundationRun?.result?.vectors?.truncated ? ` (largest of ${inundationRun.result.vectors.total_polygons})` : ""} · Sentinel-1 SAR · illustrative height only`}
               </div>
             </div>
           )}

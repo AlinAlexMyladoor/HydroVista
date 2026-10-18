@@ -290,6 +290,7 @@ export interface ModelEvaluation {
   class_balance: null | { train_positive_fraction: number; test_positive_fraction: number };
   baseline_comparison: null | { rule: string; threshold_db: number; metrics: ModelMetrics };
   feature_importance?: Record<string, number>;
+  probability_calibration?: { available: boolean; method?: string | null; training_only?: boolean; grouped_oof?: boolean; n_oof?: number };
   split: null | { method: string; test_size: number; seed: number; train_regions: string[]; test_regions: string[] };
   per_region_test?: Record<string, { n: number; rf_f1: number | null; baseline_f1: number | null }>;
   csv_name?: string; csv_sha256?: string;

@@ -78,6 +78,7 @@ async def get_model_evaluation():
             "class_balance": None,
             "baseline_comparison": None,
             "split": None,
+            "probability_calibration": {"available": False, "method": None},
             "notes": ["No Random Forest has been trained, so there are no evaluation results. Nothing is estimated or pre-filled."],
             "status": "not_evaluated",
         }
@@ -93,6 +94,7 @@ async def get_model_evaluation():
         "class_balance": prov["class_balance"],
         "baseline_comparison": {"rule": bl["rule"], "threshold_db": bl["threshold_db"], "metrics": bl["metrics"]},
         "feature_importance": exp["models"]["random_forest"]["feature_importance"],
+        "probability_calibration": prov.get("probability_calibration", {"available": False, "method": None}),
         "split": prov["split"],
         "per_region_test": exp["per_region_test"],
         "csv_name": prov["csv_name"],
@@ -145,14 +147,15 @@ async def get_explanation(
         import shap
 
         model = joblib.load(model_path)
+        estimator = getattr(model, "estimator", model)
         input_frame = pd.DataFrame([[values[feature] for feature in features]], columns=features)
-        imputer = model.named_steps["simpleimputer"]
-        estimator = model.named_steps["randomforestclassifier"]
+        imputer = estimator.named_steps["simpleimputer"]
+        forest = estimator.named_steps["randomforestclassifier"]
         transformed = imputer.transform(input_frame)
-        shap_values = shap.TreeExplainer(estimator).shap_values(transformed, check_additivity=False)
+        shap_values = shap.TreeExplainer(forest).shap_values(transformed, check_additivity=False)
         class_values = shap_values[1] if isinstance(shap_values, list) else shap_values[:, :, 1]
         contributions = class_values[0].tolist()
-        expected = shap.TreeExplainer(estimator).expected_value
+        expected = shap.TreeExplainer(forest).expected_value
         base_value = float(expected[1] if hasattr(expected, "__len__") else expected)
         prediction = float(model.predict_proba(input_frame)[0, 1])
     except Exception as exc:  # noqa: BLE001 - return structured explainability failure
@@ -176,6 +179,6 @@ async def get_explanation(
         "base_value": base_value,
         "model_version": exp["id"],
         "status": "explained",
-        "limitation": "TreeSHAP contribution for the Random Forest flooded-class probability; not a causal effect.",
+        "limitation": "TreeSHAP contributions explain the full-data Random Forest raw output; the displayed prediction is the group-calibrated ensemble score, so contributions are not an additive decomposition of that score or a causal effect.",
         "computed_at": datetime.now(timezone.utc).isoformat(),
     }
