@@ -131,6 +131,21 @@ export interface RiverDischargeResponse {
   is_stale?: boolean;
 }
 
+export interface TerrainDistributionResponse {
+  source: string;
+  bounds: number[] | null;
+  grid_size: number | null;
+  sampled_cells: number;
+  slope_cells: number;
+  coverage_pct: number | null;
+  measurement_basis: "regular_grid_samples" | "sample_points";
+  hypsometric: { elevation_m: number; area_below_pct: number }[];
+  slope_histogram: { slope_bin: string; share_pct: number }[];
+  known_limitations: string;
+  fallback_reason?: string;
+  is_stale?: boolean;
+}
+
 export interface Asset {
   osm_id: string;
   name: string | null;
@@ -436,6 +451,7 @@ export const api = {
   model: {
     metadata: () => request("/api/v1/model/metadata"),
     evaluation: () => request<ModelEvaluation>("/api/v1/model/evaluation"),
+    terrainDistribution: () => request<TerrainDistributionResponse>("/api/v1/model/terrain-distribution"),
     explain: (assetId: string, features?: Record<string, number>) => {
       const query = new URLSearchParams();
       Object.entries(features ?? {}).forEach(([key, value]) => query.set(key, String(value)));

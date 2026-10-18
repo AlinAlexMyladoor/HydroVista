@@ -7,18 +7,107 @@ from pathlib import Path
 
 import pandas as pd
 import structlog
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from app.analysis import ml_lab
+from app.core.config import settings
+from app.services.elevation import terrain_distribution
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
+_terrain_distribution_cache: dict | None = None
+_terrain_distribution_cached_at: datetime | None = None
 
 MODEL_DISCLAIMER = (
     "No ML model has been trained yet. Training requires labeled flood-observation data "
     "from Sentinel-1 or another validated source, plus terrain features from a DEM. "
     "See docs/model-card.md for the intended training methodology."
 )
+
+
+def _terrain_distribution_from_csv() -> dict | None:
+    """Use cached GEE point samples when public DEM tiles cannot be fetched."""
+    data_dir = Path(__file__).resolve().parents[4] / "data"
+    candidates = [
+        data_dir / "HydroVista_Train_Stratified.csv",
+        data_dir / "HydroVista_Train_Data_JRC_Shifted.csv",
+        data_dir / "HydroVista_Train_Data_JRC.csv",
+    ]
+    csv_path = next((path for path in candidates if path.is_file()), None)
+    if csv_path is None:
+        return None
+    try:
+        frame = pd.read_csv(csv_path)
+        required = {"elevation", "slope"}
+        if not required.issubset(frame.columns):
+            return None
+        columns = ["elevation", "slope"]
+        if {"latitude", "longitude"}.issubset(frame.columns):
+            columns += ["latitude", "longitude"]
+        frame = frame[columns].apply(pd.to_numeric, errors="coerce").dropna(subset=["elevation", "slope"])
+        if {"latitude", "longitude"}.issubset(frame.columns):
+            frame = frame.drop_duplicates(subset=["latitude", "longitude"])
+        frame = frame[(frame.elevation >= -500) & (frame.elevation <= 9000) & (frame.slope >= 0) & (frame.slope <= 90)]
+        if len(frame) < 100:
+            return None
+
+        percentiles = list(range(0, 101, 5))
+        hypsometric = [
+            {"elevation_m": round(float(frame.elevation.quantile(p / 100)), 2), "area_below_pct": p}
+            for p in percentiles
+        ]
+        bins = [0, 2, 5, 15, float("inf")]
+        labels = ["0–2°", "2–5°", "5–15°", ">15°"]
+        groups = pd.cut(frame.slope, bins=bins, labels=labels, right=False, include_lowest=True)
+        counts = groups.value_counts(sort=False)
+        slope_histogram = [
+            {"slope_bin": label, "share_pct": round(float(counts[label]) / len(frame) * 100, 2)}
+            for label in labels
+        ]
+        bounds = None
+        if {"latitude", "longitude"}.issubset(frame.columns):
+            bounds = [float(frame.longitude.min()), float(frame.latitude.min()), float(frame.longitude.max()), float(frame.latitude.max())]
+        return {
+            "source": f"{csv_path.name} · GEE terrain point samples",
+            "bounds": bounds,
+            "grid_size": None,
+            "sampled_cells": int(len(frame)),
+            "slope_cells": int(len(frame)),
+            "coverage_pct": None,
+            "measurement_basis": "sample_points",
+            "hypsometric": hypsometric,
+            "slope_histogram": slope_histogram,
+            "known_limitations": "These CSV rows are stratified point samples, not a complete DEM raster or area-weighted sample. Percentages describe the supplied sample only and must not be interpreted as basin-area proportions.",
+        }
+    except (OSError, ValueError, pd.errors.ParserError) as exc:
+        log.warning("model.terrain_csv_fallback_unavailable", error=str(exc))
+        return None
+
+
+@router.get("/model/terrain-distribution")
+async def get_terrain_distribution():
+    """Serve local GEE terrain samples, falling back to a live Terrarium grid when absent."""
+    global _terrain_distribution_cache, _terrain_distribution_cached_at
+    now = datetime.now(timezone.utc)
+    if _terrain_distribution_cache and _terrain_distribution_cached_at and (now - _terrain_distribution_cached_at).total_seconds() < 86_400:
+        return _terrain_distribution_cache
+    # The checked-in working environment may not have outbound access to the public tile host.
+    # Prefer the existing GEE point sample so the analytics charts still have real input data.
+    sample_result = _terrain_distribution_from_csv()
+    if sample_result:
+        _terrain_distribution_cache = sample_result
+        _terrain_distribution_cached_at = now
+        return sample_result
+    try:
+        result = await terrain_distribution(settings.basin_bbox_list)
+        _terrain_distribution_cache = result
+        _terrain_distribution_cached_at = now
+        return result
+    except Exception as exc:
+        log.warning("model.terrain_distribution_unavailable", error=str(exc))
+        if _terrain_distribution_cache:
+            return {**_terrain_distribution_cache, "is_stale": True}
+        raise HTTPException(status_code=503, detail="Study-area DEM samples are temporarily unavailable") from exc
 
 
 def _experiment_dir() -> str:

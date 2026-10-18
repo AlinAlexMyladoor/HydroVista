@@ -179,3 +179,91 @@ def source_status() -> dict[str, object]:
         "last_success": _last_success_at,
         "sources": state,
     }
+
+
+async def terrain_distribution(bounds: list[float], grid_size: int = 96) -> dict[str, object]:
+    """Summarize Terrarium DEM elevation and derived slope over a regular study-area grid."""
+    west, south, east, north = map(float, bounds)
+    if not (-180 <= west < east <= 180 and -85 <= south < north <= 85):
+        raise ValueError("Invalid study-area bounds")
+    grid_size = max(32, min(int(grid_size), 128))
+    coordinates = [
+        (west + (east - west) * col / (grid_size - 1), north - (north - south) * row / (grid_size - 1))
+        for row in range(grid_size) for col in range(grid_size)
+    ]
+    tile_refs = [_tile_and_pixel(lon, lat, ZOOM) for lon, lat in coordinates]
+    unique_tiles = sorted({(z, x, y) for x, y, _, _, z in tile_refs})
+    async with httpx.AsyncClient(timeout=httpx.Timeout(12.0, connect=4.0)) as client:
+        tile_pixels = await asyncio.gather(*(_load_tile(client, x, y, z) for z, x, y in unique_tiles))
+    tile_map = {(z, x, y): data for (z, x, y), data in zip(unique_tiles, tile_pixels)}
+
+    import numpy as np
+
+    dem = np.full((grid_size, grid_size), np.nan, dtype=float)
+    for index, (x, y, px, py, zoom) in enumerate(tile_refs):
+        pixels = tile_map.get((zoom, x, y))
+        if pixels is None:
+            continue
+        offset = py * 256 + px
+        r, g, b = pixels[offset], pixels[65_536 + offset], pixels[131_072 + offset]
+        dem.flat[index] = r * 256 + g + b / 256 - 32_768
+
+    valid = np.isfinite(dem)
+    if int(valid.sum()) < 100:
+        raise RuntimeError("Insufficient Terrarium DEM coverage for the study area")
+
+    lat_step_m = (north - south) * 111_320 / (grid_size - 1)
+    slope_values: list[tuple[float, float]] = []
+    elevation_values: list[tuple[float, float]] = []
+    for row in range(1, grid_size - 1):
+        cos_lat = math.cos(math.radians(north - (north - south) * row / (grid_size - 1)))
+        lon_step_m = (east - west) * 111_320 * cos_lat / (grid_size - 1)
+        for col in range(1, grid_size - 1):
+            elevation = dem[row, col]
+            if not math.isfinite(elevation):
+                continue
+            weight = max(cos_lat, 0.01)
+            elevation_values.append((float(elevation), weight))
+            neighbors = dem[row - 1:row + 2, col - 1:col + 2]
+            if not np.isfinite(neighbors).all():
+                continue
+            dz_dx = (dem[row, col + 1] - dem[row, col - 1]) / (2 * lon_step_m)
+            dz_dy = (dem[row + 1, col] - dem[row - 1, col]) / (2 * lat_step_m)
+            slope = math.degrees(math.atan(math.hypot(dz_dx, dz_dy)))
+            slope_values.append((slope, weight))
+
+    def weighted_quantiles(values: list[tuple[float, float]], percentiles: list[int], value_key: str) -> list[dict[str, float]]:
+        ordered = sorted(values)
+        total = sum(weight for _, weight in ordered)
+        output = []
+        for percentile in percentiles:
+            target = total * percentile / 100
+            cumulative = 0.0
+            value = ordered[-1][0]
+            for sample, weight in ordered:
+                cumulative += weight
+                if cumulative >= target:
+                    value = sample
+                    break
+            output.append({value_key: round(value, 2), "area_below_pct": percentile})
+        return output
+
+    slope_bins = [(0, 2, "0–2°"), (2, 5, "2–5°"), (5, 10, "5–10°"), (10, 20, "10–20°"), (20, math.inf, ">20°")]
+    slope_total = sum(weight for _, weight in slope_values)
+    histogram = []
+    for lower, upper, label in slope_bins:
+        area = sum(weight for value, weight in slope_values if lower <= value < upper)
+        histogram.append({"slope_bin": label, "share_pct": round(100 * area / slope_total, 2) if slope_total else 0.0})
+
+    return {
+        "source": "Mapzen Terrarium DEM (AWS Open Data)",
+        "bounds": bounds,
+        "grid_size": grid_size,
+        "sampled_cells": len(elevation_values),
+        "slope_cells": len(slope_values),
+        "coverage_pct": round(100 * int(valid.sum()) / dem.size, 1),
+        "measurement_basis": "regular_grid_samples",
+        "hypsometric": weighted_quantiles(elevation_values, list(range(0, 101, 5)), "elevation_m"),
+        "slope_histogram": histogram,
+        "known_limitations": "Area weights use a regular grid clipped to the configured bounding box; no basin polygon is available to exclude out-of-basin cells. Slope is derived at the grid sampling scale.",
+    }
