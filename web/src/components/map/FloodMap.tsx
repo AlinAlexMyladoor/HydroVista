@@ -809,8 +809,8 @@ export function FloodMap() {
 
       {/* Elevation readout */}
       {readout && (
-        <div className="absolute z-10 rounded px-2 py-1" style={{ bottom: 38, left: 12, background: "rgba(255,255,255,0.95)",
-          border: "1px solid #DCE4DD", fontSize: "0.625rem", color: "#26332F", fontVariantNumeric: "tabular-nums" }}>
+        <div className="absolute z-20 rounded px-2 py-1" style={{ bottom: 44, left: 12, background: "rgba(255,255,255,0.97)",
+          border: "1px solid #DCE4DD", boxShadow: "0 2px 8px rgba(15, 23, 42, 0.18)", fontSize: "0.625rem", color: "#26332F", fontVariantNumeric: "tabular-nums" }}>
           {en ? "Elevation" : "ഉയരം"}: <b>{readout.elev == null ? (en ? "no DEM data" : "ഡാറ്റ ഇല്ല") : `${Math.round(readout.elev)} m`}</b>
           {" · "}{readout.lat.toFixed(4)}°N {readout.lon.toFixed(4)}°E
         </div>

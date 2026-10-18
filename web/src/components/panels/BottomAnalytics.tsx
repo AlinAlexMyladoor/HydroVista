@@ -18,18 +18,6 @@ import {
 import { CloudRain, TrendingUp, ChevronDown } from "lucide-react";
 import { TerrainSectionPanel } from "@/components/panels/TerrainSectionPanel";
 
-function ForecastAxisTick({ x = 0, y = 0, payload, color = "#687770" }: { x?: number; y?: number; payload?: { value?: string }; color?: string }) {
-  const [date, time] = String(payload?.value ?? "").split(", ");
-  return (
-    <g transform={`translate(${x},${y})`}>
-      <text textAnchor="middle" fill={color} fontSize={8}>
-        <tspan x={0} dy={0}>{date}</tspan>
-        <tspan x={0} dy={10}>{time}</tspan>
-      </text>
-    </g>
-  );
-}
-
 // ─── Rainfall Forecast Mini Panel ─────────────────────────────────────────────
 function RainfallForecastPanel() {
   const language = useStore((s) => s.language);
@@ -133,12 +121,14 @@ function RainfallForecastPanel() {
             </defs>
             <XAxis
               dataKey="hour"
-              tick={<ForecastAxisTick color={chartText} />}
+              tick={{ fill: chartText, fontSize: 8 }}
               axisLine={false}
               tickLine={false}
-              interval={Math.max(1, Math.ceil(chartData.length / 5) - 1)}
-              tickMargin={5}
-              height={32}
+              interval={Math.max(1, Math.ceil(chartData.length / 4) - 1)}
+              angle={-35}
+              textAnchor="end"
+              tickMargin={4}
+              height={42}
             />
             <YAxis
               tick={{ fill: chartText, fontSize: 9 }}
@@ -221,7 +211,7 @@ function ExposureRankingPanel() {
       <div
         className="grid"
         style={{
-          gridTemplateColumns: "1fr 48px 40px 80px",
+          gridTemplateColumns: "1fr auto 80px",
           gap: 4,
           fontSize: "0.5rem",
           color: "#9ca3af",
@@ -234,7 +224,6 @@ function ExposureRankingPanel() {
       >
         <span>{language === "en" ? "Location" : "സ്ഥലം"}</span>
         <span style={{ textAlign: "center" }}>Risk</span>
-        <span style={{ textAlign: "center" }}>Score</span>
         <span>{language === "en" ? "Key Assets" : "സ്ഥാപനം"}</span>
       </div>
 
@@ -256,7 +245,7 @@ function ExposureRankingPanel() {
                   key={item.asset_id}
                   className="grid rounded-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-teal-600"
                   style={{
-                    gridTemplateColumns: "1fr 48px 40px 80px",
+                    gridTemplateColumns: "1fr auto 80px",
                     gap: 4,
                     alignItems: "center",
                     padding: "4px 0",
@@ -291,10 +280,7 @@ function ExposureRankingPanel() {
                       textTransform: "uppercase",
                     }}
                   >
-                    {item.risk_category}
-                  </span>
-                  <span style={{ fontSize: "0.625rem", color: "#687770", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
-                    {Math.round(item.risk_score * 100)}%
+                    {item.risk_category} · {Math.round(item.risk_score * 100)}%
                   </span>
                   <span style={{ fontSize: "0.5625rem", color: "#155E59", textTransform: "capitalize", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {item.asset_type.replace(/_/g, " ")}

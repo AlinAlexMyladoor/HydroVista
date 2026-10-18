@@ -152,14 +152,14 @@ export function LeftRail() {
       aria-label="Map controls"
     >
       {/* ─── Study Area ─── */}
-      <section className="border-b border-[#DCE4DD] p-3">
+      <section className="border-b border-[#DCE4DD] px-3 py-2">
         <div className="flex items-center justify-between">
           <span style={{ fontWeight: 600, color: "#26332F", fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
             {language === "en" ? "Study Area" : "പഠനമേഖല"}
           </span>
         </div>
 
-        <div className="mt-2 rounded-md px-2.5 py-2"
+        <div className="mt-1 rounded-md px-2.5 py-1.5"
           style={{ background: "#F7F8F4", border: "1px solid #DCE4DD" }}>
           <div className="min-w-0">
             <div style={{ fontWeight: 600, color: "#26332F", lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>

@@ -8,7 +8,7 @@ import { useMutation } from "@tanstack/react-query";
 import {
   Sliders,
   CloudRain,
-  Zap,
+  Droplets,
   TrendingUp,
   AlertOctagon,
   ArrowRight,
@@ -147,7 +147,7 @@ export function RainDialPanel() {
               <span>Computing Hydrological Delta...</span>
             ) : (
               <>
-                <Zap className="w-4 h-4" />
+                <Droplets className="w-4 h-4" />
                 <span>{t.simulateButton}</span>
               </>
             )}
