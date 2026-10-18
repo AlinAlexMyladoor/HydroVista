@@ -43,25 +43,26 @@ async def get_model_metadata():
             "n_train": None, "n_val": None, "n_test": None, "trained_at": None,
             "status": "not_trained",
             "requirements_to_train": [
-                "Build data/labeled_flood_features.csv from an independent flood reference (columns: label, region_id, vv, vh, elevation, slope).",
-                "At least 3 distinct region_id groups; both classes present in the train and test regions.",
-                "Run: cd backend && python -m app.analysis.ml_lab train --csv data/labeled_flood_features.csv",
+                "For independent validation, provide labels from an authoritative flood reference and a spatial region_id.",
+                "The checked-in 2018 CSVs use VV-threshold pseudo-labels; they support a topography proxy experiment only.",
+                "Run from backend/: python -m app.analysis.ml_lab train --train-csv ../data/HydroVista_Train_Data_2018.csv --test-csv ../data/HydroVista_Test_Data_2018.csv",
             ],
             "disclaimer": MODEL_DISCLAIMER,
         }
     prov = exp["provenance"]
     rf = exp["models"]["random_forest"]
+    label_source = prov.get("label_source", "unverified_binary_label")
     return {
         "model_type": f"RandomForestClassifier (n_estimators={rf['n_estimators']})",
         "version": exp["id"],
-        "target": "Binary flood label from the supplied labelled table",
-        "intended_features": ml_lab.CANDIDATE_FEATURES,
+        "target": "VV-threshold pseudo-label proxy" if label_source == "vv_threshold_pseudo_label" else "Binary label from supplied table",
+        "intended_features": prov["features"],
         "feature_names": prov["features"],
         "n_train": prov.get("n_train"), "n_val": None, "n_test": prov.get("n_test", rf["metrics"]["n"]),
         "trained_at": exp["created_at"],
         "status": "trained",
         "requirements_to_train": [],
-        "disclaimer": "Metrics describe held-out regions of the supplied labelled table only; they do not transfer automatically to other regions or events.",
+        "disclaimer": "Metrics describe the supplied label and split only; pseudo-label agreement is not independent flood validation.",
     }
 
 
@@ -83,7 +84,7 @@ async def get_model_evaluation():
             "status": "not_evaluated",
         }
     rf = exp["models"]["random_forest"]["metrics"]
-    bl = exp["models"]["threshold_baseline"]
+    bl = exp["models"].get("threshold_baseline")
     prov = exp["provenance"]
     return {
         "model_version": exp["id"],
@@ -92,13 +93,14 @@ async def get_model_evaluation():
         "confusion_matrix": {"labels": ["not_flooded", "flooded"], "matrix": rf["confusion_matrix"], "layout": "[[TN, FP], [FN, TP]]"},
         "n_test": rf["n"],
         "class_balance": prov["class_balance"],
-        "baseline_comparison": {"rule": bl["rule"], "threshold_db": bl["threshold_db"], "metrics": bl["metrics"]},
+        "baseline_comparison": {"rule": bl["rule"], "threshold_db": bl["threshold_db"], "metrics": bl["metrics"]} if bl else None,
         "feature_importance": exp["models"]["random_forest"]["feature_importance"],
         "probability_calibration": prov.get("probability_calibration", {"available": False, "method": None}),
         "split": prov["split"],
         "per_region_test": exp["per_region_test"],
         "csv_name": prov["csv_name"],
         "csv_sha256": prov["csv_sha256"],
+        "label_source": prov.get("label_source", "unverified_binary_label"),
         "notes": exp["warnings"],
         "status": "evaluated",
     }
@@ -127,6 +129,8 @@ async def get_explanation(
         }
 
     features = exp["provenance"].get("features", ml_lab.CANDIDATE_FEATURES)
+    label_source = exp["provenance"].get("label_source", "unverified_binary_label")
+    calibration = exp["provenance"].get("probability_calibration", {})
     values = {
         "vv": vv, "vh": vh, "elevation": elevation, "slope": slope,
         "vv_change": vv_change, "rainfall_24h_mm": rainfall_24h_mm,
@@ -170,7 +174,8 @@ async def get_explanation(
     return {
         "asset_id": asset_id,
         "prediction": prediction,
-        "prediction_label": "flooded" if prediction >= 0.5 else "not_flooded",
+        "prediction_label": ("pseudo_flooded" if prediction >= 0.5 else "pseudo_not_flooded") if label_source == "vv_threshold_pseudo_label" else ("flooded" if prediction >= 0.5 else "not_flooded"),
+        "label_source": label_source,
         "feature_contributions": [
             {"feature": feature, "value": values[feature], "shap_value": float(value),
              "direction": "increases_flood_risk" if value >= 0 else "decreases_flood_risk"}
@@ -179,6 +184,6 @@ async def get_explanation(
         "base_value": base_value,
         "model_version": exp["id"],
         "status": "explained",
-        "limitation": "TreeSHAP contributions explain the full-data Random Forest raw output; the displayed prediction is the group-calibrated ensemble score, so contributions are not an additive decomposition of that score or a causal effect.",
+        "limitation": ("This model predicts a VV-threshold pseudo-label, not verified flooding. TreeSHAP contributions explain the full-data Random Forest raw output; the displayed prediction is the " + ("sigmoid-calibrated ensemble" if calibration.get("available") else "uncalibrated Random Forest") + " score, not an additive SHAP decomposition or causal effect." if label_source == "vv_threshold_pseudo_label" else "TreeSHAP contributions explain the full-data Random Forest raw output; the displayed prediction is the model score, not an additive SHAP decomposition or causal effect."),
         "computed_at": datetime.now(timezone.utc).isoformat(),
     }

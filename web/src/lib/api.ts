@@ -291,9 +291,10 @@ export interface ModelEvaluation {
   baseline_comparison: null | { rule: string; threshold_db: number; metrics: ModelMetrics };
   feature_importance?: Record<string, number>;
   probability_calibration?: { available: boolean; method?: string | null; training_only?: boolean; grouped_oof?: boolean; n_oof?: number };
+  label_source?: "vv_threshold_pseudo_label" | "unverified_binary_label" | string;
   split: null | { method: string; test_size: number; seed: number; train_regions: string[]; test_regions: string[] };
   per_region_test?: Record<string, { n: number; rf_f1: number | null; baseline_f1: number | null }>;
-  csv_name?: string; csv_sha256?: string;
+  csv_name?: string; csv_sha256?: string | Record<string, string>;
   notes: string[]; status: "evaluated" | "not_evaluated";
 }
 export interface AnalysisCapabilities {
@@ -311,6 +312,7 @@ export interface ModelExplanation {
   asset_id: string;
   prediction?: number | null;
   prediction_label?: string | null;
+  label_source?: string;
   feature_contributions: { feature: string; value: number; shap_value: number; direction: string }[];
   base_value: number | null;
   model_version: string | null;
@@ -325,10 +327,10 @@ export interface ClassificationExperiment {
   id: string; created_at: string;
   models: {
     random_forest: { metrics: ModelMetrics; feature_importance: Record<string, number>; n_estimators: number };
-    threshold_baseline: { metrics: ModelMetrics; threshold_db: number; rule: string };
+    threshold_baseline?: { metrics: ModelMetrics; threshold_db: number; rule: string };
   };
   per_region_test: Record<string, { n: number; rf_f1: number | null; baseline_f1: number | null }>;
-  provenance: { csv_name: string; csv_sha256: string; n_rows: number; features: string[];
+  provenance: { csv_name: string; csv_sha256: string | Record<string, string>; n_rows: number; features: string[]; label_source?: string;
     split: { method: string; test_size: number; seed: number; train_regions: string[]; test_regions: string[] };
     class_balance: { train_positive_fraction: number; test_positive_fraction: number };
     versions: Record<string, string> };

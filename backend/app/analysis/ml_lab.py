@@ -38,7 +38,7 @@ class ExperimentError(ValueError):
 
 
 class GroupCalibratedModel:
-    """Group-CV calibrated ensemble with a full-data estimator for explanations."""
+    """Cross-validated sigmoid ensemble with a full-data estimator for explanations."""
 
     def __init__(self, estimator: Any, calibrated_estimators: list[tuple[Any, Any]]):
         self.estimator = estimator
@@ -68,6 +68,14 @@ def load_table(csv_path: str) -> pd.DataFrame:
         raise ExperimentError(f"{csv_path} is empty. Add labeled rows before training; required columns include label/is_flooded, region_id, and VV.") from exc
     # Earth Engine exports commonly use uppercase band names; keep the model schema stable.
     df = df.rename(columns={column: column.strip().lower() for column in df.columns})
+    aliases = {
+        "distance_to_river": "river_distance_m",
+        "river_distance": "river_distance_m",
+        "accumulated_rainfall_mm": "rainfall_24h_mm",
+        "rainfall_mm": "rainfall_24h_mm",
+        "rainfall": "rainfall_24h_mm",
+    }
+    df = df.rename(columns={column: aliases.get(column, column) for column in df.columns})
     if "label" not in df.columns and "is_flooded" in df.columns:
         df = df.rename(columns={"is_flooded": "label"})
     missing = [c for c in ("label", "region_id", "vv") if c not in df.columns]
@@ -165,8 +173,14 @@ def train_experiment(
     from sklearn.pipeline import make_pipeline
 
     df = load_table(csv_path)
+    y, g = df["label"].astype(int).to_numpy(), df["region_id"].to_numpy()
+    pseudo_labels = np.array_equal(y, (df["vv"].to_numpy(dtype=float) < baseline_threshold_db).astype(int))
     features = [c for c in CANDIDATE_FEATURES if c in df.columns]
-    X, y, g = df[features], df["label"].astype(int).to_numpy(), df["region_id"].to_numpy()
+    if pseudo_labels:
+        features = [c for c in features if c not in {"vv", "vh", "vv_change"}]
+    if not features:
+        raise ExperimentError("No non-leaking features remain after removing predictors used to construct the label")
+    X = df[features]
 
     tr, te = next(GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=seed).split(X, y, groups=g))
     for name, idx in (("train", tr), ("test", te)):
@@ -206,15 +220,15 @@ def train_experiment(
     yt = y[te][scored]
     rf_pred = model.predict(X.iloc[te][scored])
     rf_proba = model.predict_proba(X.iloc[te][scored])[:, 1]
-    base_pred = (test["vv"].to_numpy()[scored] < baseline_threshold_db).astype(int)
-    rf_m, base_m = binary_metrics(yt, rf_pred), binary_metrics(yt, base_pred)
+    rf_m = binary_metrics(yt, rf_pred)
+    base_m = None if pseudo_labels else binary_metrics(yt, (test["vv"].to_numpy()[scored] < baseline_threshold_db).astype(int))
     prob_metrics = _probability_metrics(yt, rf_proba)
 
     per_region = {}
     for rid in sorted(set(g[te])):
         sel = (g[te] == rid)[scored]
         if sel.sum():
-            per_region[str(rid)] = {"n": int(sel.sum()), "rf_f1": binary_metrics(yt[sel], rf_pred[sel]).f1, "baseline_f1": binary_metrics(yt[sel], base_pred[sel]).f1}
+            per_region[str(rid)] = {"n": int(sel.sum()), "rf_f1": binary_metrics(yt[sel], rf_pred[sel]).f1, "baseline_f1": binary_metrics(yt[sel], (test["vv"].to_numpy()[scored][sel] < baseline_threshold_db).astype(int)).f1 if base_m is not None else None}
 
     importances = dict(zip(features, [float(v) for v in base_model[-1].feature_importances_]))
     warnings = []
@@ -222,6 +236,9 @@ def train_experiment(
         warnings.append(f"Small test set ({len(yt)} rows): metrics have wide uncertainty.")
     if int(yt.sum()) < 30:
         warnings.append(f"Only {int(yt.sum())} flooded test samples.")
+    if pseudo_labels:
+        warnings.append(f"Target is exactly VV < {baseline_threshold_db:g} dB across the supplied table. VV and VH were excluded; scores measure agreement with pseudo-labels, not independent flood detection.")
+        warnings.append("Replace threshold labels with an independent event reference (for example KSDMA inundation observations) before interpreting this model as flood validation.")
     if int((~scored).sum()):
         warnings.append(f"{int((~scored).sum())} test rows without VV were excluded from both models' scores.")
     if calibration_available:
@@ -247,7 +264,7 @@ def train_experiment(
         "task": "flood_classification",
         "models": {
             "random_forest": {"metrics": {**rf_m.as_dict(), **prob_metrics}, "feature_importance": importances, "n_estimators": n_estimators, "artifact": model_file},
-            "threshold_baseline": {"metrics": base_m.as_dict(), "threshold_db": baseline_threshold_db, "rule": "VV < threshold_db => flooded"},
+            **({} if base_m is None else {"threshold_baseline": {"metrics": base_m.as_dict(), "threshold_db": baseline_threshold_db, "rule": "VV < threshold_db => flooded"}}),
         },
         "per_region_test": per_region,
         "provenance": {
@@ -260,8 +277,156 @@ def train_experiment(
             "split": {"method": "GroupShuffleSplit(region_id)", "test_size": test_size, "seed": seed,
                       "train_regions": sorted(map(str, set(g[tr]))), "test_regions": sorted(map(str, set(g[te])))},
             "class_balance": {"train_positive_fraction": float(y[tr].mean()), "test_positive_fraction": float(y[te].mean())},
+            "label_source": "vv_threshold_pseudo_label" if pseudo_labels else "unverified_binary_label",
             "versions": {"scikit-learn": sklearn.__version__, "numpy": np.__version__, "pandas": pd.__version__},
             "probability_calibration": {"method": "sigmoid", "training_only": True, "grouped_oof": True, "available": bool(calibration_available), "n_oof": int(n_calibration_samples)},
+        },
+        "warnings": warnings,
+    }
+    with open(os.path.join(out_dir, f"experiment_{exp_id}.json"), "w") as f:
+        json.dump(exp, f, indent=2)
+    return exp
+
+
+def _load_provided_split(csv_path: str, split_name: str) -> pd.DataFrame:
+    """Load an explicitly supplied train/test CSV with label aliases and basic validation."""
+    if not os.path.isfile(csv_path):
+        raise ExperimentError(f"{split_name} CSV not found: {csv_path}")
+    try:
+        df = pd.read_csv(csv_path)
+    except pd.errors.EmptyDataError as exc:
+        raise ExperimentError(f"{split_name} CSV is empty: {csv_path}") from exc
+    df = df.rename(columns={column: column.strip().lower() for column in df.columns})
+    aliases = {
+        "distance_to_river": "river_distance_m",
+        "river_distance": "river_distance_m",
+        "accumulated_rainfall_mm": "rainfall_24h_mm",
+        "rainfall_mm": "rainfall_24h_mm",
+        "rainfall": "rainfall_24h_mm",
+    }
+    df = df.rename(columns={column: aliases.get(column, column) for column in df.columns})
+    if "label" not in df.columns and "is_flooded" in df.columns:
+        df = df.rename(columns={"is_flooded": "label"})
+    if len(df) < MIN_ROWS:
+        raise ExperimentError(f"{split_name} CSV has only {len(df)} rows; at least {MIN_ROWS} are required")
+    if "label" not in df or df["label"].isna().any() or not set(df["label"].unique()) <= {0, 1}:
+        raise ExperimentError(f"{split_name} label must contain non-null 0/1 values (column: label or is_flooded)")
+    if len(set(df["label"].astype(int))) < 2:
+        raise ExperimentError(f"{split_name} split contains only one class")
+    return df
+
+
+def train_provided_split_experiment(
+    train_csv: str,
+    test_csv: str,
+    out_dir: str = "artifacts/experiments",
+    threshold_db: float = -16.0,
+    seed: int = 42,
+    n_estimators: int = 300,
+    model_path: str | None = None,
+) -> dict[str, Any]:
+    """Train on explicit files while excluding SAR bands when labels are VV-threshold pseudo-labels."""
+    import joblib
+    import sklearn
+    from sklearn.base import clone
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.impute import SimpleImputer
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import StratifiedKFold
+    from sklearn.pipeline import make_pipeline
+
+    train_df = _load_provided_split(train_csv, "train")
+    test_df = _load_provided_split(test_csv, "test")
+    y_train = train_df["label"].astype(int).to_numpy()
+    y_test = test_df["label"].astype(int).to_numpy()
+    train_is_threshold_label = "vv" in train_df and np.array_equal(y_train, (train_df["vv"].to_numpy(dtype=float) < threshold_db).astype(int))
+    test_is_threshold_label = "vv" in test_df and np.array_equal(y_test, (test_df["vv"].to_numpy(dtype=float) < threshold_db).astype(int))
+    pseudo_labels = bool(train_is_threshold_label and test_is_threshold_label)
+
+    # Keep only physically independent predictors for the pseudo-label proxy.
+    safe_features = ["elevation", "slope", "river_distance_m", "rainfall_24h_mm", "accumulated_precipitation"]
+    features = [name for name in safe_features if name in train_df.columns and name in test_df.columns]
+    if not features:
+        raise ExperimentError("No independent predictors found; expected elevation, slope, river distance, or rainfall")
+    # This explicit-input route uses only independent predictors even if label provenance is unclear.
+    X_train, X_test = train_df[features], test_df[features]
+
+    base_model = make_pipeline(
+        SimpleImputer(strategy="median"),
+        RandomForestClassifier(n_estimators=n_estimators, class_weight="balanced", random_state=seed, n_jobs=-1),
+    )
+    region_ids = train_df["region_id"].to_numpy() if "region_id" in train_df and train_df["region_id"].nunique() >= 2 else None
+    grouped_calibration = region_ids is not None
+    folds = min(5, len(set(region_ids)) if region_ids is not None else int(np.bincount(y_train).min()))
+    calibrated_estimators = []
+    calibration_rows = 0
+    if folds >= 2:
+        cv = GroupKFold(n_splits=folds) if grouped_calibration else StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
+        split_iter = cv.split(X_train, y_train, groups=region_ids) if grouped_calibration else cv.split(X_train, y_train)
+        for fit_idx, calibration_idx in split_iter:
+            if len(set(y_train[fit_idx])) < 2 or len(set(y_train[calibration_idx])) < 2:
+                continue
+            fold_model = clone(base_model)
+            fold_model.fit(X_train.iloc[fit_idx], y_train[fit_idx])
+            fold_probs = fold_model.predict_proba(X_train.iloc[calibration_idx])[:, 1]
+            calibrator = LogisticRegression(solver="lbfgs", random_state=seed)
+            calibrator.fit(fold_probs.reshape(-1, 1), y_train[calibration_idx])
+            calibrated_estimators.append((fold_model, calibrator))
+            calibration_rows += len(calibration_idx)
+    calibration_available = len(calibrated_estimators) >= 2
+
+    base_model.fit(X_train, y_train)
+    model = GroupCalibratedModel(base_model, calibrated_estimators) if calibration_available else base_model
+    pred = model.predict(X_test)
+    probability = model.predict_proba(X_test)[:, 1]
+    metrics = {**binary_metrics(y_test, pred).as_dict(), **_probability_metrics(y_test, probability)}
+    importances = dict(zip(features, [float(v) for v in base_model[-1].feature_importances_]))
+
+    warnings = []
+    if pseudo_labels:
+        warnings.append("Target is a VV-threshold pseudo-label; these scores measure agreement with that rule, not independent flood detection.")
+    warnings.append("VV and VH were excluded from predictors in this run.")
+    has_region_id = "region_id" in train_df and "region_id" in test_df
+    spatial_split_verified = bool(has_region_id and not (set(train_df["region_id"]) & set(test_df["region_id"])))
+    if not spatial_split_verified:
+        warnings.append("Provided train/test separation could not be verified as spatial: disjoint region_id values are unavailable.")
+    if int(y_test.sum()) < 30:
+        warnings.append(f"Only {int(y_test.sum())} flooded test samples; positive-class metrics are uncertain.")
+    perfect = [name for name in ("precision", "recall", "f1", "iou", "roc_auc") if metrics.get(name) is not None and metrics[name] >= 0.999]
+    if perfect:
+        warnings.append("Near-perfect test score(s) (" + ", ".join(perfect) + "): investigate pseudo-label construction and sample dependence.")
+    if calibration_available:
+        if pseudo_labels:
+            warnings.append("Sigmoid scores are calibrated to the pseudo-labels using training-fold predictions; they are not calibrated flood probabilities.")
+        else:
+            warnings.append("Sigmoid scores use training-fold predictions only; calibration quality depends on label provenance and split independence.")
+    else:
+        warnings.append("Probability calibration unavailable because the training file has too few examples per class.")
+
+    created = datetime.now(timezone.utc)
+    exp_id = created.strftime("%Y%m%dT%H%M%SZ")
+    os.makedirs(out_dir, exist_ok=True)
+    model_file = f"flood_rf_{exp_id}.joblib"
+    joblib.dump(model, os.path.join(out_dir, model_file))
+    stable_model_path = Path(model_path) if model_path else Path(__file__).resolve().parents[2] / "models" / "flood_classifier.joblib"
+    stable_model_path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(model, stable_model_path)
+    exp = {
+        "id": exp_id,
+        "created_at": created.isoformat(),
+        "task": "flood_classification",
+        "models": {"random_forest": {"metrics": metrics, "feature_importance": importances, "n_estimators": n_estimators, "artifact": model_file}},
+        "per_region_test": {},
+        "provenance": {
+            "csv_sha256": {"train": _sha256(train_csv), "test": _sha256(test_csv)},
+            "csv_name": f"{os.path.basename(train_csv)} / {os.path.basename(test_csv)}",
+            "label_source": "vv_threshold_pseudo_label" if pseudo_labels else "unverified_binary_label",
+            "n_rows": int(len(train_df) + len(test_df)), "n_train": int(len(train_df)), "n_test": int(len(test_df)),
+            "features": features,
+            "split": {"method": "provided train/test files" + ("; disjoint region_id groups" if spatial_split_verified else "; spatial separation unverified"), "test_size": len(test_df) / (len(train_df) + len(test_df)), "seed": seed, "train_regions": sorted(map(str, set(train_df["region_id"]))) if has_region_id else [], "test_regions": sorted(map(str, set(test_df["region_id"]))) if has_region_id else []},
+            "class_balance": {"train_positive_fraction": float(y_train.mean()), "test_positive_fraction": float(y_test.mean())},
+            "probability_calibration": {"method": "sigmoid", "training_only": True, "grouped_oof": grouped_calibration, "available": calibration_available, "n_oof": int(calibration_rows)},
+            "versions": {"scikit-learn": sklearn.__version__, "numpy": np.__version__, "pandas": pd.__version__},
         },
         "warnings": warnings,
     }
@@ -344,7 +509,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(prog="ml_lab")
     sub = ap.add_subparsers(dest="cmd", required=True)
     t = sub.add_parser("train")
-    t.add_argument("--csv", required=True)
+    t.add_argument("--csv")
+    t.add_argument("--train-csv")
+    t.add_argument("--test-csv")
     t.add_argument("--out", default="artifacts/experiments")
     t.add_argument("--model-path", default=None)
     t.add_argument("--threshold-db", type=float, default=-16.0)
@@ -361,9 +528,16 @@ def main() -> None:
         metrics = train_forecast_experiment(a.csv, a.out, a.test_size, a.seed, a.model_path)["model"]["metrics"]
         print(f"Forecast model F1={metrics['f1']} IoU={metrics['iou']}")
     else:
-        exp = train_experiment(a.csv, a.out, a.threshold_db, a.test_size, a.seed, model_path=a.model_path)
-        rf, bl = exp["models"]["random_forest"]["metrics"], exp["models"]["threshold_baseline"]["metrics"]
-        print(f"RF   F1={rf['f1']} IoU={rf['iou']}  |  baseline F1={bl['f1']} IoU={bl['iou']}  (id {exp['id']})")
+        if bool(a.train_csv) != bool(a.test_csv) or (not a.csv and not a.train_csv):
+            ap.error("train requires --csv <grouped table> or both --train-csv <file> --test-csv <file>")
+        if a.train_csv:
+            exp = train_provided_split_experiment(a.train_csv, a.test_csv, a.out, a.threshold_db, a.seed, model_path=a.model_path)
+        else:
+            exp = train_experiment(a.csv, a.out, a.threshold_db, a.test_size, a.seed, model_path=a.model_path)
+        rf = exp["models"]["random_forest"]["metrics"]
+        baseline = exp["models"].get("threshold_baseline", {}).get("metrics")
+        baseline_text = f" | baseline F1={baseline['f1']} IoU={baseline['iou']}" if baseline else " | direct VV baseline omitted (label leakage)"
+        print(f"RF   F1={rf['f1']} IoU={rf['iou']}{baseline_text}  (id {exp['id']})")
 
 
 if __name__ == "__main__":

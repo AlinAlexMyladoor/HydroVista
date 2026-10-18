@@ -28,9 +28,10 @@ function Confusion({ title, m }: { title: string; m: ModelMetrics }) {
 
 function ExperimentCard({ e }: { e: ClassificationExperiment }) {
   const rf = e.models.random_forest, bl = e.models.threshold_baseline;
-  const cmp = (["precision", "recall", "f1", "iou"] as const).map((k) => ({ metric: k.toUpperCase(), "Random Forest": rf.metrics[k] ?? 0, [`Threshold (${bl.threshold_db} dB)`]: bl.metrics[k] ?? 0 }));
+  const cmp = (["precision", "recall", "f1", "iou"] as const).map((k) => ({ metric: k.toUpperCase(), "Random Forest": rf.metrics[k] ?? 0, ...(bl ? { [`Threshold (${bl.threshold_db} dB)`]: bl.metrics[k] ?? 0 } : {}) }));
   const imp = Object.entries(rf.feature_importance).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
   const p = e.provenance;
+  const hashes = typeof p.csv_sha256 === "string" ? p.csv_sha256 : Object.entries(p.csv_sha256).map(([key, value]) => `${key}: ${value}`).join(" · ");
   return (
     <div className="rounded-lg p-4 flex flex-col gap-4" style={{ background: "#fff", border: "1px solid #DCE4DD" }}>
       <div className="flex justify-between flex-wrap gap-2">
@@ -40,16 +41,16 @@ function ExperimentCard({ e }: { e: ClassificationExperiment }) {
       {e.warnings.length > 0 && <ul style={{ fontSize: "0.6875rem", color: "#92400e", paddingLeft: 16, listStyle: "disc" }}>{e.warnings.map((w) => <li key={w}>{w}</li>)}</ul>}
       <div className="grid gap-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
         <div>
-          <div style={{ fontWeight: 600, fontSize: "0.75rem" }}>Model comparison (same held-out regions)</div>
+          <div style={{ fontWeight: 600, fontSize: "0.75rem" }}>{bl ? "Model comparison" : "Held-out proxy evaluation"}</div>
           <div style={{ height: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={cmp}><CartesianGrid vertical={false} stroke="#94A3B8" strokeOpacity={0.1} /><XAxis dataKey="metric" tick={{ fontSize: 11 }} /><YAxis domain={[0, 1]} tick={{ fontSize: 11 }} /><Tooltip formatter={(v) => Number(v).toFixed(3)} /><Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="Random Forest" fill="#2563EB" radius={[4, 4, 0, 0]} /><Bar dataKey={`Threshold (${bl.threshold_db} dB)`} fill="#F97316" radius={[4, 4, 0, 0]} /></BarChart>
+                <BarChart data={cmp}><CartesianGrid vertical={false} stroke="#94A3B8" strokeOpacity={0.1} /><XAxis dataKey="metric" tick={{ fontSize: 11 }} /><YAxis domain={[0, 1]} tick={{ fontSize: 11 }} /><Tooltip formatter={(v) => Number(v).toFixed(3)} /><Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="Random Forest" fill="#2563EB" radius={[4, 4, 0, 0]} />{bl && <Bar dataKey={`Threshold (${bl.threshold_db} dB)`} fill="#F97316" radius={[4, 4, 0, 0]} />}</BarChart>
             </ResponsiveContainer>
           </div>
-          <div style={{ fontSize: "0.625rem", color: "#687770" }}>Undefined metrics (no positives predicted/present) are drawn as 0 here; exact values: RF F1 {f(rf.metrics.f1)}, baseline F1 {f(bl.metrics.f1)}, RF IoU {f(rf.metrics.iou)}, baseline IoU {f(bl.metrics.iou)}.</div>
+          <div style={{ fontSize: "0.625rem", color: "#687770" }}>Undefined metrics are drawn as 0; exact RF F1 {f(rf.metrics.f1)}, IoU {f(rf.metrics.iou)}{bl ? `; threshold F1 ${f(bl.metrics.f1)}, IoU ${f(bl.metrics.iou)}` : ""}.</div>
         </div>
-        <div className="flex gap-6 flex-wrap items-start"><Confusion title="Random Forest" m={rf.metrics} /><Confusion title="Threshold baseline" m={bl.metrics} /></div>
+        <div className="flex gap-6 flex-wrap items-start"><Confusion title="Random Forest" m={rf.metrics} />{bl && <Confusion title="Threshold baseline" m={bl.metrics} />}</div>
         <div>
           <div style={{ fontWeight: 600, fontSize: "0.75rem" }}>Feature importance (Random Forest, impurity-based)</div>
           <div style={{ height: 180 }}>
@@ -61,7 +62,7 @@ function ExperimentCard({ e }: { e: ClassificationExperiment }) {
       </div>
       <details className="ux-disclosure text-xs text-text-secondary">
         <summary>Experiment provenance</summary>
-        <p className="pt-2">Split {p.split.method}, seed {p.split.seed}, test fraction {p.split.test_size}; train regions {p.split.train_regions.length}, test regions {p.split.test_regions.length}. Positive fraction train {p.class_balance.train_positive_fraction.toFixed(2)} / test {p.class_balance.test_positive_fraction.toFixed(2)}. Features: {p.features.join(", ")}. scikit-learn {p.versions["scikit-learn"]}. CSV SHA-256 {p.csv_sha256.slice(0, 16)}…</p>
+        <p className="pt-2">Split {p.split.method}, seed {p.split.seed}, test fraction {p.split.test_size}; train regions {p.split.train_regions.length}, test regions {p.split.test_regions.length}. Positive fraction train {p.class_balance.train_positive_fraction.toFixed(2)} / test {p.class_balance.test_positive_fraction.toFixed(2)}. Features: {p.features.join(", ")}. scikit-learn {p.versions["scikit-learn"]}. CSV SHA-256 {hashes.slice(0, 16)}…</p>
       </details>
     </div>
   );

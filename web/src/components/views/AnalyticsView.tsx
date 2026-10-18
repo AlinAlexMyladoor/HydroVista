@@ -60,8 +60,9 @@ function ModelEvalPanel({ ev, isLoading, isError }: { ev: ModelEvaluation | unde
         <strong className="mr-1">Validation caution</strong>{validationAlerts.join(" ")}
       </div>}
       <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-xs">
-        <h3 className="text-sm font-bold text-[#1E292B] mb-1">Random Forest — held-out regions</h3>
-        <p className="text-xs text-[#687770] mb-4">{ev.n_test} held-out rows · {ev.split?.test_regions.length} test regions · {ev.csv_name}</p>
+        <h3 className="text-sm font-bold text-[#1E292B] mb-1">Random Forest — held-out evaluation</h3>
+        <p className="text-xs text-[#687770] mb-4">{ev.n_test} test rows · {ev.label_source === "vv_threshold_pseudo_label" ? "provided holdout; spatial split unverified" : `${ev.split?.test_regions.length ?? 0} held-out regions`} · {ev.csv_name}</p>
+        {ev.label_source === "vv_threshold_pseudo_label" && <p role="alert" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">These metrics measure agreement with labels defined by a VV threshold. VV/VH are excluded from predictors; this is a topography proxy, not independent flood validation.</p>}
         <div className="grid grid-cols-3 gap-3 text-xs mb-4">
           {kpis.map(([k, v]) => (
             <div key={k} className="p-3 bg-[#F7F8F4] rounded-lg border border-[#E2E8F0]">
@@ -85,7 +86,7 @@ function ModelEvalPanel({ ev, isLoading, isError }: { ev: ModelEvaluation | unde
             F1 {fmt(ev.baseline_comparison.metrics.f1)}, IoU {fmt(ev.baseline_comparison.metrics.iou)}.
           </div>
         )}
-        <details className="ux-disclosure mt-2 text-[11px] text-text-secondary"><summary>Metric interpretation</summary><p className="pt-2">A metric is undefined when its denominator is zero. {ev.probability_calibration?.available ? "Sigmoid calibration uses group-separated out-of-fold predictions from training regions only." : "This saved model has no verified probability calibration; do not treat output scores as confidence."} Scores are not guarantees of local flood conditions.</p></details>
+        <details className="ux-disclosure mt-2 text-[11px] text-text-secondary"><summary>Metric interpretation</summary><p className="pt-2">A metric is undefined when its denominator is zero. {ev.probability_calibration?.available ? (ev.probability_calibration.grouped_oof ? "Sigmoid calibration uses group-separated out-of-fold predictions from training regions only." : "Sigmoid calibration uses training-fold predictions; spatial independence within the training file is unverified.") : "This saved model has no verified probability calibration; do not treat output scores as confidence."} Scores are not guarantees of local flood conditions.</p></details>
       </div>
       <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-xs">
         <h3 className="text-sm font-bold text-[#1E292B] mb-1">Feature importance (impurity-based)</h3>
