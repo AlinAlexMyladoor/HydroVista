@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { LAYER_DEFS, assetLayerGroup } from "@/lib/layers";
 import { TERRARIUM_URL, TERRARIUM_ATTRIBUTION, elevationAt } from "@/lib/dem";
+import { formatForecastTimestamp, getForecastPointAt } from "@/lib/forecast-time";
 import { Layers, Navigation, Mountain, Plus, Minus, Compass, Info, AlertTriangle, RefreshCw, Moon, Sun } from "lucide-react";
 
 if (typeof window !== "undefined") {
@@ -99,8 +100,7 @@ export function FloodMap() {
   });
   const { data: reportsData } = useQuery({ queryKey: ["reports-list"], queryFn: () => api.reports.list(), retry: false, staleTime: 30_000 });
   const { data: forecast } = useQuery({ queryKey: ["forecast-latest"], queryFn: () => api.forecast.latest(), retry: 1 });
-  const forecastTimeline = forecast?.hourly?.filter((hour) => Date.parse(hour.time) >= Date.now() - 60 * 60_000) ?? [];
-  const forecastPoint = forecastTimeline[Math.min(forecastHour, Math.max(0, forecastTimeline.length - 1))];
+  const forecastPoint = getForecastPointAt(forecast?.hourly, forecastHour);
 
   // Candidate-inundation polygons from a completed Earth Engine run (selected in Flood Analysis).
   const { data: inundationRun } = useQuery({
@@ -720,7 +720,7 @@ export function FloodMap() {
       <div className="absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-md px-3 py-1.5"
         style={{ background: "rgba(255,255,255,0.95)", border: "1px solid #DCE4DD", boxShadow: "0 2px 8px rgba(21,94,89,0.10)", fontSize: "0.6875rem", color: "#26332F", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
         <span style={{ fontWeight: 700 }}>{forecastHour === 0 ? (en ? "Now" : "ഇപ്പോൾ") : (en ? "Forecast" : "പ്രവചനം")}</span>
-        {forecastPoint?.time && <> · {new Date(forecastPoint.time).toLocaleString(en ? "en-IN" : "ml-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })} IST</>}
+        {forecastPoint?.time && <> · {formatForecastTimestamp(forecastPoint.time, language)} IST</>}
         <span style={{ color: "#087F8C" }}> · {forecastPoint?.precipitation_mm != null ? `${forecastPoint.precipitation_mm.toFixed(1)} mm` : (en ? "rainfall unavailable" : "മഴ ലഭ്യമല്ല")}</span>
       </div>
 

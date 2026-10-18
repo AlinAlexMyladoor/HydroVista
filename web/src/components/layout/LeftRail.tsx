@@ -6,6 +6,7 @@ import { translations } from "@/lib/translations";
 import { LAYER_DEFS } from "@/lib/layers";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { formatForecastTimestamp, getForecastPointAt } from "@/lib/forecast-time";
 import {
   Play,
   Pause,
@@ -92,6 +93,13 @@ export function LeftRail() {
     refetchInterval: 120_000,
     retry: 1,
   });
+
+  const { data: forecast } = useQuery({
+    queryKey: ["forecast-latest"],
+    queryFn: () => api.forecast.latest(),
+    retry: 1,
+  });
+  const selectedForecastPoint = getForecastPointAt(forecast?.hourly, forecastHour);
 
   // The selected cursor controls the forecast chart and on-map weather readout.
   const maxHour = forecastHorizon;
@@ -233,10 +241,12 @@ export function LeftRail() {
               {language === "en" ? "Now" : "ഇപ്പോൾ"}
             </span>
             <span style={{ fontWeight: 500, color: "#26332F" }}>
-              {new Date(now.getTime() + forecastHour * 3_600_000).toLocaleString("en-IN", {
-                weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-                timeZone: "Asia/Kolkata",
-              })} IST
+              {selectedForecastPoint
+                ? `${formatForecastTimestamp(selectedForecastPoint.time, language)} IST`
+                : `${new Date(now.getTime() + forecastHour * 3_600_000).toLocaleString("en-IN", {
+                    weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                    timeZone: "Asia/Kolkata",
+                  })} IST`}
             </span>
           </div>
         </div>

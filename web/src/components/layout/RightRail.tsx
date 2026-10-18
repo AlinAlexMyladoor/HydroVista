@@ -192,14 +192,16 @@ function IsolationClockCard() {
                 <div
                   key={facility.facility_id}
                   className={`facility-row ${!isConnected ? "at-risk" : ""}`}
+                  style={{ alignItems: "flex-start" }}
                 >
-                  <div className="flex items-center gap-1.5 min-w-0">
+                  <div className="flex flex-1 items-start gap-1.5 min-w-0">
                     <span
                       className="flex-shrink-0"
                       style={{
                         width: 7, height: 7, borderRadius: "50%",
                         background: isConnected ? "#22c55e" : "#C83F3A",
                         border: `1.5px solid ${isConnected ? "#bbf7d0" : "#fecaca"}`,
+                        marginTop: 3,
                       }}
                     />
                     <span
@@ -207,9 +209,11 @@ function IsolationClockCard() {
                         fontSize: "0.6875rem",
                         fontWeight: 500,
                         color: "#26332F",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
+                        flex: 1,
+                        minWidth: 0,
+                        whiteSpace: "normal",
+                        overflowWrap: "anywhere",
+                        lineHeight: 1.3,
                       }}
                     >
                       {facility.facility_name ?? "Health Facility"}
@@ -222,6 +226,8 @@ function IsolationClockCard() {
                       color: hours != null && hours <= 18 ? "#C83F3A" : "#687770",
                       fontVariantNumeric: "tabular-nums",
                       flexShrink: 0,
+                      maxWidth: 94,
+                      textAlign: "right",
                     }}
                   >
                     {hours != null

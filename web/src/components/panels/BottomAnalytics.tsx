@@ -190,7 +190,7 @@ function ExposureRankingPanel() {
   const items = exposure?.items?.slice(0, 8) ?? [];
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col" style={{ userSelect: "none" }}>
       <div className="analytics-panel-title">
         <TrendingUp style={{ width: 12, height: 12, color: "#E7A23B" }} />
         {language === "en" ? "Top Areas at Risk" : "ഉയർന്ന അപകടസാധ്യത"}
@@ -212,7 +212,7 @@ function ExposureRankingPanel() {
         className="grid"
         style={{
           gridTemplateColumns: "1fr auto 80px",
-          gap: 4,
+          gap: 8,
           fontSize: "0.5rem",
           color: "#9ca3af",
           fontWeight: 600,
@@ -246,7 +246,7 @@ function ExposureRankingPanel() {
                   className="grid rounded-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-teal-600"
                   style={{
                     gridTemplateColumns: "1fr auto 80px",
-                    gap: 4,
+                    gap: 8,
                     alignItems: "center",
                     padding: "4px 0",
                     borderBottom: "1px solid #F7F8F4",
@@ -278,6 +278,7 @@ function ExposureRankingPanel() {
                       background: c.bg,
                       color: c.text,
                       textTransform: "uppercase",
+                      marginRight: 6,
                     }}
                   >
                     {item.risk_category} · {Math.round(item.risk_score * 100)}%
