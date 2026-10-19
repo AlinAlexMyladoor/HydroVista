@@ -42,11 +42,13 @@ function RainfallForecastPanel() {
       .slice(0, 24)
       .map((h, i) => {
         const date = new Date(h.time);
-        const hLabel = date.toLocaleString("en-IN", {
-          day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false,
-        });
+        const timePart = date.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false });
+        const datePart = date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
         return {
-          hour: hLabel,
+          rawTime: h.time,
+          hour: `${timePart} · ${datePart}`,
+          timePart,
+          datePart,
           precipitation: h.precipitation_mm ?? 0,
           isForecast: h.is_forecast,
           temp: h.temperature_2m,
@@ -63,11 +65,11 @@ function RainfallForecastPanel() {
       const { isForecast, index, ...rest } = props;
       const isSelected = index === currentIndex;
       const fill = isForecast
-        ? (isSelected ? "#155E59" : "#DCEFF3")
-        : "#3299C6";
-      return <Rectangle {...rest} fill={fill} fillOpacity={0.85} radius={[2, 2, 0, 0]} />;
+        ? (isSelected ? "#0F8C86" : (resolvedTheme === "dark" ? "#1e3a5f" : "#DCEFF3"))
+        : (resolvedTheme === "dark" ? "#38bdf8" : "#3299C6");
+      return <Rectangle {...rest} fill={fill} fillOpacity={0.9} radius={[2, 2, 0, 0]} />;
     },
-    [currentIndex]
+    [currentIndex, resolvedTheme]
   );
 
   if (isLoading) {
@@ -89,7 +91,7 @@ function RainfallForecastPanel() {
           <CloudRain style={{ width: 12, height: 12, color: "#3299C6" }} />
           {language !== "ml" ? "Rainfall forecast" : "മഴ പ്രവചനം"}
         </div>
-        <div style={{ fontSize: "0.6875rem", color: "#9ca3af", marginTop: 8, textAlign: "center" }}>
+        <div style={{ fontSize: "0.6875rem", color: resolvedTheme === "dark" ? "#94A3B8" : "#64748b", marginTop: 8, textAlign: "center" }}>
           {language !== "ml"
             ? "Forecast unavailable — Open-Meteo may be unreachable. Last known data will be shown when available."
             : "Open-Meteo ലഭ്യമല്ല."}
@@ -100,52 +102,81 @@ function RainfallForecastPanel() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="analytics-panel-title">
-        <CloudRain style={{ width: 12, height: 12, color: "#3299C6" }} />
-        {language !== "ml" ? "Rainfall forecast" : "മഴ പ്രവചനം"}
-        {forecast?.is_stale && (
-          <span className="badge badge-stale ml-1" style={{ fontSize: "0.5rem" }}>
-            {language !== "ml" ? "Stale" : "പഴയ"}
-          </span>
-        )}
+      <div className="analytics-panel-title flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <CloudRain style={{ width: 13, height: 13, color: resolvedTheme === "dark" ? "#38bdf8" : "#0F8C86" }} />
+          <span className="font-semibold">{language !== "ml" ? "Rainfall Forecast" : "മഴ പ്രവചനം"}</span>
+          {forecast?.is_stale && (
+            <span className="badge badge-stale ml-1" style={{ fontSize: "0.5rem" }}>
+              {language !== "ml" ? "Stale" : "പഴയ"}
+            </span>
+          )}
+        </div>
+        <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+          Chalakudy Basin
+        </span>
       </div>
 
       <div style={{ flex: 1, minHeight: 0 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ top: 2, right: 4, bottom: 0, left: -20 }}>
+          <BarChart data={chartData} margin={{ top: 4, right: 6, bottom: 2, left: -20 }}>
             <defs>
               <linearGradient id="rainfall-gradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#39BBD0" />
-                <stop offset="100%" stopColor="#087F8C" />
+                <stop offset="0%" stopColor="#38bdf8" />
+                <stop offset="100%" stopColor="#0284c7" />
               </linearGradient>
             </defs>
             <XAxis
               dataKey="hour"
-              tick={{ fill: chartText, fontSize: 8 }}
-              axisLine={false}
+              axisLine={{ stroke: resolvedTheme === "dark" ? "rgba(255,255,255,0.12)" : "#CBD5E1", strokeWidth: 1 }}
               tickLine={false}
-              interval={Math.max(1, Math.ceil(chartData.length / 4) - 1)}
-              angle={-35}
-              textAnchor="end"
-              tickMargin={4}
-              height={42}
+              interval={Math.max(1, Math.ceil(chartData.length / 5))}
+              height={36}
+              tick={(props: any) => {
+                const { x, y, payload } = props;
+                const item = chartData.find((d) => d.hour === payload?.value);
+                if (!item) return null;
+                const primaryColor = resolvedTheme === "dark" ? "#F8FAFC" : "#1E292B";
+                const secondaryColor = resolvedTheme === "dark" ? "#38BDF8" : "#0F766E";
+                return (
+                  <g transform={`translate(${x},${y})`}>
+                    <text x={0} y={11} textAnchor="middle" fill={primaryColor} fontSize={9} fontWeight={600}>
+                      {item.timePart}
+                    </text>
+                    <text x={0} y={23} textAnchor="middle" fill={secondaryColor} fontSize={8} fontWeight={600}>
+                      {item.datePart}
+                    </text>
+                  </g>
+                );
+              }}
             />
             <YAxis
-              tick={{ fill: chartText, fontSize: 9 }}
+              tick={{ fill: resolvedTheme === "dark" ? "#CBD5E1" : "#475569", fontSize: 9 }}
               axisLine={false}
               tickLine={false}
               unit=" mm"
             />
             <Tooltip
               formatter={(val: any) => [`${Number(val || 0).toFixed(1)} mm`, language !== "ml" ? "Precipitation" : "മഴ"]}
-              labelFormatter={(l) => `${l} (${language !== "ml" ? "Forecast" : "പ്രവചനം"})`}
-              contentStyle={{ fontSize: "0.6875rem", border: `1px solid ${chartBorder}`, borderRadius: 6, background: resolvedTheme === "dark" ? "#102832" : "#FFFFFF", color: resolvedTheme === "dark" ? "#F8FAFC" : "#26332F" }}
+              labelFormatter={(_, items) => {
+                const item = items?.[0]?.payload;
+                if (!item) return "";
+                return `${item.datePart}, ${item.timePart} IST (${item.isForecast ? (language !== "ml" ? "Forecast" : "പ്രവചനം") : (language !== "ml" ? "Observed" : "നിരീക്ഷണം")})`;
+              }}
+              contentStyle={{
+                fontSize: "0.75rem",
+                border: `1px solid ${chartBorder}`,
+                borderRadius: 8,
+                background: resolvedTheme === "dark" ? "#13171e" : "#FFFFFF",
+                color: resolvedTheme === "dark" ? "#F8FAFC" : "#1E292B",
+                boxShadow: "0 4px 14px rgba(0,0,0,0.2)",
+              }}
             />
-            <ReferenceLine x={chartData[currentIndex]?.hour} stroke="#155E59" strokeDasharray="2 2" strokeWidth={1.5} />
+            <ReferenceLine x={chartData[currentIndex]?.hour} stroke="#2dd4bf" strokeDasharray="3 3" strokeWidth={1.5} />
             <Bar
               dataKey="precipitation"
               radius={[2, 2, 0, 0]}
-              maxBarSize={12}
+              maxBarSize={14}
               shape={renderBarShape}
               fill="url(#rainfall-gradient)"
             />
@@ -153,13 +184,17 @@ function RainfallForecastPanel() {
         </ResponsiveContainer>
       </div>
 
-      <div style={{ fontSize: "0.5rem", color: "#9ca3af", marginTop: 2 }}>
-        {language !== "ml" ? "Source: Open-Meteo NWP" : "ഉറവിടം: Open-Meteo NWP"} ·{" "}
-        {chartData.some((d) => !d.isForecast) && (
-          <><span style={{ color: "#3299C6" }}>█</span> {language !== "ml" ? "Current data (not gauge data)" : "നിലവിലെ ഡാറ്റ (ഗേജ് അളവല്ല)"}{" "}</>
-        )}
-        <span style={{ color: "#DCEFF3", border: "1px solid #9ca3af" }}>█</span> {language !== "ml" ? "Forecast" : "പ്രവചനം"}
-        {forecast?.retrieved_at && <> · {language !== "ml" ? "retrieved" : "ശേഖരിച്ചത്"} {new Date(forecast.retrieved_at).toLocaleTimeString()}</>}
+      <div style={{ fontSize: "0.5625rem", color: resolvedTheme === "dark" ? "#CBD5E1" : "#64748B", marginTop: 2, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 4 }}>
+        <span>
+          {language !== "ml" ? "Source: Open-Meteo NWP" : "ഉറവിടം: Open-Meteo NWP"}
+          {forecast?.retrieved_at && <> · {new Date(forecast.retrieved_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} IST</>}
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {chartData.some((d) => !d.isForecast) && (
+            <span><span style={{ color: "#38bdf8" }}>█</span> {language !== "ml" ? "Observed" : "നിരീക്ഷണം"}</span>
+          )}
+          <span><span style={{ color: resolvedTheme === "dark" ? "#1e3a5f" : "#DCEFF3", border: "1px solid #64748b" }}>█</span> {language !== "ml" ? "Forecast" : "പ്രവചനം"}</span>
+        </div>
       </div>
     </div>
   );

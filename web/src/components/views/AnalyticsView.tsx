@@ -392,12 +392,29 @@ export function AnalyticsView() {
             </h3>
             {hourlyData.length === 0 ? <div className="grid h-72 place-items-center text-sm text-text-secondary">Forecast data unavailable.</div> : <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={hourlyData} margin={{ top: 10, right: 12, left: -20, bottom: 0 }}>
+                <ComposedChart data={hourlyData} margin={{ top: 10, right: 12, left: -20, bottom: 28 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" strokeOpacity={0.1} />
-                  <XAxis dataKey="time" interval={11} minTickGap={24} tickFormatter={(value) => {
-                    const date = new Date(String(value));
-                    return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
-                  }} tick={{ fontSize: 10, fill: "#687770" }} />
+                  <XAxis
+                    dataKey="time"
+                    interval={11}
+                    minTickGap={24}
+                    height={40}
+                    tick={(props: { x?: number | string; y?: number | string; payload?: { value: string } }) => {
+                      const x = Number(props.x ?? 0);
+                      const y = Number(props.y ?? 0);
+                      const val = props.payload?.value ?? "";
+                      const date = new Date(String(val));
+                      if (Number.isNaN(date.getTime())) return <text x={x} y={y + 12} textAnchor="middle" fontSize={10} fill="#687770">{val}</text>;
+                      const timePart = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
+                      const datePart = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "numeric", month: "short" }).format(date);
+                      return (
+                        <g>
+                          <text x={x} y={y + 12} textAnchor="middle" fontSize={10} fill="#687770">{timePart}</text>
+                          <text x={x} y={y + 24} textAnchor="middle" fontSize={9} fill="#94a3b8">{datePart}</text>
+                        </g>
+                      );
+                    }}
+                  />
                   <YAxis yAxisId="rain" tick={{ fontSize: 10, fill: "#687770" }} unit=" mm" />
                   <YAxis yAxisId="total" orientation="right" tick={{ fontSize: 10, fill: "#687770" }} unit=" mm" />
                   <Tooltip

@@ -144,6 +144,7 @@ export function LeftRail() {
   // Map backend slug → friendly label
   const SOURCE_LABELS: Record<string, { en: string; ml: string }> = {
     "open-meteo": { en: "Weather (Open-Meteo)", ml: "കാലാവസ്ഥ (Open-Meteo)" },
+    "cwc-river-stage": { en: "CWC Arangaly River Gauge", ml: "സി.ഡബ്ല്യു.സി അരംഗലി ഗേജ്" },
     "osm":        { en: "Roads & Infrastructure (OSM)", ml: "റോഡ് & ഘടന (OSM)" },
     "terrarium-dem": { en: "Elevation (Terrarium DEM)", ml: "ഉയരം (Terrarium DEM)" },
     "sentinel-1": { en: "Sentinel-1 SAR", ml: "Sentinel-1 SAR" },

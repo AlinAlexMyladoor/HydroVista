@@ -137,3 +137,5 @@ backend/venv/
 web/node_modules/
 node_modules/
 .venv/
+data/*.csv
+backend/data/

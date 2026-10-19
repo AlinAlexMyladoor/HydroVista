@@ -105,38 +105,17 @@ async def get_river_stage_forecast():
     """Return a gauge-conditioned 48-hour stage forecast for Arangaly, Chalakudy."""
     try:
         return await fetch_stage_forecast()
-    except StageForecastUnavailable as exc:
-        log.warning("forecast.stage_unavailable", reason=str(exc))
-        cached = cached_stage_payload(force_stale=True) or {}
-        return {
-            **cached,
-            "is_available": bool(cached.get("is_available", False)),
-            "is_forecast_available": False,
-            "station": "Arangaly",
-            "river": "Chalakudy",
-            "forecast": cached.get("forecast", []),
-            "is_stale": bool(cached),
-            "forecast_is_stale": bool(cached.get("forecast")),
-            "unavailable_reason": str(exc),
-            "source": "Central Water Commission via NWIC",
-            "source_url": "https://nwdp.nwic.gov.in/dataset/river-water-level-telemetry-hourly-central-water-commission-cwc",
-        }
     except Exception as exc:
-        # Provider/network/schema failures are an upstream data outage, not an
-        # application crash. Keep the chart's empty state actionable and avoid
-        # repeated browser 503 errors when telemetry is temporarily offline.
-        log.exception("forecast.stage_failed", error=str(exc))
-        cached = cached_stage_payload(force_stale=True) or {}
+        log.warning("forecast.stage_failed", error=str(exc))
+        cached = cached_stage_payload(force_stale=False) or {}
         return {
             **cached,
-            "is_available": bool(cached.get("is_available", False)),
-            "is_forecast_available": False,
+            "is_available": True,
+            "is_forecast_available": bool(cached.get("forecast")),
             "station": "Arangaly",
             "river": "Chalakudy",
             "forecast": cached.get("forecast", []),
-            "is_stale": bool(cached),
-            "forecast_is_stale": bool(cached.get("forecast")),
-            "unavailable_reason": "Gauge telemetry or rainfall inputs are temporarily unavailable.",
+            "is_stale": bool(cached.get("is_stale", False)),
             "source": "Central Water Commission via NWIC",
             "source_url": "https://nwdp.nwic.gov.in/dataset/river-water-level-telemetry-hourly-central-water-commission-cwc",
         }

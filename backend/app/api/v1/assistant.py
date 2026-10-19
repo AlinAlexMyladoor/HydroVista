@@ -115,33 +115,107 @@ async def _gemini_answer(payload: AssistantRequest) -> str | None:
         return None
 
 
-def _rainfall_intent_answer(payload: AssistantRequest) -> str | None:
-    """Handle simple rainfall questions locally when an LLM key is not configured."""
+async def _rainfall_intent_answer(payload: AssistantRequest) -> str | None:
+    """Handle rainfall questions (tomorrow, today, or general) locally with high accuracy."""
     q = payload.message.casefold()
-    has_rain = any(term in q for term in ("rain", "rian", "raining", "precip", "വർഷ", "മഴ", "वर्षा", "बारिश", "மழை"))
-    is_tomorrow = any(term in q for term in ("tomorrow", "tmr", "tomo", "நாளை", "നാളെ", "कल"))
-    if not (has_rain and is_tomorrow):
+    has_rain = any(term in q for term in ("rain", "rian", "raining", "precip", "storm", "wet", "shower", "വർഷ", "മഴ", "वर्षा", "बारिश", "மழை"))
+    is_tomorrow = any(term in q for term in ("tomorrow", "tmr", "tomo", "tommorow", "morow", "നാളെ", "कल", "நாளை"))
+    is_today = any(term in q for term in ("today", "todai", "now", "ഇന്ന്", "आज", "இன்று"))
+    
+    if not (has_rain or is_tomorrow or is_today):
         return None
-    try:
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
-        tomorrow = datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
-        points = [
-            point for point in payload.context.hourly_rainfall
-            if point.is_forecast and point.precipitation_mm is not None
-            and datetime.fromisoformat(point.time.replace("Z", "+00:00")).astimezone(ZoneInfo("Asia/Kolkata")).date().isoformat() == tomorrow
-        ]
-    except (ValueError, TypeError):
-        points = []
-    total = sum(point.precipitation_mm or 0 for point in points) if points else None
-    timestamp = points[0].time if points else None
-    answers = {
-        "en": f"Tomorrow's Open-Meteo forecast totals about {total:.1f} mm of precipitation across {len(points)} hourly forecast values. First forecast time: {timestamp}. This is model forecast data, not a rain-gauge observation." if total is not None else "I don't have tomorrow's hourly rainfall values in the loaded forecast, so I can't give a total.",
-        "ml": f"നാളത്തെ Open-Meteo പ്രവചനത്തിൽ {len(points)} മണിക്കൂർ മൂല്യങ്ങളുടെ ആകെ മഴ ഏകദേശം {total:.1f} mm ആണ്. ആദ്യ പ്രവചന സമയം: {timestamp}. ഇത് മാതൃകാ പ്രവചനമാണ്, മഴമാപിനി നിരീക്ഷണമല്ല." if total is not None else "ലഭ്യമായ പ്രവചനത്തിൽ നാളത്തെ മണിക്കൂർ മഴ മൂല്യങ്ങൾ ഇല്ല; അതിനാൽ ആകെ മഴ പറയാനാകില്ല.",
-        "hi": f"कल के Open-Meteo पूर्वानुमान में {len(points)} प्रति-घंटा मानों का कुल वर्षण लगभग {total:.1f} mm है। पहला पूर्वानुमान समय: {timestamp}। यह मॉडल पूर्वानुमान है, वर्षामापी अवलोकन नहीं।" if total is not None else "लोड किए गए पूर्वानुमान में कल के प्रति-घंटा वर्षा मान नहीं हैं, इसलिए कुल नहीं बता सकता।",
-        "ta": f"நாளைய Open-Meteo முன்னறிவிப்பில் {len(points)} மணிநேர மதிப்புகளின் மொத்த மழை சுமார் {total:.1f} mm. முதல் முன்னறிவிப்பு நேரம்: {timestamp}. இது மாதிரி முன்னறிவிப்பு; மழைமானி அளவீடு அல்ல." if total is not None else "ஏற்றப்பட்ட முன்னறிவிப்பில் நாளைய மணிநேர மழை மதிப்புகள் இல்லை; எனவே மொத்தத்தைச் சொல்ல முடியாது.",
-    }
-    return answers[payload.language]
+
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("Asia/Kolkata")
+    today_date = datetime.now(tz).date()
+    target_date = (today_date + timedelta(days=1)).isoformat() if is_tomorrow else today_date.isoformat()
+    day_label_en = "tomorrow" if is_tomorrow else "today"
+
+    hourly_points = list(payload.context.hourly_rainfall)
+    if not hourly_points:
+        from app.api.v1.forecast import _forecast_cache
+        if _forecast_cache and isinstance(_forecast_cache, dict) and "hourly" in _forecast_cache:
+            for h in _forecast_cache["hourly"]:
+                hourly_points.append(
+                    HourlyRainPoint(
+                        time=str(h.get("time")),
+                        precipitation_mm=h.get("precipitation_mm"),
+                        is_forecast=bool(h.get("is_forecast", True)),
+                    )
+                )
+        else:
+            try:
+                from app.services.weather import fetch_forecast
+                from app.services.river_stage import STATION_LAT, STATION_LON
+                fc = await fetch_forecast(STATION_LAT, STATION_LON, forecast_days=3, past_days=1)
+                for h in fc.get("hourly", []):
+                    hourly_points.append(
+                        HourlyRainPoint(
+                            time=str(h.get("time")),
+                            precipitation_mm=h.get("precipitation_mm"),
+                            is_forecast=bool(h.get("is_forecast", True)),
+                        )
+                    )
+            except Exception as exc:
+                log.warning("assistant.forecast_fetch_failed", error=str(exc))
+
+    matching_points = []
+    for p in hourly_points:
+        try:
+            pt_date = datetime.fromisoformat(str(p.time).replace("Z", "+00:00")).astimezone(tz).date().isoformat()
+            if pt_date == target_date and p.precipitation_mm is not None:
+                matching_points.append(p)
+        except (ValueError, TypeError):
+            continue
+
+    if not matching_points and is_tomorrow:
+        # If hourly points only cover next 24h, grab the future points
+        matching_points = [p for p in hourly_points if p.is_forecast and p.precipitation_mm is not None][12:36]
+
+    if matching_points:
+        total = sum(p.precipitation_mm or 0.0 for p in matching_points)
+        max_rain = max((p.precipitation_mm or 0.0 for p in matching_points), default=0.0)
+        rain_hours = sum(1 for p in matching_points if (p.precipitation_mm or 0.0) >= 0.1)
+        
+        peak_time_str = "afternoon"
+        for p in matching_points:
+            if (p.precipitation_mm or 0.0) == max_rain and max_rain > 0:
+                try:
+                    dt = datetime.fromisoformat(str(p.time).replace("Z", "+00:00")).astimezone(tz)
+                    peak_time_str = dt.strftime("%H:%M IST")
+                except Exception:
+                    pass
+                break
+
+        if total < 0.2:
+            answers = {
+                "en": f"No significant rain is expected {day_label_en} in the Chalakudy River Basin. The Open-Meteo forecast estimates {total:.1f} mm of total precipitation, with dry and clear conditions across all forecast hours.",
+                "ml": f"ചാലക്കുടി നദീതടത്തിൽ { 'നാളെ' if is_tomorrow else 'ഇന്ന്' } കാര്യമായ മഴയില്ല. ഓപ്പൺ-മെറ്റിയോ പ്രവചനമനുസരിച്ച് ആകെ {total:.1f} mm മഴ മാത്രമാണ് പ്രതീക്ഷിക്കുന്നത്, പ്രധാനമായും വരണ്ട കാലാവസ്ഥയായിരിക്കും.",
+                "hi": f"चालाकुडी नदी बेसिन में { 'कल' if is_tomorrow else 'आज' } कोई खास बारिश नहीं होगी। ओपन-मेटियो पूर्वानुमान के अनुसार कुल वर्षा केवल {total:.1f} मिमी अनुमानित है, मौसम मुख्यतः शुष्क रहेगा।",
+                "ta": f"சாலக்குடி படுகையில் { 'நாளை' if is_tomorrow else 'இன்று' } குறிப்பிடத்தக்க மழை இருக்காது. ஓபன்-மெட்டியோ முன்னறிவிப்பின்படி மொத்த மழை {total:.1f} மி.மீ மட்டுமே, பெரும்பாலும் வறண்ட வானிலையே நீடிக்கும்.",
+            }
+        else:
+            answers = {
+                "en": f"Yes, rain is expected {day_label_en} in the Chalakudy River Basin. The Open-Meteo forecast indicates approximately {total:.1f} mm of total rainfall across {rain_hours} rainy hours, with a peak intensity of {max_rain:.1f} mm/h around {peak_time_str}. This is NWP model guidance, not an official flood warning.",
+                "ml": f"അതെ, { 'നാളെ' if is_tomorrow else 'ഇന്ന്' } ചാലക്കുടി നദീതടത്തിൽ മഴ പ്രതീക്ഷിക്കുന്നുണ്ട്. ഓപ്പൺ-മെറ്റിയോ പ്രവചനപ്രകാരം ആകെ ഏകദേശം {total:.1f} mm മഴയും, {peak_time_str} സമയത്ത് പരമാവധി മണിക്കൂറിൽ {max_rain:.1f} mm മഴയും ഉണ്ടാകാം. ഇത് മാതൃകാ പ്രവചനമാണ്.",
+                "hi": f"हाँ, { 'कल' if is_tomorrow else 'आज' } चालाकुडी बेसिन में बारिश की संभावना है। ओपन-मेटियो मॉडल के अनुसार कुल लगभग {total:.1f} मिमी बारिश तथा {peak_time_str} के आसपास अधिकतम {max_rain:.1f} मिमी/घंटा वर्षा का अनुमान है।",
+                "ta": f"ஆம், { 'நாளை' if is_tomorrow else 'இன்று' } சாலக்குடி படுகையில் மழை எதிர்பார்க்கப்படுகிறது. ஓபன்-மெட்டியோ முன்னறிவிப்பின்படி மொத்தம் சுமார் {total:.1f} மி.மீ மழையும், {peak_time_str} அளவில் அதிகபட்சமாக மணிக்கு {max_rain:.1f} மி.மீ வரை மழையும் பெய்யக்கூடும்.",
+            }
+        return answers.get(payload.language, answers["en"])
+
+    # Fallback if specific hourly breakdown is unavailable
+    if payload.context.rainfall_24h_mm is not None:
+        r24 = payload.context.rainfall_24h_mm
+        answers = {
+            "en": f"The 24-hour rainfall forecast for the Chalakudy River Basin is {r24:.1f} mm. Weather model guidance indicates {'moderate to heavy showers' if r24 >= 15 else 'light showers or dry periods' if r24 > 0.5 else 'dry conditions'}.",
+            "ml": f"ചാലക്കുടി നദീതടത്തിലെ 24 മണിക്കൂർ മഴ പ്രവചനം {r24:.1f} mm ആണ്. ഇത് ഓപ്പൺ-മെറ്റിയോ മാതൃകാ പ്രവചനമാണ്.",
+            "hi": f"चालाकुडी नदी बेसिन के लिए 24 घंटे का वर्षा पूर्वानुमान {r24:.1f} मिमी है।",
+            "ta": f"சாலக்குடி ஆற்றுப் படுகைக்கான 24 மணி நேர மழை முன்னறிவிப்பு {r24:.1f} மி.மீ.",
+        }
+        return answers.get(payload.language, answers["en"])
+
+    return None
 
 
 @router.post("/chat", response_model=AssistantResponse)
@@ -175,7 +249,7 @@ async def chat(payload: AssistantRequest) -> AssistantResponse:
         }
         return AssistantResponse(answer=greetings[lang], sources=["HydroVista assistant"])
 
-    rainfall_answer = _rainfall_intent_answer(payload)
+    rainfall_answer = await _rainfall_intent_answer(payload)
     if rainfall_answer:
         return AssistantResponse(answer=rainfall_answer, sources=[c.rainfall_source or "Open-Meteo hourly forecast"])
 

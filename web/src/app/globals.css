@@ -58,24 +58,25 @@
 
 .dark {
   color-scheme: dark;
-  --color-background: #071A2B;
-  --color-surface: #0C2237;
-  --color-surface-secondary: #142D44;
-  --color-primary: #35CBB9;
-  --color-primary-dark: #18A99A;
-  --color-primary-light: #66E1D0;
-  --color-water: #38BDF8;
-  --color-water-pale: #0C2A3A;
-  --color-warning: #FBBF24;
-  --color-warning-dark: #D97706;
-  --color-critical: #F87171;
-  --color-critical-light: #3F1D2A;
-  --color-text: #F1F6FB;
-  --color-text-secondary: #A8BACB;
-  --color-border: #263D52;
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.26), 0 8px 24px rgba(0, 0, 0, 0.12);
-  --shadow-panel: 0 8px 28px rgba(0, 0, 0, 0.2);
-  --shadow-elevated: 0 16px 40px rgba(0, 0, 0, 0.28);
+  /* Deep, neutral dark — no heavy navy tint */
+  --color-background: #0a0c0f;
+  --color-surface: #13171e;
+  --color-surface-secondary: #1c2230;
+  --color-primary: #2dd4bf;
+  --color-primary-dark: #14b8a6;
+  --color-primary-light: #5eead4;
+  --color-water: #38bdf8;
+  --color-water-pale: #082032;
+  --color-warning: #fbbf24;
+  --color-warning-dark: #f59e0b;
+  --color-critical: #f87171;
+  --color-critical-light: #3b1a1a;
+  --color-text: #f0f4f8;
+  --color-text-secondary: #94a3b8;
+  --color-border: #1e2d3d;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.22);
+  --shadow-panel: 0 8px 32px rgba(0,0,0,0.38);
+  --shadow-elevated: 0 16px 48px rgba(0,0,0,0.46);
 }
 
 /* ─── Base Typography ─────────────────────────────────────────────────────── */
@@ -108,22 +109,27 @@ body {
 }
 
 .dark .glass-panel {
-  background: color-mix(in srgb, #102832 82%, transparent);
-  border-color: rgba(93, 146, 158, 0.28);
+  background: rgba(19, 23, 30, 0.85);
+  border-color: rgba(45, 212, 191, 0.15);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
 }
 
 .map-glass {
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.7);
   box-shadow: 0 10px 30px rgba(16, 57, 68, 0.14);
-  backdrop-filter: blur(14px) saturate(1.15);
-  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
 }
 
 .dark .map-glass {
-  background: rgba(11, 27, 36, 0.78);
-  border-color: rgba(117, 183, 194, 0.25);
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.3);
+  /* True glassmorphism — map terrain shines through */
+  background: rgba(10, 12, 15, 0.52) !important;
+  border-color: rgba(45, 212, 191, 0.18) !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255,255,255,0.06) !important;
+  backdrop-filter: blur(18px) saturate(1.3) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.3) !important;
 }
 
 .dark .bg-white,
@@ -134,6 +140,7 @@ body {
 .dark .analytics-strip {
   background-color: var(--color-surface) !important;
   color: var(--color-text);
+  border-color: var(--color-border) !important;
 }
 
 .dark .bg-background,
@@ -147,26 +154,26 @@ body {
 
 .dark .text-text { color: var(--color-text) !important; }
 .dark .text-text-secondary { color: var(--color-text-secondary) !important; }
-.dark .map-glass[style] { background: rgba(11, 27, 36, 0.78) !important; border-color: rgba(117, 183, 194, 0.25) !important; }
-.dark .maplibregl-popup-content { background: #102832; color: #E8F2F4; }
-.dark .maplibregl-popup-tip { border-top-color: #102832; border-bottom-color: #102832; }
+.dark .maplibregl-popup-content { background: #13171e; color: #f0f4f8; border: 1px solid #1e2d3d; }
+.dark .maplibregl-popup-tip { border-top-color: #13171e; border-bottom-color: #13171e; }
 
-/* Opaque reading surfaces: satellite imagery should never compete with UI copy. */
+/* Opaque reading surfaces — high contrast for UI legibility over map */
 .dark aside[aria-label="Map controls"],
 .dark aside[aria-label="Intelligence rail"],
 .dark .analytics-strip,
 .dark .analytics-panel,
 .dark .intel-card,
 .dark [data-readable-panel] {
-  background: #0F2732 !important;
-  border-color: rgba(100, 145, 156, 0.55) !important;
-  color: #F8FAFC !important;
+  background: #13171e !important;
+  border-color: #1e2d3d !important;
+  color: #f0f4f8 !important;
 }
 
+/* Fix inline hardcoded light-mode colours deep in component trees */
 .dark aside[aria-label="Map controls"] [style*="#26332F"],
 .dark aside[aria-label="Intelligence rail"] [style*="#26332F"],
 .dark .analytics-panel [style*="#26332F"],
-.dark [data-readable-panel] [style*="#26332F"] { color: #F8FAFC !important; }
+.dark [data-readable-panel] [style*="#26332F"] { color: #f0f4f8 !important; }
 
 .dark aside[aria-label="Map controls"] [style*="#687770"],
 .dark aside[aria-label="Map controls"] [style*="#9ca3af"],
@@ -175,13 +182,41 @@ body {
 .dark .analytics-panel [style*="#687770"],
 .dark .analytics-panel [style*="#9ca3af"],
 .dark [data-readable-panel] [style*="#687770"],
-.dark [data-readable-panel] [style*="#9ca3af"] { color: #CBD5E1 !important; }
+.dark [data-readable-panel] [style*="#9ca3af"] { color: #94a3b8 !important; }
 
-.dark .analytics-panel-title { color: #F8FAFC !important; }
-.dark header { background: #0F2732 !important; border-color: rgba(100, 145, 156, 0.55) !important; }
-.dark header input { background: #0B1B24 !important; color: #F8FAFC !important; border-color: #284853 !important; }
-.dark header [style*="#26332F"] { color: #F8FAFC !important; }
-.dark header [style*="#687770"], .dark header [style*="#9ca3af"] { color: #CBD5E1 !important; }
+.dark .analytics-panel-title { color: #f0f4f8 !important; }
+
+/* Header dark styles */
+.dark header {
+  background: #0d111a !important;
+  border-color: #1e2d3d !important;
+  box-shadow: 0 1px 0 rgba(45,212,191,0.08) !important;
+}
+.dark header input {
+  background: #0a0c0f !important;
+  color: #f0f4f8 !important;
+  border-color: #1e2d3d !important;
+}
+.dark header input::placeholder { color: #4b5563 !important; }
+.dark header [style*="#26332F"] { color: #f0f4f8 !important; }
+.dark header [style*="#687770"], .dark header [style*="#9ca3af"] { color: #94a3b8 !important; }
+
+/* Fix Recharts axis text in dark mode */
+.dark .recharts-cartesian-axis-tick text,
+.dark .recharts-text {
+  fill: #94a3b8 !important;
+}
+.dark .recharts-cartesian-axis-tick text[fill="#687770"] { fill: #94a3b8 !important; }
+
+/* Dark mode badge overrides */
+.dark .badge-low    { background: #052e16; color: #86efac; border-color: #14532d; }
+.dark .badge-medium { background: #422006; color: #fcd34d; border-color: #78350f; }
+.dark .badge-high   { background: #431407; color: #fdba74; border-color: #7c2d12; }
+.dark .badge-critical { background: #3b0808; color: #fca5a5; border-color: #7f1d1d; }
+.dark .badge-info   { background: #0c1a40; color: #93c5fd; border-color: #1e3a8a; }
+.dark .badge-teal   { background: #042f2e; color: #2dd4bf; border-color: #134e4a; }
+.dark .badge-stale  { background: #422006; color: #fcd34d; border-color: #78350f; }
+.dark .badge-unavailable { background: #111827; color: #6b7280; border-color: #1f2937; }
 
 .map-atmosphere {
   position: absolute;
@@ -355,14 +390,38 @@ h4 { font-size: 0.8125rem; font-weight: 600; line-height: 1.4; }
   to   { transform: rotate(360deg); }
 }
 
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); }
+  50%       { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+}
+
+@keyframes wave-bar {
+  0%, 100% { transform: scaleY(0.3); }
+  50%       { transform: scaleY(1); }
+}
+
+@keyframes msg-pop {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes glow-ring {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50%       { opacity: 0.9; transform: scale(1.05); }
+}
+
 .animate-fade-in      { animation: fade-in 0.2s ease-out both; }
 .animate-slide-right  { animation: slide-in-right 0.22s ease-out both; }
 .animate-slide-up     { animation: slide-in-up 0.22s ease-out both; }
 .animate-spin         { animation: spin 1s linear infinite; }
+.animate-mic-pulse    { animation: mic-pulse 1.2s ease-in-out infinite; }
+.animate-msg-pop      { animation: msg-pop 0.18s ease-out both; }
+.animate-glow-ring    { animation: glow-ring 2s ease-in-out infinite; }
 
 /* Respect reduced-motion preference */
 @media (prefers-reduced-motion: reduce) {
-  .animate-fade-in, .animate-slide-right, .animate-slide-up { animation: none; }
+  .animate-fade-in, .animate-slide-right, .animate-slide-up,
+  .animate-mic-pulse, .animate-msg-pop, .animate-glow-ring { animation: none; }
   .status-dot-live { animation: none; }
 }
 
