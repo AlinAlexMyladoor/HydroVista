@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import { Info } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { getTranslations } from "@/lib/translations";
+import { AnalysisView } from "@/components/views/AnalysisView";
 import { useQuery } from "@tanstack/react-query";
 import { api, APIError, ModelEvaluation } from "@/lib/api";
 import {
@@ -194,7 +196,8 @@ function ModelEvalPanel({ ev, isLoading, isError }: { ev: ModelEvaluation | unde
 
 export function AnalyticsView() {
   const { language } = useStore();
-  const [activeTab, setActiveTab] = useState<"precipitation" | "risk_model" | "historical">("precipitation");
+  const t = getTranslations(language);
+  const [activeTab, setActiveTab] = useState<"precipitation" | "risk_model" | "historical" | "flood_processing">("precipitation");
 
   const { data: forecast, isError: forecastError } = useQuery({
     queryKey: ["forecast-analytics"],
@@ -229,7 +232,7 @@ export function AnalyticsView() {
     staleTime: 86_400_000,
     retry: 1,
   });
-  const { data: discharge, isLoading: dischargeLoading, isError: dischargeError } = useQuery({
+  const { data: discharge, isLoading: dischargeLoading, refetch: refetchDischarge } = useQuery({
     queryKey: ["river-discharge-forecast"],
     queryFn: () => api.forecast.discharge(),
     enabled: activeTab === "precipitation",
@@ -241,7 +244,7 @@ export function AnalyticsView() {
     queryFn: () => api.forecast.stage(),
     enabled: activeTab === "precipitation",
     staleTime: 900_000,
-    retry: 1,
+    retry: false,
   });
 
   // Prepare precipitation data
@@ -309,10 +312,10 @@ export function AnalyticsView() {
   const modelFeatures = Object.keys(modelEval?.feature_importance ?? {});
   const isTopographyProxy = modelFeatures.length > 0 && modelFeatures.every((name) => ["elevation", "slope"].includes(name.toLowerCase()));
   const kpiCards = activeTab === "precipitation" ? [
-    ["24h rainfall", rainfall24h == null ? "—" : `${rainfall24h.toFixed(1)} mm`, forecastError || !forecast ? "Forecast unavailable" : forecast.is_stale ? "Stale forecast" : "Open-Meteo forecast"],
-    ["72h rainfall", rainfall72h == null ? "—" : `${rainfall72h.toFixed(1)} mm`, forecastError || !forecast ? "Forecast unavailable" : forecast.is_stale ? "Stale forecast" : "Open-Meteo forecast"],
-    ["High-risk infrastructure", exposureLoading || exposureError || !exposure ? "—" : String(riskCounts.critical + riskCounts.high), exposureLoading || exposureError || !exposure ? "Risk data unavailable" : `${riskCounts.critical} critical · ${riskCounts.high} high`],
-    ["Arangaly observed stage", stage?.observed_stage_m == null ? "—" : `${stage.observed_stage_m.toFixed(2)} m`, stage?.observed_at ? `Gauge · ${new Date(stage.observed_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })} IST` : "Live gauge unavailable"],
+    [t.rainfall24h, rainfall24h == null ? "—" : `${rainfall24h.toFixed(1)} mm`, forecastError || !forecast ? t.forecastUnavailable : forecast.is_stale ? t.staleForecast : "Open-Meteo forecast"],
+    [t.rainfall72h, rainfall72h == null ? "—" : `${rainfall72h.toFixed(1)} mm`, forecastError || !forecast ? t.forecastUnavailable : forecast.is_stale ? t.staleForecast : "Open-Meteo forecast"],
+    [t.highRiskInfrastructure, exposureLoading || exposureError || !exposure ? "—" : String(riskCounts.critical + riskCounts.high), exposureLoading || exposureError || !exposure ? t.riskUnavailable : `${riskCounts.critical} critical · ${riskCounts.high} high`],
+    [t.observedStage, stage?.observed_stage_m == null ? "—" : `${stage.observed_stage_m.toFixed(2)} m`, stage?.observed_at ? `Gauge · ${new Date(stage.observed_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })} IST` : t.liveGaugeUnavailable],
   ] : activeTab === "risk_model" && !isTopographyProxy ? [
     ["Held-out rows", modelEval?.status === "evaluated" ? String(modelEval.n_test ?? "—") : "—", "Spatially separated test set"],
     ["Flood test samples", evaluationFloodCount == null ? "—" : String(evaluationFloodCount), "Positive examples in held-out set"],
@@ -327,7 +330,7 @@ export function AnalyticsView() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-[#1E292B]">
-              {language === "en" ? "Analytics" : "അപഗ്രഥനം"}
+              {t.analyticsTitle}
             </h1>
           </div>
         </div>
@@ -340,7 +343,7 @@ export function AnalyticsView() {
               activeTab === "precipitation" ? "bg-teal-600 text-white dark:bg-teal-500 dark:text-slate-950" : "text-[#687770] hover:text-[#1E292B]"
             }`}
           >
-            {language === "en" ? "Precipitation & Inflow" : "മഴ & ജലപ്രവാഹം"}
+            {t.analyticsPrecipitation}
           </button>
           <button
             onClick={() => setActiveTab("risk_model")}
@@ -348,7 +351,7 @@ export function AnalyticsView() {
               activeTab === "risk_model" ? "bg-teal-600 text-white dark:bg-teal-500 dark:text-slate-950" : "text-[#687770] hover:text-[#1E292B]"
             }`}
           >
-            {language === "en" ? "Risk & Model Metrics" : "മോഡൽ മെട്രിക്സ്"}
+            {t.analyticsRisk}
           </button>
           <button
             onClick={() => setActiveTab("historical")}
@@ -356,7 +359,13 @@ export function AnalyticsView() {
               activeTab === "historical" ? "bg-teal-600 text-white dark:bg-teal-500 dark:text-slate-950" : "text-[#687770] hover:text-[#1E292B]"
             }`}
           >
-            {language === "en" ? "Historical Comparison" : "ചരിത്രപരമായ താരതമ്യം"}
+            {t.analyticsHistorical}
+          </button>
+          <button
+            onClick={() => setActiveTab("flood_processing")}
+            className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === "flood_processing" ? "bg-teal-600 text-white dark:bg-teal-500 dark:text-slate-950" : "text-[#687770] hover:text-[#1E292B]"}`}
+          >
+            {t.analyticsFloodProcessing}
           </button>
         </div>
       </div>
@@ -379,7 +388,7 @@ export function AnalyticsView() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="h-[25rem] bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-xs dark:bg-slate-900 dark:border-slate-800">
             <h3 className="text-sm font-bold text-[#1E292B] mb-1">
-              {language === "en" ? "48-Hour Hourly Precipitation Distribution" : "48 മണിക്കൂർ മണിക്കൂർ തോറുമുള്ള മഴ"}
+              {language !== "ml" ? "48-Hour Hourly Precipitation Distribution" : "48 മണിക്കൂർ മണിക്കൂർ തോറുമുള്ള മഴ"}
             </h3>
             {hourlyData.length === 0 ? <div className="grid h-72 place-items-center text-sm text-text-secondary">Forecast data unavailable.</div> : <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
@@ -409,18 +418,17 @@ export function AnalyticsView() {
           <section className="h-[25rem] rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-xs dark:bg-slate-900 dark:border-slate-800">
             <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
               <div>
-                <h3 className="text-sm font-bold text-[#1E292B] dark:text-slate-50">48-Hour River Stage Forecast · Arangaly</h3>
-                <p className="text-[11px] text-[#687770] dark:text-slate-400">{stage?.model ?? "Gauge-conditioned rainfall response"}</p>
+                <h3 className="text-sm font-bold text-[#1E292B] dark:text-slate-50">{stage?.forecast?.length ? t.stageForecast : discharge?.daily?.length ? "GloFAS Daily River Discharge" : "48-hour hydrology guidance · Arangaly"}</h3>
+                <p className="text-[11px] text-[#687770] dark:text-slate-400">{stage?.forecast?.length ? stage.model : discharge?.daily?.length ? t.modeledDischarge : "Gauge stage unavailable · displaying Open-Meteo rainfall forcing"}</p>
               </div>
-              {stage && <span className="rounded-full bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-800 dark:bg-sky-950 dark:text-sky-200">Holdout MAE {stage.validation.mae_m.toFixed(2)} m</span>}
+              {!!stage?.forecast?.length && stage.validation && <span className="rounded-full bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-800 dark:bg-sky-950 dark:text-sky-200">Holdout MAE {stage.validation.mae_m.toFixed(2)} m</span>}
+              {!stage?.forecast?.length && <button type="button" onClick={() => void refetchStage()} className="rounded-md border border-slate-300 px-2.5 py-1.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">{t.retryGauge}</button>}
             </div>
-            {stageLoading ? <div className="grid h-72 place-items-center text-sm text-text-secondary">Loading gauge and forecast inputs…</div> : stageError || !stage?.forecast?.length ? <div className="flex h-72 flex-col items-center justify-center gap-3 text-center">
-              <p className="max-w-lg text-sm text-text-secondary">{stageErrorDetail instanceof APIError ? stageErrorDetail.detail : "A current Arangaly gauge record is required to produce a stage forecast."}</p>
-              <button type="button" onClick={() => void refetchStage()} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Retry stage forecast</button>
-            </div> : <>
+            {stage?.observed_stage_m != null && <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-xs text-teal-950 dark:border-teal-900 dark:bg-teal-950/60 dark:text-teal-100"><span className="font-semibold">Latest CWC Arangali gauge reading</span><span className="font-mono font-bold">{stage.observed_stage_m.toFixed(2)} m · {stage.observed_at ? new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" }).format(new Date(stage.observed_at)) : "time unavailable"} IST</span></div>}
+            {stageLoading && dischargeLoading ? <div className="grid h-72 place-items-center text-sm text-text-secondary">Loading gauge and river forecast data…</div> : stage?.forecast?.length ? <>
               <div className="h-[16rem]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={[{ time: stage.observed_at, stage_m: stage.observed_stage_m, lower_m: stage.observed_stage_m, upper_m: stage.observed_stage_m }, ...stage.forecast]} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+                  <AreaChart data={[{ time: stage.observed_at!, stage_m: stage.observed_stage_m!, lower_m: stage.observed_stage_m!, upper_m: stage.observed_stage_m! }, ...stage.forecast]} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
                     <defs><linearGradient id="stageFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0284C7" stopOpacity={0.28} /><stop offset="95%" stopColor="#0284C7" stopOpacity={0.02} /></linearGradient></defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" strokeOpacity={0.1} />
                     <XAxis dataKey="time" interval={7} minTickGap={28} tickFormatter={(value) => new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(String(value)))} tick={{ fontSize: 10, fill: "#687770" }} />
@@ -433,25 +441,39 @@ export function AnalyticsView() {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-              <p className="mt-1 text-[10px] leading-relaxed text-text-secondary">CWC Arangaly gauge via NWIC · Open-Meteo rainfall · validation MAE {stage.validation.mae_m.toFixed(2)} m. Forecast is model guidance, not an official warning.</p>
-            </>}
+              <p className="mt-1 text-[10px] leading-relaxed text-text-secondary">CWC Arangaly gauge via NWIC · Open-Meteo rainfall · validation MAE {stage.validation?.mae_m.toFixed(2) ?? "—"} m. Forecast is model guidance, not an official warning.</p>
+            </> : discharge?.daily?.length ? <>
+              <div className="h-[16rem]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={discharge.daily} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+                    <defs><linearGradient id="dischargeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2563EB" stopOpacity={0.3} /><stop offset="95%" stopColor="#2563EB" stopOpacity={0.02} /></linearGradient></defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" strokeOpacity={0.1} />
+                    <XAxis dataKey="date" interval="preserveStartEnd" minTickGap={24} tickFormatter={(date) => new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`))} tick={{ fontSize: 10, fill: "#687770" }} />
+                    <YAxis tick={{ fontSize: 10, fill: "#687770" }} unit=" m³/s" width={58} />
+                    <Tooltip contentStyle={{ backgroundColor: "#1E292B", borderRadius: "8px", border: "none", color: "#fff", fontSize: "12px" }} formatter={(value) => [`${Number(value).toFixed(1)} m³/s`, "Discharge"]} />
+                    <Area type="monotone" dataKey="river_discharge_m3s" stroke="#2563EB" strokeWidth={2} fill="url(#dischargeFill)" name="Modelled discharge" connectNulls />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              <p className="mt-1 text-[10px] leading-relaxed text-text-secondary">{stage?.unavailable_reason ?? (stageErrorDetail instanceof APIError ? stageErrorDetail.detail : "Arangaly gauge data is unavailable.")} {discharge.model} · discharge is model guidance in m³/s, not observed water level.{discharge.is_stale ? " Showing cached data." : ""}</p>
+            </> : hourlyData.length ? <>
+              <div className="h-[16rem]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={hourlyData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" strokeOpacity={0.1} />
+                    <XAxis dataKey="time" interval={7} minTickGap={28} tickFormatter={(value) => { const date = new Date(String(value)); return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false }).format(date); }} tick={{ fontSize: 10, fill: "#687770" }} />
+                    <YAxis tick={{ fontSize: 10, fill: "#687770" }} unit=" mm" width={48} />
+                    <Tooltip contentStyle={{ backgroundColor: "#1E292B", borderRadius: "8px", border: "none", color: "#fff", fontSize: "12px" }} labelFormatter={(value) => new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" }).format(new Date(String(value)))} formatter={(value) => [`${Number(value ?? 0).toFixed(1)} mm`, "Forecast rainfall"]} />
+                    <Bar dataKey="precipitation" fill="#0072B2" fillOpacity={0.88} radius={[3, 3, 0, 0]} name="Forecast rainfall (mm)" />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+              <p className="mt-1 text-[10px] leading-relaxed text-text-secondary">{stage?.unavailable_reason ?? "Arangali gauge telemetry is unavailable."} The chart shows Open-Meteo rainfall forcing; it is not an observed or predicted river stage.</p>
+            </> : <div className="flex h-72 flex-col items-center justify-center gap-3 text-center">
+              <p className="max-w-lg text-sm text-text-secondary">{stage?.unavailable_reason ?? (stageErrorDetail instanceof APIError ? stageErrorDetail.detail : "Gauge stage and modelled discharge are currently unavailable.")}</p>
+              <div className="flex gap-2"><button type="button" onClick={() => void refetchStage()} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">{t.retryGauge}</button><button type="button" onClick={() => void refetchDischarge()} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">{t.retryDischarge}</button></div>
+            </div>}
           </section>
-          </div>
-
-          <div className="h-[18rem] rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-xs dark:bg-slate-900 dark:border-slate-800">
-            <h3 className="text-sm font-bold text-[#1E292B] mb-1 dark:text-slate-50">GloFAS Daily River Discharge</h3>
-            {dischargeLoading ? <div className="grid h-52 place-items-center text-sm text-text-secondary">Loading GloFAS discharge…</div> : dischargeError || !discharge?.daily?.length ? <div className="grid h-52 place-items-center text-sm text-text-secondary">Discharge guidance is temporarily unavailable.</div> : <><div className="h-52">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={discharge.daily} margin={{ top: 8, right: 8, left: -15, bottom: 0 }}>
-                  <defs><linearGradient id="dischargeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2563EB" stopOpacity={0.3} /><stop offset="95%" stopColor="#2563EB" stopOpacity={0.02} /></linearGradient></defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" strokeOpacity={0.1} />
-                  <XAxis dataKey="date" interval="preserveStartEnd" minTickGap={24} tickFormatter={(date) => new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`))} tick={{ fontSize: 10, fill: "#687770" }} />
-                  <YAxis tick={{ fontSize: 10, fill: "#687770" }} unit=" m³/s" width={58} />
-                  <Tooltip contentStyle={{ backgroundColor: "#1E292B", borderRadius: "8px", border: "none", color: "#fff", fontSize: "12px" }} formatter={(value) => [`${Number(value).toFixed(1)} m³/s`, "Discharge"]} />
-                  <Area type="monotone" dataKey="river_discharge_m3s" stroke="#2563EB" strokeWidth={2} fill="url(#dischargeFill)" name="River discharge" connectNulls />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div><p className="mt-1 text-[10px] leading-relaxed text-text-secondary">{discharge.model} · {discharge.source} · coarse daily discharge model for a nearby river cell; not a water-level gauge.{discharge.is_stale ? " Showing cached data." : ""}</p></>}
           </div>
         </div>
       )}
@@ -495,6 +517,8 @@ export function AnalyticsView() {
           <p className="mt-3 text-[11px] leading-relaxed text-text-secondary">ERA5 reanalysis is not a gauge record (~25 km grid). The shaded 15–17 Aug 2018 period marks Kerala’s peak-rainfall window documented in the <a className="underline" href="https://spb.kerala.gov.in/sites/default/files/inline-files/Final_Report.pdf" target="_blank" rel="noreferrer">Central Water Commission report</a>; the marker is aligned to the 2018 event days.</p>
         </section>
       )}
+
+      {activeTab === "flood_processing" && <div className="-mx-6 -mb-6 min-h-0 flex-1"><AnalysisView /></div>}
     </div>
   );
 }

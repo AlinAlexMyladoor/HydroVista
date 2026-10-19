@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useStore, ActivePanel } from "@/lib/store";
-import { translations } from "@/lib/translations";
+import { getTranslations } from "@/lib/translations";
 import {
   Map,
   ListFilter,
@@ -16,7 +16,7 @@ import {
 
 export function Sidebar() {
   const { activePanel, setActivePanel, language } = useStore();
-  const t = translations[language];
+  const t = getTranslations(language);
 
   const navItems: { id: ActivePanel; label: string; icon: React.ElementType; badge?: string }[] = [
     { id: "map", label: t.navMap, icon: Map },

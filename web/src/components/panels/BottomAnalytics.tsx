@@ -75,7 +75,7 @@ function RainfallForecastPanel() {
       <div className="h-full flex flex-col">
         <div className="analytics-panel-title">
           <CloudRain style={{ width: 12, height: 12, color: "#3299C6" }} />
-          {language === "en" ? "Rainfall forecast" : "മഴ പ്രവചനം"}
+          {language !== "ml" ? "Rainfall forecast" : "മഴ പ്രവചനം"}
         </div>
         <div className="skeleton flex-1 rounded" style={{ minHeight: 80 }} />
       </div>
@@ -87,10 +87,10 @@ function RainfallForecastPanel() {
       <div className="h-full flex flex-col">
         <div className="analytics-panel-title">
           <CloudRain style={{ width: 12, height: 12, color: "#3299C6" }} />
-          {language === "en" ? "Rainfall forecast" : "മഴ പ്രവചനം"}
+          {language !== "ml" ? "Rainfall forecast" : "മഴ പ്രവചനം"}
         </div>
         <div style={{ fontSize: "0.6875rem", color: "#9ca3af", marginTop: 8, textAlign: "center" }}>
-          {language === "en"
+          {language !== "ml"
             ? "Forecast unavailable — Open-Meteo may be unreachable. Last known data will be shown when available."
             : "Open-Meteo ലഭ്യമല്ല."}
         </div>
@@ -102,10 +102,10 @@ function RainfallForecastPanel() {
     <div className="h-full flex flex-col">
       <div className="analytics-panel-title">
         <CloudRain style={{ width: 12, height: 12, color: "#3299C6" }} />
-        {language === "en" ? "Rainfall forecast" : "മഴ പ്രവചനം"}
+        {language !== "ml" ? "Rainfall forecast" : "മഴ പ്രവചനം"}
         {forecast?.is_stale && (
           <span className="badge badge-stale ml-1" style={{ fontSize: "0.5rem" }}>
-            {language === "en" ? "Stale" : "പഴയ"}
+            {language !== "ml" ? "Stale" : "പഴയ"}
           </span>
         )}
       </div>
@@ -137,8 +137,8 @@ function RainfallForecastPanel() {
               unit=" mm"
             />
             <Tooltip
-              formatter={(val: any) => [`${Number(val || 0).toFixed(1)} mm`, language === "en" ? "Precipitation" : "മഴ"]}
-              labelFormatter={(l) => `${l} (${language === "en" ? "Forecast" : "പ്രവചനം"})`}
+              formatter={(val: any) => [`${Number(val || 0).toFixed(1)} mm`, language !== "ml" ? "Precipitation" : "മഴ"]}
+              labelFormatter={(l) => `${l} (${language !== "ml" ? "Forecast" : "പ്രവചനം"})`}
               contentStyle={{ fontSize: "0.6875rem", border: `1px solid ${chartBorder}`, borderRadius: 6, background: resolvedTheme === "dark" ? "#102832" : "#FFFFFF", color: resolvedTheme === "dark" ? "#F8FAFC" : "#26332F" }}
             />
             <ReferenceLine x={chartData[currentIndex]?.hour} stroke="#155E59" strokeDasharray="2 2" strokeWidth={1.5} />
@@ -154,12 +154,12 @@ function RainfallForecastPanel() {
       </div>
 
       <div style={{ fontSize: "0.5rem", color: "#9ca3af", marginTop: 2 }}>
-        {language === "en" ? "Source: Open-Meteo NWP" : "ഉറവിടം: Open-Meteo NWP"} ·{" "}
+        {language !== "ml" ? "Source: Open-Meteo NWP" : "ഉറവിടം: Open-Meteo NWP"} ·{" "}
         {chartData.some((d) => !d.isForecast) && (
-          <><span style={{ color: "#3299C6" }}>█</span> {language === "en" ? "Current data (not gauge data)" : "നിലവിലെ ഡാറ്റ (ഗേജ് അളവല്ല)"}{" "}</>
+          <><span style={{ color: "#3299C6" }}>█</span> {language !== "ml" ? "Current data (not gauge data)" : "നിലവിലെ ഡാറ്റ (ഗേജ് അളവല്ല)"}{" "}</>
         )}
-        <span style={{ color: "#DCEFF3", border: "1px solid #9ca3af" }}>█</span> {language === "en" ? "Forecast" : "പ്രവചനം"}
-        {forecast?.retrieved_at && <> · {language === "en" ? "retrieved" : "ശേഖരിച്ചത്"} {new Date(forecast.retrieved_at).toLocaleTimeString()}</>}
+        <span style={{ color: "#DCEFF3", border: "1px solid #9ca3af" }}>█</span> {language !== "ml" ? "Forecast" : "പ്രവചനം"}
+        {forecast?.retrieved_at && <> · {language !== "ml" ? "retrieved" : "ശേഖരിച്ചത്"} {new Date(forecast.retrieved_at).toLocaleTimeString()}</>}
       </div>
     </div>
   );
@@ -193,12 +193,12 @@ function ExposureRankingPanel() {
     <div className="h-full flex flex-col" style={{ userSelect: "none" }}>
       <div className="analytics-panel-title">
         <TrendingUp style={{ width: 12, height: 12, color: "#E7A23B" }} />
-        {language === "en" ? "Top Areas at Risk" : "ഉയർന്ന അപകടസാധ്യത"}
+        {language !== "ml" ? "Top Areas at Risk" : "ഉയർന്ന അപകടസാധ്യത"}
         <button
           onClick={() => setActiveRoute("infrastructure")}
           style={{ marginLeft: "auto", fontSize: "0.5625rem", color: "#155E59", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: 0 }}
         >
-          {language === "en" ? "View all →" : "എല്ലാം →"}
+          {language !== "ml" ? "View all →" : "എല്ലാം →"}
         </button>
       </div>
       {inundationRun?.status === "completed" && (
@@ -222,9 +222,9 @@ function ExposureRankingPanel() {
           borderBottom: "1px solid #DCE4DD",
         }}
       >
-        <span>{language === "en" ? "Location" : "സ്ഥലം"}</span>
+        <span>{language !== "ml" ? "Location" : "സ്ഥലം"}</span>
         <span style={{ textAlign: "center" }}>Risk</span>
-        <span>{language === "en" ? "Key Assets" : "സ്ഥാപനം"}</span>
+        <span>{language !== "ml" ? "Key Assets" : "സ്ഥാപനം"}</span>
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin" style={{ minHeight: 0 }}>
@@ -293,7 +293,7 @@ function ExposureRankingPanel() {
 
         {!isLoading && items.length === 0 && (
           <div style={{ fontSize: "0.6875rem", color: "#9ca3af", textAlign: "center", padding: "12px 0" }}>
-            {language === "en" ? "No exposure data available" : "ഡാറ്റ ലഭ്യമല്ല"}
+            {language !== "ml" ? "No exposure data available" : "ഡാറ്റ ലഭ്യമല്ല"}
           </div>
         )}
       </div>
@@ -327,7 +327,7 @@ export function BottomAnalyticsStrip() {
         aria-label={collapsed ? "Expand analytics" : "Collapse analytics"}
       >
         <ChevronDown style={{ width: 10, height: 10, transform: collapsed ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 200ms" }} />
-        {collapsed ? (language === "en" ? "Show Analytics" : "വിശകലനം") : (language === "en" ? "Analytics" : "വിശകലനം")}
+        {collapsed ? (language !== "ml" ? "Show Analytics" : "വിശകലനം") : (language !== "ml" ? "Analytics" : "വിശകലനം")}
       </button>
 
       {!collapsed && (

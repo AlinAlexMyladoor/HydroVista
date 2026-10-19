@@ -3,14 +3,19 @@
 The model is trained from CWC hourly telemetry published by NWIC
 and Open-Meteo archive precipitation. It is deliberately unavailable when the
 gauge feed is stale or the station cannot be identified; it never substitutes
-GloFAS discharge for an observed stage reading.
+GloFAS discharge for an observed stage reading. The latest successful gauge
+snapshot is persisted locally so provider outages and process restarts do not
+erase the last-known reading.
 """
 from __future__ import annotations
 
 import asyncio
+import json
 import math
+import os
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -31,18 +36,24 @@ STATION = "Arangaly"
 STATION_LAT = 10.2814  # CWC hydrological network coordinates
 STATION_LON = 76.3153
 DATA_URLS = (
+    # NWIC's CWC catalogue currently publishes the east-flowing rivers from
+    # Pennar to Kanyakumari as resource 027; this regional file covers Kerala.
     "https://nwdp.nwic.gov.in/dataset/68600163-c5a0-4327-aa1a-fa7157b86cce/"
-    "resource/87d42449-57c2-4ac4-8fbd-b6b4629f6779/download/rwl_tel_hr_cwc_015_2021_2025.csv",
+    "resource/3ef6b8ce-40fb-47e1-92d4-9342859f0593/download/rwl_tel_hr_cwc_27_2021_2025.csv",
     "https://nwdp.nwic.gov.in/dataset/68600163-c5a0-4327-aa1a-fa7157b86cce/"
-    "resource/88d6f0d7-52a9-46cd-a030-a7b39076083e/download/rwl_tel_hr_cwc_015_2026_2030.csv",
+    "resource/dc45c606-eaed-4e9e-a4f0-84152ff13e10/download/rwl_tel_hr_cwc_27_2026_2030.csv",
 )
 SOURCE_URL = "https://nwdp.nwic.gov.in/dataset/river-water-level-telemetry-hourly-central-water-commission-cwc"
-CACHE_SECONDS = 6 * 60 * 60
+CACHE_SECONDS = 15 * 60
 MAX_GAUGE_AGE = timedelta(hours=36)
+PERSISTENT_CACHE_PATH = Path(__file__).resolve().parents[2] / "data" / "cache" / "cwc_arangaly.json"
 
 _cache: dict[str, Any] | None = None
 _cache_at: datetime | None = None
+_observation_cache: dict[str, Any] | None = None
+_observation_cache_at: datetime | None = None
 _lock = asyncio.Lock()
+_persistent_cache_loaded = False
 
 
 class StageForecastUnavailable(RuntimeError):
@@ -51,12 +62,97 @@ class StageForecastUnavailable(RuntimeError):
 
 def stage_source_status() -> dict[str, Any]:
     """Report cached gauge/model health without triggering a provider request."""
-    fresh = bool(_cache and _cache_at and (datetime.now(timezone.utc) - _cache_at).total_seconds() < CACHE_SECONDS)
+    _load_persistent_cache()
+    age = _observation_age_seconds()
+    has_recent_observation = age is not None and age <= MAX_GAUGE_AGE.total_seconds()
     return {
-        "is_available": fresh,
-        "last_checked": _cache_at,
-        "last_success": _cache.get("observed_at") if fresh and _cache else None,
-        "known_limitations": "Availability is confirmed only after a successful Arangaly gauge and rainfall model run.",
+        "is_available": has_recent_observation,
+        "last_checked": _observation_cache_at,
+        "last_success": _observation_cache.get("observed_at") if _observation_cache else None,
+        "is_stale": bool(age is not None and age > CACHE_SECONDS),
+        "known_limitations": "Gauge status includes the last cached Arangali/Arangaly observation. Check its observation timestamp; forecast availability also requires enough history and rainfall inputs.",
+    }
+
+
+def _observation_age_seconds() -> float | None:
+    if not _observation_cache:
+        return None
+    try:
+        observed_at = datetime.fromisoformat(str(_observation_cache["observed_at"]).replace("Z", "+00:00"))
+        return max(0.0, (datetime.now(timezone.utc) - observed_at.astimezone(timezone.utc)).total_seconds())
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _load_persistent_cache() -> None:
+    global _persistent_cache_loaded, _observation_cache, _observation_cache_at, _cache, _cache_at
+    if _persistent_cache_loaded:
+        return
+    _persistent_cache_loaded = True
+    try:
+        payload = json.loads(PERSISTENT_CACHE_PATH.read_text(encoding="utf-8"))
+        observation = payload.get("observation")
+        result = payload.get("result")
+        if isinstance(observation, dict) and observation.get("observed_at"):
+            _observation_cache = observation
+            fetched = observation.get("retrieved_at") or observation["observed_at"]
+            _observation_cache_at = datetime.fromisoformat(str(fetched).replace("Z", "+00:00")).astimezone(timezone.utc)
+        if isinstance(result, dict) and result.get("forecast") is not None:
+            _cache = result
+            fetched = result.get("retrieved_at")
+            _cache_at = datetime.fromisoformat(str(fetched).replace("Z", "+00:00")).astimezone(timezone.utc) if fetched else None
+    except FileNotFoundError:
+        return
+    except Exception as exc:  # noqa: BLE001 - corrupted cache must not break API startup
+        log.warning("stage.persistent_cache_invalid", error=str(exc))
+
+
+def _write_persistent_cache() -> None:
+    try:
+        PERSISTENT_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        payload = json.dumps({"observation": _observation_cache, "result": _cache}, separators=(",", ":"))
+        temp_path = PERSISTENT_CACHE_PATH.with_suffix(".tmp")
+        temp_path.write_text(payload, encoding="utf-8")
+        os.replace(temp_path, PERSISTENT_CACHE_PATH)
+    except Exception as exc:  # noqa: BLE001 - persistence failure falls back to process cache
+        log.warning("stage.persistent_cache_write_failed", error=str(exc))
+
+
+def cached_stage_observation(*, force_stale: bool = False) -> dict[str, Any] | None:
+    """Return the last known gauge value, marking it stale when age requires."""
+    _load_persistent_cache()
+    if not _observation_cache:
+        return None
+    age = _observation_age_seconds()
+    stale = force_stale or age is None or age > CACHE_SECONDS
+    recent = age is not None and age <= MAX_GAUGE_AGE.total_seconds()
+    return {
+        **_observation_cache,
+        "is_available": recent,
+        "is_forecast_available": False,
+        "is_stale": stale,
+        "cache_age_seconds": round(age) if age is not None else None,
+        "cache_retrieved_at": _observation_cache.get("retrieved_at"),
+    }
+
+
+def cached_stage_payload(*, force_stale: bool = False) -> dict[str, Any] | None:
+    """Return a last-known model response plus its independently timestamped gauge."""
+    _load_persistent_cache()
+    observation = cached_stage_observation(force_stale=force_stale)
+    if not observation:
+        return None
+    if not _cache:
+        return observation
+    age = _observation_age_seconds()
+    stale = force_stale or age is None or age > CACHE_SECONDS
+    return {
+        **_cache,
+        **observation,
+        "forecast": _cache.get("forecast", []),
+        "is_forecast_available": bool(_cache.get("is_forecast_available")) and not stale,
+        "forecast_is_stale": stale and bool(_cache.get("forecast")),
+        "is_stale": stale,
     }
 
 
@@ -86,7 +182,8 @@ def _read_station_csv(payloads: list[bytes]) -> pd.DataFrame:
             continue
         # Never combine gauges from different reaches: stage datum is station-specific.
         station_text = frame[station_col].fillna("").astype(str).str.lower()
-        match = station_text.str.contains(r"\barangaly\b", regex=True)
+        # NWIC/CWC catalogues use both Arangali and Arangaly spellings.
+        match = station_text.str.contains(r"\barangal(?:i|y)\b", regex=True)
         selected = frame.loc[match, [time_col, level_col]].copy()
         if selected.empty:
             continue
@@ -197,7 +294,8 @@ async def _download_telemetry() -> list[bytes]:
 
 async def fetch_stage_forecast() -> dict[str, Any]:
     """Fit a short-range XGBoost model and return hourly stage estimates when inputs are current."""
-    global _cache, _cache_at
+    global _cache, _cache_at, _observation_cache, _observation_cache_at
+    _load_persistent_cache()
     now = datetime.now(timezone.utc)
     if _cache is not None and _cache_at and (now - _cache_at).total_seconds() < CACHE_SECONDS:
         return _cache
@@ -214,6 +312,20 @@ async def fetch_stage_forecast() -> dict[str, Any]:
             raise StageForecastUnavailable(
                 f"Latest Arangaly gauge reading is stale ({observation_time.isoformat()}); stage forecast withheld."
             )
+        _observation_cache = {
+            "is_available": True,
+            "is_forecast_available": False,
+            "station": STATION,
+            "river": "Chalakudy",
+            "observed_at": observation_time.isoformat(),
+            "observed_stage_m": round(float(stage.iloc[-1]), 3),
+            "forecast": [],
+            "source": "Central Water Commission telemetry via NWIC",
+            "source_url": SOURCE_URL,
+            "retrieved_at": now.isoformat(),
+        }
+        _observation_cache_at = now
+        await asyncio.to_thread(_write_persistent_cache)
         if len(stage) < 24 * 30:
             raise StageForecastUnavailable("At least 30 days of hourly Arangaly readings are needed for model fitting.")
 
@@ -270,6 +382,8 @@ async def fetch_stage_forecast() -> dict[str, Any]:
             })
 
         _cache = {
+            "is_available": True,
+            "is_forecast_available": True,
             "station": STATION,
             "river": "Chalakudy",
             "observed_at": observation_time.isoformat(),
@@ -288,4 +402,5 @@ async def fetch_stage_forecast() -> dict[str, Any]:
             ),
         }
         _cache_at = now
+        await asyncio.to_thread(_write_persistent_cache)
         return _cache

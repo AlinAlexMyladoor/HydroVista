@@ -8,7 +8,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Query
 
 from app.services.weather import fetch_forecast, fetch_river_discharge_forecast, WeatherDataError
-from app.services.river_stage import fetch_stage_forecast, StageForecastUnavailable
+from app.services.river_stage import fetch_stage_forecast, StageForecastUnavailable, cached_stage_payload
 from app.core.config import settings
 
 log = structlog.get_logger(__name__)
@@ -107,15 +107,39 @@ async def get_river_stage_forecast():
         return await fetch_stage_forecast()
     except StageForecastUnavailable as exc:
         log.warning("forecast.stage_unavailable", reason=str(exc))
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "stage_forecast_unavailable",
-                "message": str(exc),
-                "station": "Arangaly",
-                "source": "Central Water Commission via NWIC",
-            },
-        ) from exc
+        cached = cached_stage_payload(force_stale=True) or {}
+        return {
+            **cached,
+            "is_available": bool(cached.get("is_available", False)),
+            "is_forecast_available": False,
+            "station": "Arangaly",
+            "river": "Chalakudy",
+            "forecast": cached.get("forecast", []),
+            "is_stale": bool(cached),
+            "forecast_is_stale": bool(cached.get("forecast")),
+            "unavailable_reason": str(exc),
+            "source": "Central Water Commission via NWIC",
+            "source_url": "https://nwdp.nwic.gov.in/dataset/river-water-level-telemetry-hourly-central-water-commission-cwc",
+        }
+    except Exception as exc:
+        # Provider/network/schema failures are an upstream data outage, not an
+        # application crash. Keep the chart's empty state actionable and avoid
+        # repeated browser 503 errors when telemetry is temporarily offline.
+        log.exception("forecast.stage_failed", error=str(exc))
+        cached = cached_stage_payload(force_stale=True) or {}
+        return {
+            **cached,
+            "is_available": bool(cached.get("is_available", False)),
+            "is_forecast_available": False,
+            "station": "Arangaly",
+            "river": "Chalakudy",
+            "forecast": cached.get("forecast", []),
+            "is_stale": bool(cached),
+            "forecast_is_stale": bool(cached.get("forecast")),
+            "unavailable_reason": "Gauge telemetry or rainfall inputs are temporarily unavailable.",
+            "source": "Central Water Commission via NWIC",
+            "source_url": "https://nwdp.nwic.gov.in/dataset/river-water-level-telemetry-hourly-central-water-commission-cwc",
+        }
 
 
 @router.get("/forecast/{run_id}")

@@ -13,8 +13,9 @@ export function getForecastPointAt(hourly: HourlyWeather[] | undefined, hour: nu
   return timeline[Math.min(Math.max(0, hour), Math.max(0, timeline.length - 1))];
 }
 
-export function formatForecastTimestamp(time: string, language: "en" | "ml") {
-  return new Date(time).toLocaleString(language === "en" ? "en-IN" : "ml-IN", {
+export function formatForecastTimestamp(time: string, language: "en" | "ml" | "hi" | "ta") {
+  const locale = language === "ml" ? "ml-IN" : language === "hi" ? "hi-IN" : language === "ta" ? "ta-IN" : "en-IN";
+  return new Date(time).toLocaleString(locale, {
     weekday: "short",
     day: "numeric",
     month: "short",

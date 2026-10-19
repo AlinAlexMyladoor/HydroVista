@@ -7,7 +7,8 @@ import { LeftRail } from "@/components/layout/LeftRail";
 import { RightRail } from "@/components/layout/RightRail";
 import { FloodMap } from "@/components/map/FloodMap";
 import { BottomAnalyticsStrip } from "@/components/panels/BottomAnalytics";
-import { translations } from "@/lib/translations";
+import { getTranslations } from "@/lib/translations";
+import { AssistantChat } from "@/components/panels/AssistantChat";
 
 // ─── Lazy-loaded route views ──────────────────────────────────────────────────
 const AnalyticsView    = lazy(() => import("@/components/views/AnalyticsView").then(m => ({ default: m.AnalyticsView })));
@@ -31,28 +32,18 @@ function ViewSkeleton({ label }: { label: string }) {
   );
 }
 
-// ─── Overview Dashboard (3-column layout) ─────────────────────────────────────
+// ─── Command map: map with the familiar side and bottom analysis panels ───────
 function OverviewDashboard() {
-  const { leftSidebarOpen } = useStore();
+  const { leftSidebarOpen, rightRailOpen } = useStore();
 
   return (
-    <div className="flex flex-1 overflow-hidden">
-      {/* Left Rail */}
+    <div className="flex min-h-0 flex-1 overflow-hidden">
       {leftSidebarOpen && <LeftRail />}
-
-      {/* Central area: Map + Bottom Analytics */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Map takes the majority of vertical space */}
-        <div className="flex-1 relative overflow-hidden" style={{ minHeight: 0 }}>
-          <FloodMap />
-        </div>
-
-        {/* Bottom analytics strip */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="relative min-h-0 flex-1 overflow-hidden"><FloodMap /></div>
         <BottomAnalyticsStrip />
       </div>
-
-      {/* Right Intelligence Rail */}
-      <RightRail />
+      {rightRailOpen && <RightRail />}
     </div>
   );
 }
@@ -76,7 +67,7 @@ function MapFullView() {
 // ─── Root page component ──────────────────────────────────────────────────────
 export default function Home() {
   const { activeRoute, language } = useStore();
-  const t = translations[language];
+  const t = getTranslations(language);
 
   return (
     <div className="app-shell flex h-screen w-screen flex-col overflow-hidden bg-background text-text">
@@ -124,6 +115,7 @@ export default function Home() {
           </Suspense>
         )}
       </div>
+      <AssistantChat />
     </div>
   );
 }

@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { LAYER_DEFS, assetLayerGroup } from "@/lib/layers";
 import { TERRARIUM_URL, TERRARIUM_ATTRIBUTION, elevationAt } from "@/lib/dem";
 import { formatForecastTimestamp, getForecastPointAt } from "@/lib/forecast-time";
-import { Layers, Navigation, Mountain, Plus, Minus, Compass, Info, AlertTriangle, RefreshCw, Moon, Sun } from "lucide-react";
+import { Layers, Navigation, Mountain, Plus, Minus, Compass, Info, AlertTriangle, RefreshCw, Moon, Sun, X } from "lucide-react";
 
 if (typeof window !== "undefined") {
   maplibregl.setWorkerUrl("/maplibre-gl-worker.mjs");
@@ -87,10 +87,10 @@ export function FloodMap() {
   const {
     selectedAssetId, setSelectedAssetId, riskFilter, assetTypeFilter, visibleLayers, toggleLayer, language,
     mapIs3D, setMapIs3D, terrainExaggeration, setTerrainExaggeration, mapPitch, setMapPitch, mapBearing, setMapBearing,
-    terrainStatus, terrainInfo, setTerrainStatus, inundationRunId, drapedInundation, forecastHour,
+    terrainStatus, terrainInfo, setTerrainStatus, inundationRunId, drapedInundation, forecastHour, activeScenario, setActiveScenario,
     mapFocusRequest,
   } = useStore();
-  const en = language === "en";
+  const en = language !== "ml";
   const { resolvedTheme, setTheme } = useTheme();
   const toggleTheme = () => {
     const next = resolvedTheme === "dark" ? "light" : "dark";
@@ -598,11 +598,12 @@ export function FloodMap() {
   // ─── Data → GeoJSON ────────────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapLoaded || !exposureData?.items) return;
+    if (!map || !mapLoaded || (!exposureData?.items && !activeScenario?.scenario_rankings)) return;
     const src = map.getSource("assets-source") as maplibregl.GeoJSONSource | undefined;
+    const mapAssets = activeScenario?.scenario_rankings?.length ? activeScenario.scenario_rankings : (exposureData?.items ?? []);
     src?.setData({
       type: "FeatureCollection",
-      features: exposureData.items
+      features: mapAssets
         .filter((i) => i.lat != null && i.lon != null)
         .map((i) => ({
           type: "Feature" as const,
@@ -615,7 +616,7 @@ export function FloodMap() {
           },
         })),
     });
-  }, [exposureData, mapLoaded]);
+  }, [exposureData, mapLoaded, activeScenario]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -713,6 +714,11 @@ export function FloodMap() {
     <div className="relative w-full h-full overflow-hidden" style={{ background: "#DCEFF3" }}>
       <div ref={mapContainer} className="w-full h-full" />
       <div className="map-atmosphere" aria-hidden="true" />
+
+      {activeScenario && <div className="absolute left-3 top-3 z-20 flex items-center gap-3 rounded-lg border border-sky-200 bg-white/95 px-3 py-2 text-xs shadow-md dark:border-sky-900 dark:bg-slate-900/95">
+        <span><b className="text-sky-800 dark:text-sky-200">Scenario risk overlay</b><span className="ml-2 text-slate-600 dark:text-slate-300">+{activeScenario.rainfall_mm} mm · {activeScenario.duration_hours} h</span></span>
+        <button type="button" onClick={() => setActiveScenario(null)} aria-label="Clear scenario risk overlay" title="Clear scenario risk overlay" className="rounded p-0.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><X size={14} /></button>
+      </div>}
 
       {(exposureLoading || !mapLoaded) && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-md px-3 py-1.5"

@@ -755,6 +755,16 @@ h4 { font-size: 0.8125rem; font-weight: 600; line-height: 1.4; }
 .dark header button[style*="color: rgb(15, 118, 110)"] { color: #66E1D0 !important; }
 .dark .maplibregl-popup-content { background: #0C2237 !important; color: #F1F6FB !important; border-color: #263D52 !important; }
 .dark .maplibregl-popup-close-button { color: #D8E5F0 !important; }
+.dark .recharts-cartesian-grid-horizontal line,
+.dark .recharts-cartesian-grid-vertical line { stroke: #334B61 !important; }
+.dark .recharts-text { fill: #B7C7D6 !important; }
+.dark .recharts-tooltip-wrapper .recharts-default-tooltip { background: #0C2237 !important; border-color: #334B61 !important; color: #F1F6FB !important; }
+.dark .recharts-tooltip-item,
+.dark .recharts-tooltip-label { color: #F1F6FB !important; }
+.dark .recharts-legend-item-text { color: #D2DFEA !important; }
+.dark .skeleton { background: linear-gradient(90deg, #142D44 25%, #1A3852 50%, #142D44 75%); background-size: 200% 100%; }
+.dark ::selection { background: rgb(53 203 185 / 35%); color: #F1F6FB; }
+.dark .app-shell { background-color: #071A2B; color: #F1F6FB; }
 .hv-map-popup { min-width: 220px; padding: 12px; color: #0F172A; font-family: Inter, system-ui, sans-serif; font-size: 0.6875rem; }
 .hv-map-popup-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .hv-map-popup-score { font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -805,6 +815,13 @@ h4 { font-size: 0.8125rem; font-weight: 600; line-height: 1.4; }
 
 input[type="range"] { accent-color: #0D9488; }
 .dark input[type="range"] { accent-color: #35CBB9; }
+input[type="range"].scenario-range { appearance: none; height: 0.5rem; border-radius: 9999px; }
+input[type="range"].scenario-range::-webkit-slider-thumb { appearance: none; width: 1rem; height: 1rem; border: 2px solid white; border-radius: 9999px; background: #0D9488; box-shadow: 0 1px 4px rgb(15 23 42 / 28%); }
+input[type="range"].scenario-range::-moz-range-thumb { width: 0.8rem; height: 0.8rem; border: 2px solid white; border-radius: 9999px; background: #0D9488; box-shadow: 0 1px 4px rgb(15 23 42 / 28%); }
+.dark input[type="range"].scenario-range::-webkit-slider-thumb,
+.dark input[type="range"].scenario-range::-moz-range-thumb { background: #35CBB9; }
+.scrollbar-hide { scrollbar-width: none; -ms-overflow-style: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
 
 /* Keep MapLibre controls crisp in both themes. */
 .maplibregl-ctrl-group { background: #FFFFFF !important; border: 1px solid #CBD5E1 !important; box-shadow: 0 2px 8px rgb(15 23 42 / 12%) !important; }

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useStore } from "@/lib/store";
-import { translations } from "@/lib/translations";
+import { getTranslations } from "@/lib/translations";
 import { useQuery } from "@tanstack/react-query";
 import { api, IsolationResponse, IsolationResult } from "@/lib/api";
 import {
@@ -18,7 +18,7 @@ import {
 
 export function IsolationClockPanel() {
   const { language, focusMap } = useStore();
-  const t = translations[language];
+  const t = getTranslations(language);
   const [threshold, setThreshold] = useState<number>(0.6);
 
   const { data: isolationData, isLoading, refetch } = useQuery<IsolationResponse>({

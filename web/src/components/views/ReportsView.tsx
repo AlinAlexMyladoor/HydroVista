@@ -4,11 +4,12 @@ import React, { useState } from "react";
 import { useStore } from "@/lib/store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type ReportCreate } from "@/lib/api";
-import { translations } from "@/lib/translations";
+import { getTranslations } from "@/lib/translations";
+import { Megaphone } from "lucide-react";
 
 export function ReportsView() {
   const { language, focusMap } = useStore();
-  const t = translations[language];
+  const t = getTranslations(language);
   const queryClient = useQueryClient();
 
   // Form state
@@ -31,7 +32,7 @@ export function ReportsView() {
     onSuccess: () => {
       setStatusMsg({
         type: "success",
-        text: language === "en" ? "Report submitted successfully! Thank you for ground-truth data." : "വിവരം വിജയകരമായി രേഖപ്പെടുത്തി!",
+        text: language !== "ml" ? "Report submitted successfully! Thank you for ground-truth data." : "വിവരം വിജയകരമായി രേഖപ്പെടുത്തി!",
       });
       setDescription("");
       setDepthCm("");
@@ -40,7 +41,7 @@ export function ReportsView() {
     onError: (err: any) => {
       setStatusMsg({
         type: "error",
-        text: err?.message || (language === "en" ? "Could not submit the report. Please check the details and try again." : "സന്ദേശം അയക്കാൻ സാധിച്ചില്ല."),
+        text: err?.message || (language !== "ml" ? "Could not submit the report. Please check the details and try again." : "സന്ദേശം അയക്കാൻ സാധിച്ചില്ല."),
       });
     },
   });
@@ -80,19 +81,19 @@ export function ReportsView() {
       {/* Title */}
       <div className="pb-6 border-b border-[#E2E8F0]">
         <div className="flex items-center gap-2">
-          <span className="text-xl">📢</span>
+          <Megaphone className="h-5 w-5 text-teal-700" aria-hidden="true" />
           <h1 className="text-xl font-bold text-[#1E292B]">
-            {language === "en" ? "Community field reports" : "തദ്ദേശീയ പ്രളയ വിവര ശേഖരണം"}
+            {language !== "ml" ? "Community field reports" : "തദ്ദേശീയ പ്രളയ വിവര ശേഖരണം"}
           </h1>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 my-6">
         {/* Form Column */}
-        <div className="lg:col-span-5">
+        <div className="lg:col-span-4">
           <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-xs">
             <h3 className="text-xs font-bold text-[#1E292B] uppercase tracking-wider mb-4">
-              {language === "en" ? "Submit Field Observation" : "പുതിയ വിവരം അറിയിക്കുക"}
+              {language !== "ml" ? "Submit Field Observation" : "പുതിയ വിവരം അറിയിക്കുക"}
             </h3>
 
             {statusMsg && (
@@ -110,13 +111,13 @@ export function ReportsView() {
             <form onSubmit={handleSubmit} className="space-y-4 text-xs">
               <div>
                 <label className="block text-[#1E292B] font-semibold mb-1">
-                  {language === "en" ? "Observer / Affiliation" : "പേര് / വിവരദാതാവ്"}
+                  {language !== "ml" ? "Observer / Affiliation" : "പേര് / വിവരദാതാവ്"}
                 </label>
                 <input
                   type="text"
                   autoComplete="name"
                   maxLength={100}
-                  placeholder={language === "en" ? "e.g., Ward 4 Volunteer / Suresh K." : "പേര് അല്ലെങ്കിൽ തസ്തിക"}
+                  placeholder={language !== "ml" ? "e.g., Ward 4 Volunteer / Suresh K." : "പേര് അല്ലെങ്കിൽ തസ്തിക"}
                   value={reporterName}
                   onChange={(e) => setReporterName(e.target.value)}
                   className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-[#26332F] focus:ring-2 focus:ring-teal-500 focus:border-teal-600 focus:outline-none"
@@ -126,7 +127,7 @@ export function ReportsView() {
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-[#1E292B] font-semibold">
-                    {language === "en" ? "Location Presets" : "സ്ഥലങ്ങൾ"}
+                    {language !== "ml" ? "Location Presets" : "സ്ഥലങ്ങൾ"}
                   </label>
                   <span className="text-[10px] text-[#687770]">Quick select</span>
                 </div>
@@ -193,7 +194,7 @@ export function ReportsView() {
 
               <div>
                 <label className="block text-[#1E292B] font-semibold mb-1">
-                  {language === "en" ? "Observed Water Depth (cm)" : "വെള്ളപ്പൊക്ക ഉയരം (സെ.മീ)"}
+                  {language !== "ml" ? "Observed Water Depth (cm)" : "വെള്ളപ്പൊക്ക ഉയരം (സെ.മീ)"}
                 </label>
                 <input
                   type="number"
@@ -208,14 +209,14 @@ export function ReportsView() {
 
               <div>
                 <label className="block text-[#1E292B] font-semibold mb-1">
-                  {language === "en" ? "Field Observation Description" : "വിവരണം / നിലവിലെ അവസ്ഥ"}
+                  {language !== "ml" ? "Field Observation Description" : "വിവരണം / നിലവിലെ അവസ്ഥ"}
                 </label>
                 <textarea
                   rows={3}
                   required
                   minLength={10}
                   maxLength={1000}
-                  placeholder={language === "en" ? "Describe road condition, stranded households, or river overflow..." : "വിശദമായ വിവരങ്ങൾ നൽകുക..."}
+                  placeholder={language !== "ml" ? "Describe road condition, stranded households, or river overflow..." : "വിശദമായ വിവരങ്ങൾ നൽകുക..."}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-[#26332F] focus:ring-2 focus:ring-teal-500 focus:border-teal-600 focus:outline-none"
@@ -230,24 +231,24 @@ export function ReportsView() {
                 disabled={submitMutation.isPending || description.trim().length < 10}
                 className="w-full rounded-lg bg-teal-600 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-teal-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 disabled:bg-slate-400 dark:bg-teal-500 dark:text-slate-950 dark:hover:bg-teal-400"
               >
-                {submitMutation.isPending ? "Submitting..." : (language === "en" ? "Broadcast Field Report" : "വിവരം സമർപ്പിക്കുക")}
+                {submitMutation.isPending ? "Submitting..." : (language !== "ml" ? "Broadcast Field Report" : "വിവരം സമർപ്പിക്കുക")}
               </button>
             </form>
           </div>
         </div>
 
         {/* Live List Column */}
-        <div className="lg:col-span-7 space-y-3">
+        <div className="lg:col-span-8 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-[#1E292B] uppercase tracking-wider">
-              {language === "en" ? "Recent Basin Observations" : "ഏറ്റവും പുതിയ വിവരങ്ങൾ"} ({reportsList.length})
+              {language !== "ml" ? "Recent Basin Observations" : "ഏറ്റവും പുതിയ വിവരങ്ങൾ"} ({reportsList.length})
             </h3>
           </div>
 
           <div className="space-y-3">
             {reportsList.length === 0 && (
               <div className="text-xs text-[#687770] p-4 border border-dashed border-[#DCE4DD] rounded-lg">
-                {language === "en"
+                {language !== "ml"
                   ? "No community reports have been submitted yet. Reports appear here once submitted through the form; none are pre-loaded."
                   : "റിപ്പോർട്ടുകളൊന്നും സമർപ്പിച്ചിട്ടില്ല."}
               </div>

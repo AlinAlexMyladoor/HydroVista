@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useStore } from "@/lib/store";
-import { translations } from "@/lib/translations";
+import { getTranslations } from "@/lib/translations";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, ReportCreate } from "@/lib/api";
 import {
@@ -18,7 +18,7 @@ import {
 
 export function CitizenReportsPanel() {
   const { language, setSelectedAssetId, setActivePanel } = useStore();
-  const t = translations[language];
+  const t = getTranslations(language);
   const queryClient = useQueryClient();
 
   const [lat, setLat] = useState<number>(10.307);

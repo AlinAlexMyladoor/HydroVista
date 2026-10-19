@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useStore, RiskCategory } from "@/lib/store";
-import { translations } from "@/lib/translations";
+import { getTranslations } from "@/lib/translations";
 import { useQuery } from "@tanstack/react-query";
 import { api, ExposureScore } from "@/lib/api";
 import { 
@@ -27,7 +27,7 @@ export function ExposureLedger() {
     focusMap,
     setActivePanel 
   } = useStore();
-  const t = translations[language];
+  const t = getTranslations(language);
   const [search, setSearch] = useState("");
 
   const { data: exposureData, isLoading } = useQuery({

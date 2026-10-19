@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { useStore } from "@/lib/store";
-import { translations } from "@/lib/translations";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import {
@@ -50,7 +49,7 @@ function RiskAssessmentCard() {
     retry: 1,
   });
 
-  const en = language === "en";
+  const en = language !== "ml";
   const forecastOk = brief?.rainfall_24h_mm != null;
   const riskCategory = brief?.max_risk_category ?? "unknown";
   const isHighOrCritical = riskCategory === "high" || riskCategory === "critical";
@@ -155,18 +154,18 @@ function IsolationClockCard() {
       <div className="intel-card-header">
         <div className="intel-card-title">
           <Clock style={{ width: 13, height: 13, color: "#155E59" }} />
-          {language === "en" ? "Isolation Clock (Hospitals)" : "ഐസൊലേഷൻ ക്ലോക്ക്"}
+          {language !== "ml" ? "Isolation Clock (Hospitals)" : "ഐസൊലേഷൻ ക്ലോക്ക്"}
         </div>
         <button
           onClick={() => setActiveRoute("infrastructure")}
           className="intel-card-action"
         >
-          {language === "en" ? "View all" : "എല്ലാം"} →
+          {language !== "ml" ? "View all" : "എല്ലാം"} →
         </button>
       </div>
 
       <p style={{ fontSize: "0.5625rem", color: "#687770", marginBottom: 6 }}>
-        {language === "en"
+        {language !== "ml"
           ? "Earliest modeled access loss · simplified OSM road graph"
           : "മോഡൽ ആക്സസ് നഷ്ടം · ലളിതമായ OSM റോഡ് ശൃംഖല"}
       </p>
@@ -182,7 +181,7 @@ function IsolationClockCard() {
           : items.length === 0
           ? (
             <div style={{ fontSize: "0.6875rem", color: "#9ca3af", padding: "8px 0", textAlign: "center" }}>
-              {language === "en" ? "No hospital data available" : "ആശുപത്രി ഡാറ്റ ലഭ്യമല്ല"}
+              {language !== "ml" ? "No hospital data available" : "ആശുപത്രി ഡാറ്റ ലഭ്യമല്ല"}
             </div>
           )
           : items.map((facility) => {
@@ -233,8 +232,8 @@ function IsolationClockCard() {
                     {hours != null
                       ? `~ ${Math.round(hours)} h`
                       : isConnected
-                        ? (language === "en" ? "> 24 h · Passable" : "> 24 മ · തുറന്നിരിക്കുന്നു")
-                        : (language === "en" ? "Impassable" : "കടന്നുപോകാനാകില്ല")}
+                        ? (language !== "ml" ? "> 24 h · Passable" : "> 24 മ · തുറന്നിരിക്കുന്നു")
+                        : (language !== "ml" ? "Impassable" : "കടന്നുപോകാനാകില്ല")}
                   </span>
                 </div>
               );
@@ -282,9 +281,9 @@ function RainDialCard() {
       <div className="intel-card-header">
         <div className="intel-card-title">
           <Sliders style={{ width: 13, height: 13, color: "#155E59" }} />
-          {language === "en" ? "Scenario Simulator (Rain Dial)" : "Rain Dial സിമുലേറ്റർ"}
+          {language !== "ml" ? "Scenario Simulator (Rain Dial)" : "Rain Dial സിമുലേറ്റർ"}
           <button
-            title={language === "en"
+            title={language !== "ml"
               ? "Increase or decrease rainfall to explore potential impact on infrastructure exposure. This is a simplified stress test, not a hydraulic simulation."
               : "ഇൻഫ്രാസ്ട്രക്ചർ എക്സ്പോഷറിൽ ഉള്ള സ്വാധീനം പര്യവേക്ഷണം ചെയ്യാൻ."}
             style={{ background: "none", border: "none", cursor: "pointer", padding: 0, lineHeight: 1 }}
@@ -295,7 +294,7 @@ function RainDialCard() {
       </div>
 
       <p style={{ fontSize: "0.5625rem", color: "#687770", marginBottom: 8 }}>
-        {language === "en"
+        {language !== "ml"
           ? "Increase or decrease rainfall to explore potential impact."
           : "ഇൻഫ്രാസ്ട്രക്ചർ എക്സ്പോഷറിൽ ഉള്ള സ്വാധീനം പര്യവേക്ഷണം ചെയ്യുക."}
       </p>
@@ -304,7 +303,7 @@ function RainDialCard() {
       <div className="mb-2.5">
         <div className="flex items-center justify-between mb-1">
           <span style={{ fontSize: "0.6875rem", color: "#687770" }}>
-            {language === "en" ? "Additional rainfall" : "അധിക മഴ"}
+            {language !== "ml" ? "Additional rainfall" : "അധിക മഴ"}
           </span>
           <span style={{ fontSize: "0.875rem", fontWeight: 700, color: "#155E59", fontVariantNumeric: "tabular-nums" }}>
             +{scenarioRainfall} mm
@@ -325,7 +324,7 @@ function RainDialCard() {
       {/* Duration buttons */}
       <div className="mb-3">
         <div style={{ fontSize: "0.6875rem", color: "#687770", marginBottom: 4 }}>
-          {language === "en" ? "Duration" : "ദൈർഘ്യം"}
+          {language !== "ml" ? "Duration" : "ദൈർഘ്യം"}
         </div>
         <div className="grid grid-cols-4 gap-1">
           {[3, 6, 12, 24].map((h) => (
@@ -350,7 +349,7 @@ function RainDialCard() {
         </div>
         {/* Duration meaning note */}
         <p style={{ fontSize: "0.5625rem", color: "#9ca3af", marginTop: 3 }}>
-          {language === "en"
+          {language !== "ml"
             ? `Rainfall applied uniformly over ${scenarioDuration}h. Affects total accumulation only.`
             : `${scenarioDuration}h-ൽ ഒരേ സ്ഥിരമായ നിരക്കിൽ മഴ.`}
         </p>
@@ -365,14 +364,14 @@ function RainDialCard() {
       >
         {mutation.isPending
           ? <><span className="animate-spin" style={{ fontSize: 14 }}>⟳</span> Computing...</>
-          : <><Play style={{ width: 13, height: 13 }} /> {language === "en" ? "Run Scenario" : "സിനാരിയോ"}</>
+          : <><Play style={{ width: 13, height: 13 }} /> {language !== "ml" ? "Run Scenario" : "സിനാരിയോ"}</>
         }
       </button>
 
       {/* Results */}
       {mutation.isError && (
         <div className="mt-2 text-center" style={{ fontSize: "0.625rem", color: "#C83F3A" }}>
-          {language === "en" ? "Computation failed. Retry?" : "​പ്രവർത്തനം പരാജയപ്പെട്ടു."}
+          {language !== "ml" ? "Computation failed. Retry?" : "​പ്രവർത്തനം പരാജയപ്പെട്ടു."}
         </div>
       )}
 
@@ -380,13 +379,13 @@ function RainDialCard() {
         <div className="mt-3 p-2.5 rounded animate-fade-in" style={{ background: "#F7F8F4", border: "1px solid #DCE4DD" }}>
           <div className="flex items-center justify-between mb-2">
             <span style={{ fontSize: "0.6875rem", fontWeight: 600, color: "#26332F" }}>
-              {language === "en" ? "Scenario Impact" : "സ്വാധീനം"}
+              {language !== "ml" ? "Scenario Impact" : "സ്വാധീനം"}
             </span>
             <button
               onClick={() => setActiveRoute("scenarios")}
               style={{ fontSize: "0.5625rem", color: "#155E59", fontWeight: 500, background: "none", border: "none", cursor: "pointer" }}
             >
-              {language === "en" ? "Full detail →" : "വിശദം →"}
+              {language !== "ml" ? "Full detail →" : "വിശദം →"}
             </button>
           </div>
 
@@ -395,24 +394,24 @@ function RainDialCard() {
               <div style={{ fontSize: "1rem", fontWeight: 700, color: "#26332F", fontVariantNumeric: "tabular-nums" }}>
                 {summary.baseline_high_critical_count}
               </div>
-              <div style={{ fontSize: "0.5625rem", color: "#687770" }}>{language === "en" ? "Baseline" : "നിലവിൽ"}</div>
+              <div style={{ fontSize: "0.5625rem", color: "#687770" }}>{language !== "ml" ? "Baseline" : "നിലവിൽ"}</div>
             </div>
             <div className="text-center" style={{ color: "#C83F3A" }}>
               <div style={{ fontSize: "1rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
                 {summary.scenario_high_critical_count}
               </div>
-              <div style={{ fontSize: "0.5625rem" }}>{language === "en" ? "Scenario" : "സിനാരിയോ"}</div>
+              <div style={{ fontSize: "0.5625rem" }}>{language !== "ml" ? "Scenario" : "സിനാരിയോ"}</div>
             </div>
             <div className="text-center" style={{ color: "#E7A23B" }}>
               <div style={{ fontSize: "1rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
                 +{summary.escalated_count}
               </div>
-              <div style={{ fontSize: "0.5625rem" }}>{language === "en" ? "Escalated" : "ഉയർന്ന"}</div>
+              <div style={{ fontSize: "0.5625rem" }}>{language !== "ml" ? "Escalated" : "ഉയർന്ന"}</div>
             </div>
           </div>
 
           <div className="mt-2" style={{ fontSize: "0.5625rem", color: "#9ca3af", borderTop: "1px solid #DCE4DD", paddingTop: 4 }}>
-            {language === "en"
+            {language !== "ml"
               ? "Stress test only. Not a hydraulic simulation."
               : "ഇത് ഒരു സ്ട്രെസ് ടെസ്റ്റ് മാത്രമാണ്."}
           </div>

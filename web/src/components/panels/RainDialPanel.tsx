@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useStore } from "@/lib/store";
-import { translations } from "@/lib/translations";
+import { getTranslations } from "@/lib/translations";
 import { api, ScenarioResponse } from "@/lib/api";
 import { useMutation } from "@tanstack/react-query";
 import {
@@ -27,7 +27,7 @@ export function RainDialPanel() {
     setActiveScenario,
     setActivePanel,
   } = useStore();
-  const t = translations[language];
+  const t = getTranslations(language);
 
   const [threshold, setThreshold] = useState<number>(0.6);
 

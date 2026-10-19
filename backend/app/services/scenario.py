@@ -126,6 +126,8 @@ def compute_scenario(
                 "baseline_category": br["risk_category"],
                 "scenario_category": sr["risk_category"],
                 "delta_score": round(sr["risk_score"] - br["risk_score"], 3),
+                "lat": sr.get("lat"),
+                "lon": sr.get("lon"),
             })
 
     high_or_critical = [

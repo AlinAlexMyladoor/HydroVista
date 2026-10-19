@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
-import { translations } from "@/lib/translations";
+import { getTranslations } from "@/lib/translations";
 import { LAYER_DEFS } from "@/lib/layers";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -84,7 +84,7 @@ export function LeftRail() {
     setActiveRoute,
   } = useStore();
 
-  const t = translations[language];
+  const t = getTranslations(language);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
 
   const { data: status } = useQuery({
@@ -130,13 +130,13 @@ export function LeftRail() {
 
   // Format age for data source
   const getAgeLabel = (ds: { last_success: string | null; is_available: boolean }) => {
-    if (!ds.is_available) return language === "en" ? "Unavailable" : "ലഭ്യമല്ല";
-    if (!ds.last_success) return language === "en" ? "Available" : "ലഭ്യമാണ്";
+    if (!ds.is_available) return language !== "ml" ? "Unavailable" : "ലഭ്യമല്ല";
+    if (!ds.last_success) return language !== "ml" ? "Available" : "ലഭ്യമാണ്";
     const minutes = Math.floor((Date.now() - new Date(ds.last_success).getTime()) / 60_000);
-    if (minutes < 1) return language === "en" ? "Updated just now" : "ഇപ്പോൾ പുതുക്കി";
-    if (minutes < 60) return `${language === "en" ? "Updated" : "അവസാനം"} ${minutes}m ${language === "en" ? "ago" : "മുൻപ്"}`;
+    if (minutes < 1) return language !== "ml" ? "Updated just now" : "ഇപ്പോൾ പുതുക്കി";
+    if (minutes < 60) return `${language !== "ml" ? "Updated" : "അവസാനം"} ${minutes}m ${language !== "ml" ? "ago" : "മുൻപ്"}`;
     const hours = Math.floor(minutes / 60);
-    return `${language === "en" ? "Updated" : "അവസാനം"} ${hours}h ${language === "en" ? "ago" : "മുൻപ്"}`;
+    return `${language !== "ml" ? "Updated" : "അവസാനം"} ${hours}h ${language !== "ml" ? "ago" : "മുൻപ്"}`;
   };
 
   const dataSources = status?.data_sources ?? [];
@@ -163,7 +163,7 @@ export function LeftRail() {
       <section className="border-b border-[#DCE4DD] px-3 py-2">
         <div className="flex items-center justify-between">
           <span style={{ fontWeight: 600, color: "#26332F", fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-            {language === "en" ? "Study Area" : "പഠനമേഖല"}
+            {language !== "ml" ? "Study Area" : "പഠനമേഖല"}
           </span>
         </div>
 
@@ -171,10 +171,10 @@ export function LeftRail() {
           style={{ background: "#F7F8F4", border: "1px solid #DCE4DD" }}>
           <div className="min-w-0">
             <div style={{ fontWeight: 600, color: "#26332F", lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {language === "en" ? "Chalakudy River Basin" : "ചാലക്കുടിപ്പുഴ തടം"}
+              {language !== "ml" ? "Chalakudy River Basin" : "ചാലക്കുടിപ്പുഴ തടം"}
             </div>
             <div style={{ color: "#687770", fontSize: "0.625rem", marginTop: 1 }}>
-              {language === "en" ? "Thrissur, Ernakulam, Kerala" : "തൃശ്ശൂർ, എറണാകുളം, കേരളം"}
+              {language !== "ml" ? "Thrissur, Ernakulam, Kerala" : "തൃശ്ശൂർ, എറണാകുളം, കേരളം"}
             </div>
           </div>
         </div>
@@ -183,7 +183,7 @@ export function LeftRail() {
       {/* ─── Forecast Timeline ─── */}
       <section className="border-b border-[#DCE4DD] p-3">
         <div style={{ fontWeight: 600, color: "#26332F", fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
-          {language === "en" ? "Forecast Timeline" : "പ്രവചന ടൈംലൈൻ"}
+          {language !== "ml" ? "Forecast Timeline" : "പ്രവചന ടൈംലൈൻ"}
         </div>
 
         {/* Horizon tabs */}
@@ -211,7 +211,7 @@ export function LeftRail() {
                 }}
                 aria-pressed={isActive}
               >
-                {language === "en" ? labels[h].en : labels[h].ml}
+                {language !== "ml" ? labels[h].en : labels[h].ml}
               </button>
             );
           })}
@@ -238,7 +238,7 @@ export function LeftRail() {
           {/* Current time display */}
           <div className="flex items-center justify-between mt-1" style={{ fontSize: "0.625rem", color: "#687770" }}>
             <span>
-              {language === "en" ? "Now" : "ഇപ്പോൾ"}
+              {language !== "ml" ? "Now" : "ഇപ്പോൾ"}
             </span>
             <span style={{ fontWeight: 500, color: "#26332F" }}>
               {selectedForecastPoint
@@ -271,11 +271,11 @@ export function LeftRail() {
               justifyContent: "center",
             }}
             aria-label={isPlayingTimeline ? "Pause forecast playback" : "Play forecast playback"}
-            title={language === "en" ? "Moves through forecast rainfall hours; flood extent remains the latest analysis." : "മഴ പ്രവചന സമയങ്ങളിലൂടെ നീങ്ങുന്നു; വെള്ളപ്പൊക്ക പരിധി ഏറ്റവും പുതിയ വിശകലനമാണ്."}
+            title={language !== "ml" ? "Moves through forecast rainfall hours; flood extent remains the latest analysis." : "മഴ പ്രവചന സമയങ്ങളിലൂടെ നീങ്ങുന്നു; വെള്ളപ്പൊക്ക പരിധി ഏറ്റവും പുതിയ വിശകലനമാണ്."}
           >
             {isPlayingTimeline
-              ? <><Pause style={{ width: 11, height: 11 }} /> {language === "en" ? "Pause" : "നിർത്തുക"}</>
-              : <><Play style={{ width: 11, height: 11 }} /> {language === "en" ? "Play Forecast" : "പ്രവചനം പ്ലേ ചെയ്യുക"}</>
+              ? <><Pause style={{ width: 11, height: 11 }} /> {language !== "ml" ? "Pause" : "നിർത്തുക"}</>
+              : <><Play style={{ width: 11, height: 11 }} /> {language !== "ml" ? "Play Forecast" : "പ്രവചനം പ്ലേ ചെയ്യുക"}</>
             }
           </button>
 
@@ -313,7 +313,7 @@ export function LeftRail() {
               justifyContent: "center",
               flexShrink: 0,
             }}
-            title={language === "en" ? "Reset timeline" : "ടൈംലൈൻ റീസെറ്റ്"}
+            title={language !== "ml" ? "Reset timeline" : "ടൈംലൈൻ റീസെറ്റ്"}
             aria-label="Reset timeline"
           >
             <RotateCcw style={{ width: 11, height: 11 }} />
@@ -325,13 +325,13 @@ export function LeftRail() {
       <section className="border-b border-[#DCE4DD] p-3 flex-1">
         <div className="flex items-center justify-between mb-2">
           <span style={{ fontWeight: 600, color: "#26332F", fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-            {language === "en" ? "Map Layers" : "ഭൂപട പാളികൾ"}
+            {language !== "ml" ? "Map Layers" : "ഭൂപട പാളികൾ"}
           </span>
           <button
             onClick={resetLayers}
             style={{ fontSize: "0.625rem", color: "#155E59", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: 0 }}
           >
-            {language === "en" ? "Reset" : "പുനഃക്രമം"}
+            {language !== "ml" ? "Reset" : "പുനഃക്രമം"}
           </button>
         </div>
 
@@ -341,7 +341,7 @@ export function LeftRail() {
               <summary className="cursor-pointer list-none px-1 py-1 font-semibold text-slate-500 hover:text-slate-700">
                 <span className="inline-flex items-center gap-1.5">
                   <ChevronRight className="h-3 w-3 transition-transform group-open/layers:rotate-90" />
-                  {language === "en" ? group.en : group.ml}
+                  {language !== "ml" ? group.en : group.ml}
                 </span>
               </summary>
               <div className="space-y-1 pl-1">
@@ -359,10 +359,10 @@ export function LeftRail() {
                     >
                       <input type="checkbox" checked={isOn} disabled={!!layer.unavailable}
                         onChange={() => toggleLayer(layer.id)} className="layer-checkbox flex-shrink-0"
-                        aria-label={language === "en" ? layer.label : layer.mlLabel} />
+                        aria-label={language !== "ml" ? layer.label : layer.mlLabel} />
                       <Icon style={{ width: 13, height: 13, color: isOn ? layer.iconColor : "#9ca3af", flexShrink: 0 }} />
                       <span style={{ color: isOn ? "#26332F" : "#9ca3af", fontSize: "0.6875rem", lineHeight: 1.4 }}>
-                        {language === "en" ? layer.label : layer.mlLabel}
+                        {language !== "ml" ? layer.label : layer.mlLabel}
                       </span>
                     </label>
                   );
@@ -376,13 +376,13 @@ export function LeftRail() {
       {/* ─── Data Sources ─── */}
       <section className="p-3">
         <div className="mb-2 flex items-center justify-between" style={{ fontWeight: 600, color: "#26332F", fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-          {language === "en" ? "Data Sources" : "ഡാറ്റ സ്രോതസ്സ്"}
+          {language !== "ml" ? "Data Sources" : "ഡാറ്റ സ്രോതസ്സ്"}
           <button
             onClick={() => setActiveRoute("about")}
             className="flex items-center gap-0.5 normal-case tracking-normal"
             style={{ fontSize: "0.625rem", color: "#155E59", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: 0 }}
           >
-            {language === "en" ? "View all" : "എല്ലാം"}
+            {language !== "ml" ? "View all" : "എല്ലാം"}
             <ChevronRight style={{ width: 10, height: 10 }} />
           </button>
         </div>
@@ -401,7 +401,7 @@ export function LeftRail() {
                       }}
                     />
                     <span className="source-name flex-1">
-                      {language === "en" ? labels.en : labels.ml}
+                      {language !== "ml" ? labels.en : labels.ml}
                     </span>
                     <span className="source-age">{age}</span>
                   </div>

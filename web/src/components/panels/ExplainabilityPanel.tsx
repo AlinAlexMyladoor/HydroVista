@@ -3,7 +3,7 @@
 import React from "react";
 import { useStore } from "@/lib/store";
 import { useTheme } from "@/components/providers/ThemeProvider";
-import { translations } from "@/lib/translations";
+import { getTranslations } from "@/lib/translations";
 import { useQuery } from "@tanstack/react-query";
 import { api, ExposureScore } from "@/lib/api";
 import {
@@ -29,7 +29,7 @@ import {
 
 export function ExplainabilityPanel() {
   const { language, selectedAssetId, setSelectedAssetId } = useStore();
-  const t = translations[language];
+  const t = getTranslations(language);
   const { resolvedTheme } = useTheme();
   const chartText = resolvedTheme === "dark" ? "#CBD5E1" : "#687770";
 

@@ -2,23 +2,26 @@
 
 import React, { useState, useRef } from "react";
 import { useStore, AppRoute } from "@/lib/store";
-import { translations } from "@/lib/translations";
+import { getTranslations } from "@/lib/translations";
 import {
   Search,
   Languages,
   WifiOff,
-  Map,
   BarChart2,
   Sliders,
-  Building2,
-  FileText,
-  Info,
   Home,
   RefreshCw,
+  Sun,
+  Moon,
+  Building2,
+  FileText,
+  BookOpen,
+  FlaskConical,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { BrandLogo } from "@/components/layout/BrandLogo";
+import { useTheme } from "@/components/providers/ThemeProvider";
 
 interface NavItem {
   id: AppRoute;
@@ -38,7 +41,8 @@ export function Header() {
     searchQuery,
     setSearchQuery,
   } = useStore();
-  const t = translations[language];
+  const t = getTranslations(language);
+  const { resolvedTheme, setTheme } = useTheme();
   const [searchFocused, setSearchFocused] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -66,16 +70,13 @@ export function Header() {
     : [];
 
   const navItems: NavItem[] = [
-    { id: "overview",        label: "Overview",        mlLabel: "അവലോകനം",       icon: Home },
-    { id: "map",             label: "3D Map",           mlLabel: "3D ഭൂപടം",       icon: Map },
-    { id: "analytics",       label: "Analytics",        mlLabel: "വിശകലനം",       icon: BarChart2 },
-    { id: "analysis",        label: "Flood Analysis",   mlLabel: "വെള്ളപ്പൊക്ക വിശകലനം", icon: Map },
-    { id: "modellab",        label: "Model Lab",        mlLabel: "മോഡൽ ലാബ്",     icon: BarChart2 },
-    { id: "scenarios",       label: "Scenarios",        mlLabel: "സാഹചര്യം",       icon: Sliders },
-    { id: "infrastructure",  label: "Infrastructure",   mlLabel: "അടിസ്ഥാനം",     icon: Building2 },
-    { id: "reports",         label: "Reports",          mlLabel: "റിപ്പോർട്ടുകൾ", icon: FileText },
-    { id: "methodology",     label: "Methodology",      mlLabel: "രീതിശാസ്ത്രം",   icon: FileText },
-    { id: "about",           label: "About",            mlLabel: "വിശദാംശം",       icon: Info },
+    { id: "overview", label: "Overview", mlLabel: "അവലോകനം", icon: Home },
+    { id: "analytics", label: "Analytics", mlLabel: "വിശകലനം", icon: BarChart2 },
+    { id: "scenarios", label: "Scenarios", mlLabel: "സാഹചര്യം", icon: Sliders },
+    { id: "infrastructure", label: "Infrastructure", mlLabel: "അടിസ്ഥാനസൗകര്യം", icon: Building2 },
+    { id: "reports", label: "Reports", mlLabel: "റിപ്പോർട്ടുകൾ", icon: FileText },
+    { id: "methodology", label: "Methodology", mlLabel: "രീതിശാസ്ത്രം", icon: BookOpen },
+    { id: "modellab", label: "Model Lab", mlLabel: "മോഡൽ ലാബ്", icon: FlaskConical },
   ];
 
   const modeLabel = status?.current_mode === "live"
@@ -102,10 +103,17 @@ export function Header() {
         <BrandLogo className="mr-5 h-9 w-[156px]" />
 
         {/* ─── Navigation Items ─── */}
-        <nav className="flex items-center gap-0.5 flex-shrink-0" aria-label="Primary navigation">
+        <nav className="scrollbar-hide ml-2 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto whitespace-nowrap" aria-label="Primary navigation">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeRoute === item.id;
+            const isActive = activeRoute === item.id || (item.id === "overview" && activeRoute === "map");
+            const label = item.id === "overview" ? t.navOverview
+              : item.id === "analytics" ? t.navAnalytics
+              : item.id === "scenarios" ? t.navScenarios
+              : item.id === "infrastructure" ? t.navInfrastructure
+              : item.id === "reports" ? t.navReports
+              : item.id === "methodology" ? t.navMethodology
+              : t.navModelLab;
             return (
               <button
                 key={item.id}
@@ -121,12 +129,12 @@ export function Header() {
                   whiteSpace: "nowrap",
                 }}
                 aria-current={isActive ? "page" : undefined}
-                aria-label={language === "ml" ? item.mlLabel : item.label}
-                title={language === "ml" ? item.mlLabel : item.label}
+                aria-label={label}
+                title={label}
               >
                 <Icon className="h-3.5 w-3.5 shrink-0 text-current" />
-                <span className="hidden xl:inline">
-                  {language === "ml" ? item.mlLabel : item.label}
+                <span className="hidden lg:inline">
+                  {label}
                 </span>
               </button>
             );
@@ -134,7 +142,7 @@ export function Header() {
         </nav>
 
         {/* Spacer */}
-        <div className="flex-1" />
+        <div className="w-2 shrink-0" />
 
         {/* ─── Search Bar ─── */}
         <div className="relative hidden md:block" style={{ width: 240 }}>
@@ -156,7 +164,7 @@ export function Header() {
             onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
             placeholder={t.searchPlaceholder}
             aria-label="Search locations and infrastructure"
-            className="w-full rounded-md border border-slate-200 bg-slate-50 py-1.5 pl-7 pr-2 text-xs text-slate-900 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:focus:border-teal-400"
+            className="w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-md border border-slate-200 bg-slate-50 py-1.5 pl-7 pr-12 text-xs text-slate-900 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:focus:border-teal-400"
           />
           <span
             style={{
@@ -238,17 +246,21 @@ export function Header() {
             </span>
           )}
 
-          {/* Language Toggle */}
-          <button
-            onClick={() => setLanguage(language === "en" ? "ml" : "en")}
-            className="flex cursor-pointer items-center gap-1 rounded border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold tracking-tight text-slate-800 transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-teal-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
-            title="Toggle between English and Malayalam (മലയാളം)"
-            aria-label="Toggle language"
-          >
+          <label className="flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-1 dark:border-slate-700 dark:bg-slate-900">
             <Languages className="h-3.5 w-3.5 shrink-0 text-teal-700 dark:text-teal-300" />
-            <span>
-              {language === "en" ? "EN" : "ML"}
-            </span>
+            <select value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className="max-w-24 cursor-pointer bg-transparent text-xs font-semibold text-slate-800 outline-none dark:text-slate-100" aria-label="Select language">
+              <option value="en">English</option><option value="ml">മലയാളം</option><option value="hi">हिन्दी</option><option value="ta">தமிழ்</option>
+            </select>
+          </label>
+
+          <button
+            type="button"
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-teal-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+            title={resolvedTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            aria-label={resolvedTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+          >
+            {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
 
         </div>

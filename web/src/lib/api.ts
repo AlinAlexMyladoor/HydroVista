@@ -62,6 +62,29 @@ export interface HealthResponse {
   timestamp: string;
 }
 
+export interface AssistantContext {
+  basin: string;
+  rainfall_24h_mm?: number | null;
+  rainfall_source?: string | null;
+  rainfall_updated_at?: string | null;
+  forecast_stale?: boolean;
+  observed_stage_m?: number | null;
+  observed_stage_at?: string | null;
+  stage_source?: string | null;
+  stage_forecast_points?: number;
+  modelled_discharge_m3s?: number | null;
+  discharge_source?: string | null;
+  high_risk_assets?: number | null;
+  source_statuses?: Record<string, "available" | "stale" | "unavailable">;
+  source_updated_at?: Record<string, string>;
+}
+
+export interface AssistantResponse {
+  answer: string;
+  sources: string[];
+  grounded: boolean;
+}
+
 export interface StatusResponse {
   api: string;
   database: string;
@@ -132,18 +155,21 @@ export interface RiverDischargeResponse {
 }
 
 export interface RiverStageForecastResponse {
+  is_available?: boolean;
+  is_forecast_available?: boolean;
+  unavailable_reason?: string;
   station: string;
   river: string;
-  observed_at: string;
-  observed_stage_m: number;
+  observed_at?: string;
+  observed_stage_m?: number;
   forecast: { time: string; stage_m: number; lower_m: number; upper_m: number; lead_hours: number }[];
-  model: string;
-  validation: { method: string; mae_m: number; empirical_90pct_abs_error_m: number };
+  model?: string;
+  validation?: { method: string; mae_m: number; empirical_90pct_abs_error_m: number };
   source: string;
   source_url: string;
-  rainfall_source_url: string;
-  retrieved_at: string;
-  known_limitations: string;
+  rainfall_source_url?: string;
+  retrieved_at?: string;
+  known_limitations?: string;
 }
 
 export interface TerrainDistributionResponse {
@@ -234,6 +260,17 @@ export interface ScenarioResponse {
     escalated_count: number;
     combined_24h_mm: number | null;
   };
+  escalated_assets?: {
+    asset_id: string;
+    name: string | null;
+    type: string;
+    baseline_category: string;
+    scenario_category: string;
+    delta_score: number;
+    lat?: number | null;
+    lon?: number | null;
+  }[];
+  scenario_rankings?: ExposureScore[];
   method: string;
   assumptions: string[];
   disclaimer: string;
@@ -403,6 +440,13 @@ export type Experiment = ClassificationExperiment | ForecastExperiment;
 // ─── API functions ────────────────────────────────────────────────────────────
 
 export const api = {
+  assistant: {
+    chat: (message: string, language: "en" | "ml" | "hi" | "ta", context: AssistantContext) =>
+      request<AssistantResponse>("/api/v1/assistant/chat", {
+        method: "POST",
+        body: JSON.stringify({ message, language, context }),
+      }),
+  },
   analysis: {
     capabilities: () => request<AnalysisCapabilities>("/api/v1/analysis/capabilities"),
     runs: () => request<{ runs: AnalysisRun[] }>("/api/v1/analysis/runs"),

@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     # ─── Optional – LLM assistant ─────────────────────────────────────────────
     LLM_PROVIDER: str | None = None
     GEMINI_API_KEY: str | None = None
+    GEMINI_MODEL: str = "gemini-2.5-flash"
     OPENAI_API_KEY: str | None = None
     ANTHROPIC_API_KEY: str | None = None
 

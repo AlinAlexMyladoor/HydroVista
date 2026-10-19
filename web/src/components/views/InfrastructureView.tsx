@@ -4,11 +4,12 @@ import React, { useState } from "react";
 import { useStore } from "@/lib/store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type Asset } from "@/lib/api";
-import { translations } from "@/lib/translations";
+import { getTranslations } from "@/lib/translations";
+import { Building2, RefreshCw, Search } from "lucide-react";
 
 export function InfrastructureView() {
   const { language, focusMap } = useStore();
-  const t = translations[language];
+  const t = getTranslations(language);
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
@@ -80,9 +81,9 @@ export function InfrastructureView() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-[#E2E8F0] gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xl">🏥</span>
+            <Building2 className="h-5 w-5 text-teal-700" aria-hidden="true" />
             <h1 className="text-xl font-bold text-[#1E292B]">
-              {language === "en" ? "Infrastructure risk" : "അടിസ്ഥാന സൗകര്യ അപകടസാധ്യത"}
+              {language !== "ml" ? "Infrastructure risk" : "അടിസ്ഥാന സൗകര്യ അപകടസാധ്യത"}
             </h1>
           </div>
         </div>
@@ -92,11 +93,11 @@ export function InfrastructureView() {
           disabled={refreshMutation.isPending}
           className="self-start sm:self-auto px-3.5 py-2 bg-white hover:bg-[#F1F5F9] border border-[#CBD5E1] text-[#26332F] text-xs font-semibold rounded-lg shadow-xs transition-colors flex items-center gap-1.5"
         >
-          <span className={refreshMutation.isPending ? "animate-spin" : ""}>🔄</span>
+          <RefreshCw className={`h-3.5 w-3.5 ${refreshMutation.isPending ? "animate-spin" : ""}`} aria-hidden="true" />
           <span>
             {refreshMutation.isPending
-              ? (language === "en" ? "Syncing OpenStreetMap..." : "വിവരങ്ങൾ പുതുക്കുന്നു...")
-              : (language === "en" ? "Refresh from OpenStreetMap" : "വിവരങ്ങൾ പുതുക്കുക")}
+              ? (language !== "ml" ? "Syncing OpenStreetMap..." : "വിവരങ്ങൾ പുതുക്കുന്നു...")
+              : (language !== "ml" ? "Refresh from OpenStreetMap" : "വിവരങ്ങൾ പുതുക്കുക")}
           </span>
         </button>
       </div>
@@ -106,12 +107,12 @@ export function InfrastructureView() {
         <div className="md:col-span-5 relative">
           <input
             type="text"
-            placeholder={language === "en" ? "Search asset by name, panchayat or locality..." : "തിരയുക..."}
+            placeholder={language !== "ml" ? "Search asset by name, panchayat or locality..." : "തിരയുക..."}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-3 py-2 bg-white border border-[#E2E8F0] rounded-lg text-xs placeholder-[#94A3B8] focus:outline-none focus:border-[#0D9488]"
           />
-          <span className="absolute left-3 top-2.5 text-xs text-[#94A3B8]">🔍</span>
+          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#94A3B8]" aria-hidden="true" />
         </div>
 
         <div className="md:col-span-4 flex gap-2">
@@ -120,12 +121,12 @@ export function InfrastructureView() {
             onChange={(e) => setSelectedType(e.target.value)}
             className="w-full bg-white border border-[#E2E8F0] rounded-lg text-xs px-2.5 py-2 text-[#26332F] focus:outline-none focus:border-[#0D9488]"
           >
-            <option value="all">{language === "en" ? "All Facility Types" : "എല്ലാ വിഭാഗങ്ങളും"}</option>
-            <option value="hospital">{language === "en" ? "Hospitals & Health Centers" : "ആശുപത്രികൾ"}</option>
-            <option value="shelter">{language === "en" ? "Relief Shelters & Camps" : "ക്യാമ്പുകൾ"}</option>
-            <option value="bridge">{language === "en" ? "Bridges & River Crossings" : "പാലങ്ങൾ"}</option>
-            <option value="substation">{language === "en" ? "Power Substations" : "വൈദ്യുതി നിലയങ്ങൾ"}</option>
-            <option value="school">{language === "en" ? "Schools" : "സ്കൂളുകൾ"}</option>
+            <option value="all">{language !== "ml" ? "All Facility Types" : "എല്ലാ വിഭാഗങ്ങളും"}</option>
+            <option value="hospital">{language !== "ml" ? "Hospitals & Health Centers" : "ആശുപത്രികൾ"}</option>
+            <option value="shelter">{language !== "ml" ? "Relief Shelters & Camps" : "ക്യാമ്പുകൾ"}</option>
+            <option value="bridge">{language !== "ml" ? "Bridges & River Crossings" : "പാലങ്ങൾ"}</option>
+            <option value="substation">{language !== "ml" ? "Power Substations" : "വൈദ്യുതി നിലയങ്ങൾ"}</option>
+            <option value="school">{language !== "ml" ? "Schools" : "സ്കൂളുകൾ"}</option>
           </select>
         </div>
 
@@ -135,11 +136,11 @@ export function InfrastructureView() {
             onChange={(e) => setSelectedRisk(e.target.value)}
             className="w-full bg-white border border-[#E2E8F0] rounded-lg text-xs px-2.5 py-2 text-[#26332F] focus:outline-none focus:border-[#0D9488]"
           >
-            <option value="all">{language === "en" ? "All Risk Levels" : "എല്ലാ അപായ നിലകളും"}</option>
-            <option value="critical">{language === "en" ? "Critical Risk" : "തീവ്ര അപായം"}</option>
-            <option value="high">{language === "en" ? "High Risk" : "ഉയർന്ന അപായം"}</option>
-            <option value="medium">{language === "en" ? "Medium Risk" : "മിതമായ അപായം"}</option>
-            <option value="low">{language === "en" ? "Low Risk" : "കുറഞ്ഞ അപായം"}</option>
+            <option value="all">{language !== "ml" ? "All Risk Levels" : "എല്ലാ അപായ നിലകളും"}</option>
+            <option value="critical">{language !== "ml" ? "Critical Risk" : "തീവ്ര അപായം"}</option>
+            <option value="high">{language !== "ml" ? "High Risk" : "ഉയർന്ന അപായം"}</option>
+            <option value="medium">{language !== "ml" ? "Medium Risk" : "മിതമായ അപായം"}</option>
+            <option value="low">{language !== "ml" ? "Low Risk" : "കുറഞ്ഞ അപായം"}</option>
           </select>
         </div>
       </div>
@@ -161,7 +162,7 @@ export function InfrastructureView() {
               {filteredAssets.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="py-10 text-center text-[#94A3B8]">
-                    {language === "en" ? "No infrastructure matching filter criteria." : "വിവരങ്ങൾ ലഭ്യമല്ല."}
+                    {language !== "ml" ? "No infrastructure matching filter criteria." : "വിവരങ്ങൾ ലഭ്യമല്ല."}
                   </td>
                 </tr>
               ) : (

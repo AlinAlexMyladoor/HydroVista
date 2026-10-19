@@ -5,6 +5,7 @@
 import { create } from "zustand";
 import { DEFAULT_LAYER_IDS } from "@/lib/layers";
 import type { ExposureScore, ForecastResponse, Asset, ScenarioResponse, InundationGeoJSON } from "@/lib/api";
+import type { Language } from "@/lib/translations";
 
 // Top-level route (maps to Next.js routes)
 export type AppRoute = "overview" | "map" | "analytics" | "scenarios" | "infrastructure" | "reports" | "about" | "analysis" | "modellab" | "methodology";
@@ -85,8 +86,8 @@ interface AppState {
   setScenarioDuration: (h: number) => void;
 
   // Language
-  language: "en" | "ml";
-  setLanguage: (l: "en" | "ml") => void;
+  language: Language;
+  setLanguage: (l: Language) => void;
 
   // Status
   isOffline: boolean;

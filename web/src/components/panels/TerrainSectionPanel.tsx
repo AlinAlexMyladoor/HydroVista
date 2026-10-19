@@ -441,7 +441,7 @@ export function TerrainSectionPanel() {
     [swath, vertExag, tooMuchMissing]
   );
 
-  const en = language === "en";
+  const en = language !== "ml";
   return (
     <div className="h-full flex flex-col">
       <div className="analytics-panel-title">

@@ -15,6 +15,7 @@ from app.api.v1.reports import router as reports_router
 from app.api.v1.brief import router as brief_router
 from app.api.v1.satellite import router as satellite_router
 from app.api.v1.analysis import router as analysis_router
+from app.api.v1.assistant import router as assistant_router
 
 router = APIRouter()
 
@@ -30,3 +31,4 @@ router.include_router(reports_router, tags=["reports"])
 router.include_router(brief_router, tags=["brief"])
 router.include_router(satellite_router, tags=["satellite"])
 router.include_router(analysis_router, tags=["analysis"])
+router.include_router(assistant_router, tags=["assistant"])
