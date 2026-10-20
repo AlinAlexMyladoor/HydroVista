@@ -275,7 +275,10 @@ async def run_evaluation(use_ragas: bool = False) -> None:
             "average_faithfulness": round(avg_faithfulness, 3),
             "average_answer_relevance": round(avg_relevance, 3),
             "total_test_cases": len(test_cases),
-            "passed_tests": sum(1 for r in eval_results if r["faithfulness"] >= 0.8 and r["answer_relevance"] >= 0.8),
+            "passed_tests": sum(
+                1 for r in eval_results
+                if float(r["faithfulness"]) >= 0.8 and float(r["answer_relevance"]) >= 0.8
+            ),
         },
         "test_results": eval_results,
     }

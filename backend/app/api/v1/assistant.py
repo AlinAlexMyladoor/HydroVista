@@ -196,7 +196,7 @@ async def _rainfall_intent_answer(payload: AssistantRequest) -> str | None:
     matching_points = []
     for p in hourly_points:
         try:
-            pt_date = datetime.fromisoformat(str(p.time).replace("Z", "+00:00")).astimezone(tz).date().isoformat()
+            pt_date = datetime.fromisoformat(p.time.replace("Z", "+00:00")).astimezone(tz).date().isoformat()
             if pt_date == target_date and p.precipitation_mm is not None:
                 matching_points.append(p)
         except (ValueError, TypeError):
@@ -215,7 +215,7 @@ async def _rainfall_intent_answer(payload: AssistantRequest) -> str | None:
         for p in matching_points:
             if (p.precipitation_mm or 0.0) == max_rain and max_rain > 0:
                 try:
-                    dt = datetime.fromisoformat(str(p.time).replace("Z", "+00:00")).astimezone(tz)
+                    dt = datetime.fromisoformat(p.time.replace("Z", "+00:00")).astimezone(tz)
                     peak_time_str = dt.strftime("%H:%M IST")
                 except Exception:
                     pass
