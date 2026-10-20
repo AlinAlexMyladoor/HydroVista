@@ -22,11 +22,29 @@ class Settings(BaseSettings):
     SYNC_DATABASE_URL: str = "postgresql://floodlens:floodlens@localhost:5432/floodlens"
 
     # ─── CORS ─────────────────────────────────────────────────────────────────
-    API_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001"
+    API_CORS_ORIGINS: str = (
+        "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001,"
+        "https://hydro-vista-silk.vercel.app"
+    )
+    CORS_ORIGINS: str | None = None
 
     @property
     def API_CORS_ORIGINS_LIST(self) -> List[str]:
-        return [o.strip() for o in self.API_CORS_ORIGINS.split(",")]
+        raw = self.CORS_ORIGINS or self.API_CORS_ORIGINS
+        if raw.strip() == "*":
+            return ["*"]
+        origins = [o.strip() for o in raw.split(",") if o.strip()]
+        defaults = [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:3001",
+            "https://hydro-vista-silk.vercel.app",
+        ]
+        for d in defaults:
+            if d not in origins and "*" not in origins:
+                origins.append(d)
+        return origins
 
     # ─── External services ────────────────────────────────────────────────────
     OPEN_METEO_BASE_URL: str = "https://api.open-meteo.com/v1"
