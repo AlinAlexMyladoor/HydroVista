@@ -62,6 +62,13 @@ export interface HealthResponse {
   timestamp: string;
 }
 
+export interface AssetRiskSnapshot {
+  name: string;
+  asset_type: string;
+  risk_category: "low" | "medium" | "high" | "critical";
+  risk_score?: number | null;
+}
+
 export interface AssistantContext {
   basin: string;
   rainfall_24h_mm?: number | null;
@@ -77,12 +84,17 @@ export interface AssistantContext {
   high_risk_assets?: number | null;
   source_statuses?: Record<string, "available" | "stale" | "unavailable">;
   source_updated_at?: Record<string, string>;
+  hourly_rainfall?: { time: string; precipitation_mm?: number | null; is_forecast?: boolean }[];
+  high_risk_assets_snapshot?: AssetRiskSnapshot[];
+  scenario_rainfall_mm?: number | null;
+  scenario_duration_hours?: number | null;
 }
 
 export interface AssistantResponse {
   answer: string;
   sources: string[];
   grounded: boolean;
+
 }
 
 export interface StatusResponse {

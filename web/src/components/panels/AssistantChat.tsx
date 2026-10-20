@@ -215,6 +215,12 @@ export function AssistantChat() {
       )?.river_discharge_m3s,
       discharge_source: discharge?.source || "GloFAS modelled discharge",
       high_risk_assets: highRisk,
+      high_risk_assets_snapshot: (exposure?.items || []).slice(0, 30).map((item) => ({
+        name: item.asset_name || `${item.asset_type}`,
+        asset_type: item.asset_type,
+        risk_category: item.risk_category as "low" | "medium" | "high" | "critical",
+        risk_score: item.risk_score,
+      })),
       source_statuses: sourceStatuses,
       source_updated_at: sourceUpdatedAt,
     };

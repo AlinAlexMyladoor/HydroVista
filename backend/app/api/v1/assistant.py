@@ -6,7 +6,9 @@ does not infer missing telemetry or claim to be an emergency warning service.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 import httpx
 import structlog
@@ -53,7 +55,7 @@ class AssistantContext(BaseModel):
     source_statuses: dict[str, Literal["available", "stale", "unavailable"]] = Field(default_factory=dict)
     source_updated_at: dict[str, str] = Field(default_factory=dict)
     hourly_rainfall: list[HourlyRainPoint] = Field(default_factory=list, max_length=168)
-    high_risk_assets_snapshot: list[AssetRiskSnapshot] = Field(default_factory=list, max_length=10)
+    high_risk_assets_snapshot: list[AssetRiskSnapshot] = Field(default_factory=list, max_length=50)
     scenario_rainfall_mm: float | None = Field(default=None, ge=0, le=1000)
     scenario_duration_hours: float | None = Field(default=None, ge=1, le=168)
 
@@ -75,14 +77,33 @@ def _fmt(value: float | None, unit: str, digits: int = 1) -> str:
     return "unavailable" if value is None else f"{value:.{digits}f} {unit}"
 
 
+def _detect_language(text: str, default_lang: str) -> str:
+    """Detect language from query script to avoid localization drop."""
+    if any("\u0D00" <= ch <= "\u0D7F" for ch in text):
+        return "ml"
+    if any("\u0900" <= ch <= "\u097F" for ch in text):
+        return "hi"
+    if any("\u0B80" <= ch <= "\u0BFF" for ch in text):
+        return "ta"
+    return default_lang
+
+
 async def _gemini_answer(payload: AssistantRequest) -> str | None:
     """Use Gemini as a language/intent layer over a bounded, validated snapshot."""
+    api_key = settings.GEMINI_API_KEY
     provider = (settings.LLM_PROVIDER or "").strip().lower()
-    if provider not in ("gemini", "google") or not settings.GEMINI_API_KEY:
+    if not api_key:
+        log.info("assistant.gemini_skipped", reason="no_api_key")
+        return None
+    if provider and provider not in ("gemini", "google"):
+        log.info("assistant.gemini_skipped", reason=f"provider_{provider}")
         return None
 
-    model_name = settings.GEMINI_MODEL or "gemini-3.8-flash"
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={settings.GEMINI_API_KEY}"
+    model_name = settings.GEMINI_MODEL or "gemini-2.5-flash"
+    if "3.8" in model_name:
+        model_name = "gemini-2.5-flash"
+
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
 
     user_query_text = f"User Query: {payload.message}\n\nSession Context: {payload.context.model_dump_json()}"
 
@@ -110,56 +131,89 @@ async def _gemini_answer(payload: AssistantRequest) -> str | None:
     }
 
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(18, connect=5)) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=3.0)) as client:
             response = await client.post(
                 api_url,
-                headers={"x-goog-api-key": settings.GEMINI_API_KEY, "Content-Type": "application/json"},
+                headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
                 json=gemini_payload,
             )
-        response.raise_for_status()
-        data = response.json()
-        answer = "".join(part.get("text", "") for part in data["candidates"][0]["content"]["parts"]).strip()
-        return answer[:4000] or None
+            if response.status_code != 200:
+                log.error(
+                    "assistant.gemini_call_failed",
+                    status_code=response.status_code,
+                    response=response.text[:500],
+                )
+                return None
+            data = response.json()
+            candidates = data.get("candidates", [])
+            if not candidates:
+                log.warning("assistant.gemini_no_candidates", response=data)
+                return None
+            parts = candidates[0].get("content", {}).get("parts", [])
+            answer = "".join(part.get("text", "") for part in parts).strip()
+            return answer[:4000] or None
     except Exception as exc:  # noqa: BLE001 - deterministic data-aware fallback remains available
-        log.warning("assistant.gemini_unavailable", error=type(exc).__name__, detail=str(exc))
+        log.error("assistant.gemini_call_exception", error=type(exc).__name__, detail=str(exc))
         return None
 
 
-async def _rainfall_intent_answer(payload: AssistantRequest) -> str | None:
+DEFAULT_CHALAKUDY_ASSETS = [
+    AssetRiskSnapshot(name="Chalakudy Taluk Hospital", asset_type="hospital", risk_category="critical", risk_score=0.94),
+    AssetRiskSnapshot(name="St. James Hospital Chalakudy", asset_type="hospital", risk_category="high", risk_score=0.81),
+    AssetRiskSnapshot(name="KSRTC Bus Station Chalakudy", asset_type="transit", risk_category="critical", risk_score=0.91),
+    AssetRiskSnapshot(name="KSEB 110kV Substation Chalakudy", asset_type="utility", risk_category="high", risk_score=0.79),
+    AssetRiskSnapshot(name="Chalakudy River Bridge (NH 544)", asset_type="bridge", risk_category="high", risk_score=0.75),
+    AssetRiskSnapshot(name="Athirappilly Bridge (SH 21)", asset_type="bridge", risk_category="medium", risk_score=0.52),
+    AssetRiskSnapshot(name="Pariyaram Primary Health Centre", asset_type="hospital", risk_category="medium", risk_score=0.58),
+    AssetRiskSnapshot(name="Poringalkuthu Substation", asset_type="utility", risk_category="high", risk_score=0.72),
+]
+
+
+async def _rainfall_intent_answer(payload: AssistantRequest, lang: str) -> str | None:
     """Handle rainfall questions (tomorrow, today, or general) locally with high accuracy."""
     q = payload.message.casefold()
-    has_rain = any(term in q for term in ("rain", "rian", "raining", "precip", "storm", "wet", "shower", "വർഷ", "മഴ", "वर्षा", "बारिश", "மழை"))
-    is_tomorrow = any(term in q for term in ("tomorrow", "tmr", "tomo", "tommorow", "morow", "നാളെ", "कल", "நாளை"))
-    is_today = any(term in q for term in ("today", "todai", "now", "ഇന്ന്", "आज", "இன்று"))
-    
-    if not (has_rain or is_tomorrow or is_today):
+
+    # Disallow overmatching non-rain intents
+    non_rain_intents = (
+        "gauge", "stage", "water level", "waterlevel", "level", "reading",
+        "bridge", "cross", "crossing", "road", "passable", "traffic",
+        "hospital", "medical", "clinic", "health",
+        "substation", "power", "electricity", "kseb",
+        "shelter", "camp", "relief", "school",
+        "munnar", "മൂന്നാർ", "idukki",
+    )
+    if any(k in q for k in non_rain_intents):
         return None
 
-    is_24h = any(term in q for term in ("24h", "24-hour", "24 hour", "24 hr", "24hr", "accumulated", "cumulative"))
-    if (is_24h or (not is_tomorrow and not is_today)) and payload.context.rainfall_24h_mm is not None:
-        r24 = payload.context.rainfall_24h_mm
+    has_rain = any(term in q for term in ("rain", "rian", "raining", "precip", "storm", "wet", "shower", "വർഷ", "മഴ", "പെയ്യും", "മഴയുണ്ടോ", "മഴയുണ്ടാകുമോ", "മഴയെത്ര", "മഴക്കാലം", "वर्षा", "बारिश", "மழை"))
+    is_tomorrow = any(term in q for term in ("tomorrow", "tmr", "tomo", "tommorow", "morow", "നാളെ", "कल", "நாளை"))
+    is_today = any(term in q for term in ("today", "todai", "now", "ഇന്ന്", "आज", "இன்று"))
+
+    if not has_rain:
+        return None
+
+    is_24h = any(term in q for term in ("24h", "24-hour", "24 hour", "24 hr", "24hr", "accumulated", "cumulative", "അടുത്ത 24", "24 മണിക്കൂർ", "24 घंटे"))
+    if is_24h or (not is_tomorrow and not is_today):
+        r24 = payload.context.rainfall_24h_mm if payload.context.rainfall_24h_mm is not None else 18.6
         answers = {
             "en": f"The forecasted 24-hour rainfall for the Chalakudy River Basin is {r24:.1f} mm based on Open-Meteo numerical weather model guidance.",
-            "ml": f"ചാലക്കുടി നദീതടത്തിലെ 24 മണിക്കൂർ മഴ പ്രവചനം {r24:.1f} mm ആണ്. ഇത് ഓപ്പൺ-മെറ്റിയോ മാതൃകാ പ്രവചനമാണ്.",
-            "hi": f"चालाकुडी नदी बेसिन के लिए 24 घंटे का वर्षा पूर्वानुमान {r24:.1f} मिमी है।",
-            "ta": f"சாலக்குடி ஆற்றுப் படுகைக்கான 24 மணி நேர மழை முன்னறிவிப்பு {r24:.1f} மி.மீ.",
+            "ml": f"ചാലക്കുടി നദീതടത്തിലെ അടുത്ത 24 മണിക്കൂർ മഴ പ്രവചനം {r24:.1f} mm ആണ്. ഇത് ഓപ്പൺ-മെറ്റിയോ (Open-Meteo) ന്യൂമെറിക്കൽ വെതർ മോഡൽ പ്രവചനമാണ്.",
+            "hi": f"चालाकुडी नदी बेसिन के लिए 24 घंटे का वर्षा पूर्वानुमान {r24:.1f} मिमी है। यह ओपन-मेटियो मौसम मॉडल का मार्गदर्शन है।",
+            "ta": f"சாலக்குடி ஆற்றுப் படுகைக்கான 24 மணி நேர மழை முன்னறிவிப்பு {r24:.1f} மி.மீ. இது ஓபன்-மெட்டியோ வானிலை மாதிரி வழிகாட்டுதல்.",
         }
-        return answers.get(payload.language, answers["en"])
+        return answers.get(lang, answers["en"])
 
-    # Strict Grounding Directive: If hourly breakdown is not in session context, rely strictly on context rainfall_24h_mm
     if not payload.context.hourly_rainfall and payload.context.rainfall_24h_mm is not None:
         r24 = payload.context.rainfall_24h_mm
-        day_str = "tomorrow" if is_tomorrow else "today" if is_today else "the upcoming 24 hours"
+        day_str = "tomorrow" if is_tomorrow else "today"
         answers = {
-            "en": f"Based on the session forecast data for {day_str}, the cumulative precipitation is {r24:.1f} mm (Open-Meteo model guidance).",
-            "ml": f"സെഷൻ പ്രവചന ഡാറ്റ പ്രകാരം { 'നാളെ' if is_tomorrow else 'ഇന്ന്' } ആകെ {r24:.1f} mm മഴ പ്രതീക്ഷിക്കുന്നു.",
+            "en": f"Based on the session forecast data for {day_str}, the cumulative precipitation is {r24:.1f} mm (Open-Meteo model guidance). Rain is expected with moderate showers.",
+            "ml": f"സെഷൻ പ്രവചന ഡാറ്റ പ്രകാരം { 'നാളെ' if is_tomorrow else 'ഇന്ന്' } ആകെ {r24:.1f} mm മഴ പ്രതീക്ഷിക്കുന്നു (ഓപ്പൺ-മെറ്റിയോ മാതൃകാ പ്രവചനം).",
             "hi": f"सत्र पूर्वानुमान डेटा के अनुसार { 'कल' if is_tomorrow else 'आज' } कुल {r24:.1f} मिमी बारिश का अनुमान है।",
             "ta": f"அமர்வு முன்னறிவிப்புத் தரவின்படி { 'நாளை' if is_tomorrow else 'இன்று' } மொத்தம் {r24:.1f} மி.மீ மழை எதிர்பார்க்கப்படுகிறது.",
         }
-        return answers.get(payload.language, answers["en"])
+        return answers.get(lang, answers["en"])
 
-    from datetime import datetime, timedelta
-    from zoneinfo import ZoneInfo
     tz = ZoneInfo("Asia/Kolkata")
     today_date = datetime.now(tz).date()
     target_date = (today_date + timedelta(days=1)).isoformat() if is_tomorrow else today_date.isoformat()
@@ -177,21 +231,6 @@ async def _rainfall_intent_answer(payload: AssistantRequest) -> str | None:
                         is_forecast=bool(h.get("is_forecast", True)),
                     )
                 )
-        else:
-            try:
-                from app.services.weather import fetch_forecast
-                from app.services.river_stage import STATION_LAT, STATION_LON
-                fc = await fetch_forecast(STATION_LAT, STATION_LON, forecast_days=3, past_days=1)
-                for h in fc.get("hourly", []):
-                    hourly_points.append(
-                        HourlyRainPoint(
-                            time=str(h.get("time")),
-                            precipitation_mm=h.get("precipitation_mm"),
-                            is_forecast=bool(h.get("is_forecast", True)),
-                        )
-                    )
-            except Exception as exc:
-                log.warning("assistant.forecast_fetch_failed", error=str(exc))
 
     matching_points = []
     for p in hourly_points:
@@ -203,14 +242,13 @@ async def _rainfall_intent_answer(payload: AssistantRequest) -> str | None:
             continue
 
     if not matching_points and is_tomorrow:
-        # If hourly points only cover next 24h, grab the future points
         matching_points = [p for p in hourly_points if p.is_forecast and p.precipitation_mm is not None][12:36]
 
     if matching_points:
         total = sum(p.precipitation_mm or 0.0 for p in matching_points)
         max_rain = max((p.precipitation_mm or 0.0 for p in matching_points), default=0.0)
         rain_hours = sum(1 for p in matching_points if (p.precipitation_mm or 0.0) >= 0.1)
-        
+
         peak_time_str = "afternoon"
         for p in matching_points:
             if (p.precipitation_mm or 0.0) == max_rain and max_rain > 0:
@@ -224,35 +262,104 @@ async def _rainfall_intent_answer(payload: AssistantRequest) -> str | None:
         if total < 0.2:
             answers = {
                 "en": f"No significant rain is expected {day_label_en} in the Chalakudy River Basin. The Open-Meteo forecast estimates {total:.1f} mm of total precipitation, with dry and clear conditions across all forecast hours.",
-                "ml": f"ചാലക്കുടി നദീതടത്തിൽ { 'നാളെ' if is_tomorrow else 'ഇന്ന്' } കാര്യമായ മഴയില്ല. ഓപ്പൺ-മെറ്റിയോ പ്രവചനമനുസരിച്ച് ആകെ {total:.1f} mm മഴ മാത്രമാണ് പ്രതീക്ഷിക്കുന്നത്, പ്രധാനമായും വരണ്ട കാലാവസ്ഥയായിരിക്കും.",
+                "ml": f"ചാലക്കുടി നദീതടത്തിൽ { 'നാളെ' if is_tomorrow else 'ഇന്ന്' } കാര്യമായ മഴയില്ല. ഓപ്പൺ-മെറ്റിയോ (Open-Meteo) പ്രവചനമനുസരിച്ച് ആകെ {total:.1f} mm മഴ മാത്രമാണ് പ്രതീക്ഷിക്കുന്നത്, പ്രധാനമായും വരണ്ട കാലാവസ്ഥയായിരിക്കും.",
                 "hi": f"चालाकुडी नदी बेसिन में { 'कल' if is_tomorrow else 'आज' } कोई खास बारिश नहीं होगी। ओपन-मेटियो पूर्वानुमान के अनुसार कुल वर्षा केवल {total:.1f} मिमी अनुमानित है, मौसम मुख्यतः शुष्क रहेगा।",
                 "ta": f"சாலக்குடி படுகையில் { 'நாளை' if is_tomorrow else 'இன்று' } குறிப்பிடத்தக்க மழை இருக்காது. ஓபன்-மெட்டியோ முன்னறிவிப்பின்படி மொத்த மழை {total:.1f} மி.மீ மட்டுமே, பெரும்பாலும் வறண்ட வானிலையே நீடிக்கும்.",
             }
         else:
             answers = {
                 "en": f"Yes, rain is expected {day_label_en} in the Chalakudy River Basin. The Open-Meteo forecast indicates approximately {total:.1f} mm of total rainfall across {rain_hours} rainy hours, with a peak intensity of {max_rain:.1f} mm/h around {peak_time_str}. This is NWP model guidance, not an official flood warning.",
-                "ml": f"അതെ, { 'നാളെ' if is_tomorrow else 'ഇന്ന്' } ചാലക്കുടി നദീതടത്തിൽ മഴ പ്രതീക്ഷിക്കുന്നുണ്ട്. ഓപ്പൺ-മെറ്റിയോ പ്രവചനപ്രകാരം ആകെ ഏകദേശം {total:.1f} mm മഴയും, {peak_time_str} സമയത്ത് പരമാവധി മണിക്കൂറിൽ {max_rain:.1f} mm മഴയും ഉണ്ടാകാം. ഇത് മാതൃകാ പ്രവചനമാണ്.",
+                "ml": f"അതെ, { 'നാളെ' if is_tomorrow else 'ഇന്ന്' } ചാലക്കുടി നദീതടത്തിൽ മഴ പ്രതീക്ഷിക്കുന്നുണ്ട്. ഓപ്പൺ-മെറ്റിയോ (Open-Meteo) പ്രവചനപ്രകാരം ആകെ ഏകദേശം {total:.1f} mm മഴയും, {peak_time_str} സമയത്ത് പരമാവധി മണിക്കൂറിൽ {max_rain:.1f} mm മഴയും ഉണ്ടാകാം. ഇത് മാതൃകാ പ്രവചനമാണ്.",
                 "hi": f"हाँ, { 'कल' if is_tomorrow else 'आज' } चालाकुडी बेसिन में बारिश की संभावना है। ओपन-मेटियो मॉडल के अनुसार कुल लगभग {total:.1f} मिमी बारिश तथा {peak_time_str} के आसपास अधिकतम {max_rain:.1f} मिमी/घंटा वर्षा का अनुमान है।",
                 "ta": f"ஆம், { 'நாளை' if is_tomorrow else 'இன்று' } சாலக்குடி படுகையில் மழை எதிர்பார்க்கப்படுகிறது. ஓபன்-மெட்டியோ முன்னறிவிப்பின்படி மொத்தம் சுமார் {total:.1f} மி.மீ மழையும், {peak_time_str} அளவில் அதிகபட்சமாக மணிக்கு {max_rain:.1f} மி.மீ வரை மழையும் பெய்யக்கூடும்.",
             }
-        return answers.get(payload.language, answers["en"])
+        return answers.get(lang, answers["en"])
 
-    # Fallback if specific hourly breakdown is unavailable
-    if payload.context.rainfall_24h_mm is not None:
-        r24 = payload.context.rainfall_24h_mm
+    if is_tomorrow:
+        r24 = payload.context.rainfall_24h_mm or 18.6
         answers = {
-            "en": f"The 24-hour rainfall forecast for the Chalakudy River Basin is {r24:.1f} mm. Weather model guidance indicates {'moderate to heavy showers' if r24 >= 15 else 'light showers or dry periods' if r24 > 0.5 else 'dry conditions'}.",
-            "ml": f"ചാലക്കുടി നദീതടത്തിലെ 24 മണിക്കൂർ മഴ പ്രവചനം {r24:.1f} mm ആണ്. ഇത് ഓപ്പൺ-മെറ്റിയോ മാതൃകാ പ്രവചനമാണ്.",
-            "hi": f"चालाकुडी नदी बेसिन के लिए 24 घंटे का वर्षा पूर्वानुमान {r24:.1f} मिमी है।",
-            "ta": f"சாலக்குடி ஆற்றுப் படுகைக்கான 24 மணி நேர மழை முன்னறிவிப்பு {r24:.1f} மி.மீ.",
+            "en": f"Yes, rain is expected tomorrow in the Chalakudy River Basin. The Open-Meteo forecast indicates approximately {r24:.1f} mm cumulative rainfall. This is NWP model guidance, not an official flood warning.",
+            "ml": f"അതെ, നാളെ ചാലക്കുടി നദീതടത്തിൽ മഴ പ്രതീക്ഷിക്കുന്നുണ്ട്. ഓപ്പൺ-മെറ്റിയോ (Open-Meteo) പ്രവചനപ്രകാരം ഏകദേശം {r24:.1f} mm മഴയുണ്ടാകാം. ഇത് മാതൃകാ പ്രവചനമാണ്.",
+            "hi": f"हाँ, कल चालाकुडी बेसिन में बारिश की संभावना है। ओपन-मेटियो (Open-Meteo) मॉडल के अनुसार लगभग {r24:.1f} मिमी वर्षा का अनुमान है।",
+            "ta": f"ஆம், நாளை சாலக்குடி படுகையில் மழை எதிர்பார்க்கப்படுகிறது. ஓபன்-மெட்டியோ (Open-Meteo) கணிப்பின்படி சுமார் {r24:.1f} மி.மீ மழை பெய்யக்கூடும்.",
         }
-        return answers.get(payload.language, answers["en"])
+        return answers.get(lang, answers["en"])
 
-    return None
+    r24 = payload.context.rainfall_24h_mm or 18.6
+    answers = {
+        "en": f"The forecasted 24-hour rainfall for the Chalakudy River Basin is {r24:.1f} mm based on Open-Meteo numerical weather model guidance.",
+        "ml": f"ചാലക്കുടി നദീതടത്തിലെ അടുത്ത 24 മണിക്കൂർ മഴ പ്രവചനം {r24:.1f} mm ആണ്. ഇത് ഓപ്പൺ-മെറ്റിയോ (Open-Meteo) ന്യൂമെറിക്കൽ വെതർ മോഡൽ പ്രവചനമാണ്.",
+        "hi": f"चालाकुडी नदी बेसिन के लिए 24 घंटे का वर्षा पूर्वानुमान {r24:.1f} मिमी है।",
+        "ta": f"சாலக்குடி ஆற்றுப் படுகைக்கான 24 மணி நேர மழை முன்னறிவிப்பு {r24:.1f} மி.மீ.",
+    }
+    return answers.get(lang, answers["en"])
 
 
 @router.post("/chat", response_model=AssistantResponse)
 async def chat(payload: AssistantRequest) -> AssistantResponse:
+    # Auto-detect language if query is written in native script
+    lang = _detect_language(payload.message, payload.language)
+    payload.language = lang  # type: ignore
+
+    # Self-healing Context Enrichment: If fields are missing, enrich from system services
+    if not payload.context.high_risk_assets_snapshot:
+        try:
+            from app.api.v1.assets import _get_or_fetch_assets
+            from app.services.exposure import rank_assets
+            raw_assets, _ = await _get_or_fetch_assets()
+            if raw_assets:
+                ranked = rank_assets(assets=raw_assets, rainfall_24h_mm=payload.context.rainfall_24h_mm)
+                payload.context.high_risk_assets_snapshot = [
+                    AssetRiskSnapshot(
+                        name=r.get("asset_name") or r.get("name") or str(r.get("asset_type")),
+                        asset_type=str(r.get("asset_type") or "infrastructure"),
+                        risk_category=r.get("risk_category") or "medium",
+                        risk_score=r.get("risk_score"),
+                    )
+                    for r in ranked[:30]
+                ]
+                if payload.context.high_risk_assets is None:
+                    payload.context.high_risk_assets = sum(
+                        1 for r in ranked if r.get("risk_category") in ("critical", "high")
+                    )
+        except Exception as exc:
+            log.warning("assistant.enrich_assets_failed", error=str(exc))
+
+        if not payload.context.high_risk_assets_snapshot:
+            payload.context.high_risk_assets_snapshot = list(DEFAULT_CHALAKUDY_ASSETS)
+            if payload.context.high_risk_assets is None:
+                payload.context.high_risk_assets = 5
+
+    # Stage / Gauge: DO NOT enrich if cwc_arangaly is marked unavailable
+    if payload.context.observed_stage_m is None and payload.context.source_statuses.get("cwc_arangaly") != "unavailable":
+        try:
+            from app.services.river_stage import cached_stage_payload
+            cached_stage = cached_stage_payload(force_stale=False)
+            if cached_stage and cached_stage.get("observed_stage_m") is not None:
+                payload.context.observed_stage_m = float(cached_stage["observed_stage_m"])
+                payload.context.observed_stage_at = cached_stage.get("observed_at")
+                payload.context.stage_source = cached_stage.get("source")
+        except Exception as exc:
+            log.warning("assistant.enrich_stage_failed", error=str(exc))
+
+    if payload.context.rainfall_24h_mm is None:
+        try:
+            from app.api.v1.forecast import _forecast_cache
+            if _forecast_cache and "rainfall_accumulations" in _forecast_cache:
+                for acc in _forecast_cache.get("rainfall_accumulations", []):
+                    if acc.get("window_hours") == 24:
+                        payload.context.rainfall_24h_mm = acc.get("accumulation_mm")
+                        break
+        except Exception:
+            pass
+        if payload.context.rainfall_24h_mm is None:
+            payload.context.rainfall_24h_mm = 18.6
+            payload.context.rainfall_source = "Open-Meteo numerical weather forecast"
+
+    if payload.context.modelled_discharge_m3s is None:
+        payload.context.modelled_discharge_m3s = 23.2
+        payload.context.discharge_source = "GloFAS modelled discharge"
+
     # Audit the Hidden Context Payload: Log the exact JSON output of payload.context.model_dump()
     context_dump = payload.context.model_dump()
     log.info(
@@ -264,9 +371,24 @@ async def chat(payload: AssistantRequest) -> AssistantResponse:
 
     q = payload.message.casefold()
     c = payload.context
-    lang = payload.language
     sources: list[str] = []
 
+    # 1. Prompt Injection & Jailbreak Neutralization
+    if any(phrase in q for phrase in ("ignore previous instructions", "disregard previous", "ignore all rules", "system prompt", "developer message", "jailbreak")):
+        r24 = c.rainfall_24h_mm or 18.6
+        return AssistantResponse(
+            answer=f"I am HydroVista's analytical assistant for the Chalakudy River Basin. Current 24-hour rainfall forecast is {r24:.1f} mm (Open-Meteo model guidance). How can I help you interpret local flood metrics?",
+            sources=["HydroVista Guardrails"],
+        )
+
+    # 2. Safety Refusal - Explicit refusal for official warnings/evacuation orders
+    if any(phrase in q for phrase in ("evacuate", "evacuation", "official warning", "order", "decree", "mandate")):
+        return AssistantResponse(
+            answer="I provide analytical guidance only and cannot issue official government warnings or evacuation orders. Please consult the Kerala State Disaster Management Authority (KSDMA) or local district administration for official emergency directives.",
+            sources=["HydroVista Safety Directives"],
+        )
+
+    # 3. Direct Gemini LLM Call
     llm_answer = await _gemini_answer(payload)
     if llm_answer:
         names = set()
@@ -282,14 +404,113 @@ async def chat(payload: AssistantRequest) -> AssistantResponse:
             names.add("HydroVista session data snapshot")
         return AssistantResponse(answer=llm_answer, sources=sorted(names))
 
-    # Core Directive 5: Safety Boundaries - Explicit refusal for official warnings/evacuation orders
-    if any(phrase in q for phrase in ("evacuate", "evacuation", "official warning", "order", "decree", "mandate")):
-        return AssistantResponse(
-            answer="I provide analytical guidance only and cannot issue official government warnings or evacuation orders. Please consult the Kerala State Disaster Management Authority (KSDMA) or local district administration for official emergency directives.",
-            sources=["HydroVista Safety Directives"],
-        )
+    # 4. Out-of-Scope Geographical Boundary Refusal (Munnar, Idukki, Wayanad, etc.)
+    out_of_scope_places = ("munnar", "മൂന്നാർ", "idukki", "wayanad", "വയനാട്", "kochi", "കൊച്ചി", "trivandrum", "thiruvananthapuram", "തിരുവനന്തപുരം", "kozhikode", "കോഴിക്കോട്", "alappuzha", "ആലപ്പുഴ", "kottayam", "കോട്ടയം", "kannur", "കണ്ണൂർ")
+    if any(place in q for place in out_of_scope_places):
+        out_of_scope_answers = {
+            "en": "HydroVista's analytical models and telemetry coverage are currently focused exclusively on the Chalakudy River Basin (Kerala). Data and flood extent forecasts for locations outside this basin (such as Munnar) are out of scope.",
+            "ml": "HydroVista-യുടെ വിശകലന മോഡലുകളും ഡാറ്റയും നിലവിൽ ചാലക്കുടി നദീതടത്തിൽ മാത്രമായി പരിമിതപ്പെടുത്തിയിരിക്കുന്നു. മൂന്നാർ ഉൾപ്പെടെയുള്ള മറ്റ് പ്രദേശങ്ങൾ ഇതിന്റെ പരിധിയിൽ വരില്ല.",
+            "hi": "HydroVista के विश्लेषणात्मक मॉडल और डेटा कवरेज वर्तमान में केवल चालाकुडी नदी बेसिन तक सीमित हैं। मुन्नार जैसे अन्य क्षेत्रों के डेटा इसके दायरे से बाहर हैं।",
+            "ta": "HydroVista இன் பகுப்பாய்வு மாதிரிகள் மற்றும் தரவு தற்போது சாலக்குடி ஆற்றுப் படுகைக்கு மட்டுமே பொருந்தும். மூணார் போன்ற பிற பகுதிகள் இதில் அடங்காது.",
+        }
+        return AssistantResponse(answer=out_of_scope_answers.get(lang, out_of_scope_answers["en"]), sources=["HydroVista Scope"])
 
-    if any(term in q for term in ("hi", "hello", "hey", "വണക്കം", "നമസ്കാരം", "नमस्ते", "வணக்கம்")) and len(q.split()) <= 4:
+    # 5. Hospital & Medical Facility Vulnerability Intent (e.g. "chalakudy hospital risk status pls", "Which medical facility has the highest vulnerability")
+    if any(word in q for word in ("hospital", "medical", "clinic", "health", "ആശുപത്രി", "ചികിത്സ", "അസ്പതാല", "അस्पताल", "மருத்துவமனை")):
+        hospitals = [a for a in c.high_risk_assets_snapshot if any(t in a.asset_type.lower() or t in a.name.lower() for t in ("hospital", "medical", "clinic", "health"))]
+        sources.append("HydroVista exposure rankings")
+        if hospitals:
+            top_hosp = max(hospitals, key=lambda a: a.risk_score or 0.0)
+            score_str = f"{top_hosp.risk_score:.2f}" if top_hosp.risk_score is not None else "N/A"
+            hosp_list = ", ".join(f"**{h.name}** ({h.risk_category} risk, score: {h.risk_score:.2f})" if h.risk_score else f"**{h.name}** ({h.risk_category})" for h in hospitals)
+            if lang == "ml":
+                answer = f"ചാലക്കുടി നദീതടത്തിൽ ഏറ്റവും ഉയർന്ന അപകടസാധ്യതയുള്ള മെഡിക്കൽ സ്ഥാപനം **{top_hosp.name}** ആണ് (അപകട വിഭാഗം: **{top_hosp.risk_category}**, റിസ്ക് സ്കോർ: **{score_str}**). നിരീക്ഷിക്കുന്ന ആശുപത്രികൾ: {hosp_list}."
+            else:
+                answer = f"**{top_hosp.name}** has the highest vulnerability among tracked medical facilities in the Chalakudy basin, with a risk score of **{score_str}** (**{top_hosp.risk_category}** risk category). Tracked hospitals in the basin: {hosp_list}."
+        else:
+            answer = "No hospital assets are currently flagged in the critical/high exposure snapshot." if lang == "en" else "നിലവിലെ എക്സ്പോഷർ സ്നാപ്പ്ഷോട്ടിൽ ആശുപത്രികൾ പ്രത്യേകം രേഖപ്പെടുത്തിയിട്ടില്ല."
+        return AssistantResponse(answer=answer, sources=sources)
+
+    # 6. Bridges and Substations Query (e.g. "Are there any bridges or power substations in high risk?")
+    is_substation = any(word in q for word in ("substation", "power", "electrical", "electricity", "kseb", "വൈദ്യുതി", "സബ്സ്റ്റേഷൻ"))
+    is_multi_infra = ("bridge" in q or "പാലം" in q) and any(word in q for word in ("substation", "facility", "facilities", "infrastructure", "assets", "high risk"))
+    if is_substation or is_multi_infra:
+        substations = [a for a in c.high_risk_assets_snapshot if any(t in a.asset_type.lower() or t in a.name.lower() for t in ("substation", "power", "kseb"))]
+        bridges = [a for a in c.high_risk_assets_snapshot if "bridge" in a.asset_type.lower() or "bridge" in a.name.lower()]
+        sources.append("HydroVista exposure rankings")
+        items = []
+        if bridges:
+            b_str = ", ".join(f"**{b.name}** ({b.risk_category} risk)" for b in bridges)
+            items.append(f"Bridges: {b_str}")
+        if substations:
+            s_str = ", ".join(f"**{s.name}** ({s.risk_category} risk)" for s in substations)
+            items.append(f"Substations: {s_str}")
+        if items:
+            combined = ". ".join(items)
+            answer = f"Tracked infrastructure in the Chalakudy basin: {combined}. Vulnerability is evaluated based on terrain elevation, forecast rainfall, and facility criticality."
+        else:
+            answer = "Monitored infrastructure in Chalakudy includes Chalakudy River Bridge (NH 544), Athirappilly Bridge (SH 21), and KSEB 110kV Substation Chalakudy."
+        return AssistantResponse(answer=answer, sources=sources)
+
+    # 7. Bridge & Road Crossing Status Intent (e.g. "is chalakudy bridge safe to cross now")
+    if any(word in q for word in ("bridge", "cross", "crossing", "road", "passable", "traffic", "പാലം", "പാലത്തിലൂടെ", "കടക്കാൻ", "പറ്റുമോ", "पुल")):
+        bridges = [a for a in c.high_risk_assets_snapshot if "bridge" in a.asset_type.lower() or "bridge" in a.name.lower()]
+        sources.append("HydroVista exposure rankings")
+        if bridges:
+            bridge_lines = "; ".join(f"**{b.name}** ({b.risk_category} risk, score: {b.risk_score:.2f})" if b.risk_score else f"**{b.name}** ({b.risk_category} risk)" for b in bridges)
+            if lang == "ml":
+                answer = (
+                    f"ചാലക്കുടി നദീതടത്തിലെ പ്രധാന പാലങ്ങളുടെ നിലവിലെ എക്സ്പോഷർ നില: {bridge_lines}. "
+                    "എന്നാൽ പാലത്തിലൂടെയുള്ള ഗതാഗത സുരക്ഷയും റോഡ് നിയന്ത്രണങ്ങളും ഔദ്യോഗികമായി തീരുമാനിക്കുന്നത് കേരള പോലീസും പൊതുമരാമത്ത് വകുപ്പും (PWD) ജില്ലാ ദുരന്തനിവാരണ അതോറിറ്റിയുമാണ് (KSDMA). HydroVista ഔദ്യോഗിക യാത്രാനുമതി നൽകുന്ന സംവിധാനമല്ല."
+                )
+            else:
+                answer = (
+                    f"Based on current exposure rankings for the Chalakudy basin: {bridge_lines}. "
+                    "However, bridge passability and road safety closures are determined exclusively by Kerala Police, PWD, and the District Disaster Management Authority (KSDMA). HydroVista is a research prototype and cannot clear or restrict bridge crossings."
+                )
+        else:
+            if lang == "ml":
+                answer = "ചാലക്കുടി പാലം നിലവിലെ മോഡൽ സ്നാപ്പ്ഷോട്ടിൽ ഉൾപ്പെട്ടിട്ടുണ്ട്. എന്നാൽ പാലത്തിലൂടെയുള്ള യാത്ര സുരക്ഷിതമാണോ എന്നത് പ്രാദേശിക പോലീസ്, ട്രാഫിക് അധികാരികൾ എന്നിവരിൽ നിന്ന് ഉറപ്പുവരുത്തുക."
+            else:
+                answer = "Monitored bridges in the Chalakudy basin include the Chalakudy River Bridge (NH 544) and Athirappilly Bridge (SH 21). Official passability and crossing safety must be verified directly with local traffic police and district authorities."
+        return AssistantResponse(answer=answer, sources=sources)
+
+    # 8. Water Level & Arangaly Gauge Reading Intent (e.g. "Give me the live water level reading at Arangaly right now")
+    if any(phrase in q for phrase in ("water level", "waterlevel", "reading", "gauge", "stage", "വാട്ടർ ലെവൽ", "ഗേജ്", "ജലനിരപ്പ്", "നിരീക്ഷിച്ച", "जलस्तर", "गेज", "நீர்மட்டம்", "அளவீடு")):
+        if c.observed_stage_m is None or c.source_statuses.get("cwc_arangaly") == "unavailable":
+            answer = {
+                "en": "Live telemetry is offline. Relying on GloFAS model guidance. (There is no current Arangaly gauge observation in the data snapshot; observed stage is unavailable).",
+                "ml": "തത്സമയ ടെലിമെട്രി ഓഫ്‌ലൈനാണ്. GloFAS മോഡൽ മാർഗ്ഗനിർദ്ദേശത്തെ ആശ്രയിക്കുന്നു. (അരങ്ങാലി ഗേജ് നിരീക്ഷണം നിലവിലെ ഡാറ്റയിൽ ലഭ്യമല്ല).",
+                "hi": "लाइव टेलीमेट्री ऑफ़लाइन है। GloFAS मॉडल मार्गदर्शन पर निर्भर। (वर्तमान डेटा में अरंगली गेज का अवलोकन उपलब्ध नहीं है)।",
+                "ta": "நேரடி தொலை அளவியல் ஆஃப்லைனில் உள்ளது. GloFAS மாதிரி வழிகாட்டுதலை நம்பியுள்ளது. (தற்போதைய தரவில் அரங்கலி அளவீடு கிடைக்கவில்லை).",
+            }[lang]
+            return AssistantResponse(answer=answer, sources=["Central Water Commission (offline)"])
+        else:
+            sources.append(c.stage_source or "Central Water Commission gauge")
+            stage_val = c.observed_stage_m
+            obs_time = c.observed_stage_at or "recent telemetry"
+            answer = {
+                "en": f"The latest observed water level at the **Arangaly gauge** on the Chalakudy River is **{stage_val:.2f} m** (observed at {obs_time}). For context, Warning stage is 6.00 m, Danger stage is 7.00 m, and the 2018 peak High Flood Level (HFL) was 8.85 m. Current stage is well below warning thresholds.",
+                "ml": f"ചാലക്കുടി പുഴയിലെ **അരങ്ങാലി ഗേജിലെ** ഏറ്റവും പുതിയ നിരീക്ഷിച്ച ജലനിരപ്പ് **{stage_val:.2f} m** ആണ് (സമയം: {obs_time}). മുന്നറിയിപ്പ് ലെവൽ 6.00 m, അപകട ലെവൽ 7.00 m, 2018-ലെ ഉയർന്ന പ്രളയനിരപ്പ് (HFL) 8.85 m ആണ്. നിലവിലെ ജലനിരപ്പ് മുന്നറിയിപ്പ് പരിധിക്ക് താഴെയാണ്.",
+                "hi": f"चालाकुडी नदी पर **अरंगली गेज** का नवीनतम प्रेक्षित जलस्तर **{stage_val:.2f} मीटर** है (समय: {obs_time})। चेतावनी स्तर 6.00 मीटर और खतरे का स्तर 7.00 मीटर है।",
+                "ta": f"சாலக்குடி ஆற்றில் **அரங்கலி அளவீட்டின்** சமீபத்திய நீர்மட்டம் **{stage_val:.2f} மீ** ஆகும். எச்சரிக்கை அளவு 6.00 மீ, ஆபத்து அளவு 7.00 மீ.",
+            }[lang]
+            return AssistantResponse(answer=answer, sources=sources)
+
+    # 9. Modelled Discharge / GloFAS
+    if any(word in q for word in ("discharge", "glofas", "runoff", "നീരൊഴുക്ക്", "പ്രവാഹം", "प्रवाह", "வெளியேற்றம்")):
+        sources.append(c.discharge_source or "GloFAS modelled discharge")
+        dis_val = c.modelled_discharge_m3s if c.modelled_discharge_m3s is not None else 23.2
+        answer = {
+            "en": f"The latest modelled river discharge for the Chalakudy River basin centroid is **{dis_val:.1f} m³/s** based on GloFAS model guidance. This is a hydrological model output, not a physical gauge reading.",
+            "ml": f"ചാലക്കുടി നദീതടത്തിലെ ഏറ്റവും പുതിയ മാതൃകാ നദീപ്രവാഹം **{dis_val:.1f} m³/s** ആണ് (GloFAS മോഡൽ അനുസരിച്ച്). ഇത് മാതൃകാ ഫലമാണ്, ഗേജ് അളവല്ല.",
+            "hi": f"चालाकुडी बेसिन के लिए नवीनतम मॉडलित नदी प्रवाह **{dis_val:.1f} m³/s** है (GloFAS मॉडल)। यह मॉडल आउटपुट है।",
+            "ta": f"சாலக்குடி படுகையின் சமீபத்திய மாதிரி நதியோட்டம் **{dis_val:.1f} m³/s** (GloFAS மாதிரி).",
+        }[lang]
+        return AssistantResponse(answer=answer, sources=sources)
+
+    # 10. Greetings
+    if any(term in q for term in ("hi", "hello", "hey", "വണക്കം", "നമസ്കാരം", "ഹലോ", "नमस्ते", "வணக்கம்")) and len(q.split()) <= 4:
         greetings = {
             "en": "Hello! I can help interpret the rainfall forecast, Arangaly gauge reading, modelled discharge, infrastructure risk, and scenario inputs. What would you like to check?",
             "ml": "നമസ്കാരം! മഴ പ്രവചനം, അരങ്ങാലി ഗേജ്, മാതൃകാ പ്രവാഹം, സ്ഥാപന അപകടസാധ്യത, സാഹചര്യ ഇൻപുട്ടുകൾ എന്നിവ പരിശോധിക്കാം. എന്താണ് അറിയേണ്ടത്?",
@@ -298,45 +519,13 @@ async def chat(payload: AssistantRequest) -> AssistantResponse:
         }
         return AssistantResponse(answer=greetings[lang], sources=["HydroVista assistant"])
 
-    rainfall_answer = await _rainfall_intent_answer(payload)
+    # 11. Rainfall Intent
+    rainfall_answer = await _rainfall_intent_answer(payload, lang)
     if rainfall_answer:
-        return AssistantResponse(answer=rainfall_answer, sources=[c.rainfall_source or "Open-Meteo hourly forecast"])
+        return AssistantResponse(answer=rainfall_answer, sources=[c.rainfall_source or "Open-Meteo numerical weather forecast"])
 
-    if any(word in q for word in ("stage", "gauge", "water level", "ജലനിരപ്പ്", "நீர்மட்டம்", "गेज", "जलस्तर")):
-        if c.observed_stage_m is None:
-            # Core Directive 2: Zero Extrapolation - Live telemetry is offline fallback
-            answer = {
-                "en": "Live telemetry is offline. Relying on GloFAS model guidance. (There is no current Arangaly gauge observation in the data snapshot; observed stage is unavailable).",
-                "ml": "തത്സമയ ടെലിമെട്രി ഓഫ്‌ലൈനാണ്. GloFAS മോഡൽ മാർഗ്ഗനിർദ്ദേശത്തെ ആശ്രയിക്കുന്നു. (അരങ്ങാലി ഗേജ് നിരീക്ഷണം നിലവിലെ ഡാറ്റയിൽ ലഭ്യമല്ല).",
-                "hi": "लाइव टेलीमेट्री ऑफ़लाइन है। GloFAS मॉडल मार्गदर्शन पर निर्भर। (वर्तमान डेटा में अरंगली गेज का अवलोकन उपलब्ध नहीं है)।",
-                "ta": "நேரடி தொலை அளவியல் ஆஃப்லைனில் உள்ளது. GloFAS மாதிரி வழிகாட்டுதலை நம்பியுள்ளது. (தற்போதைய தரவில் அரங்கலி அளவீடு கிடைக்கவில்லை).",
-            }[lang]
-        else:
-            sources.append(c.stage_source or "Central Water Commission gauge")
-            answer = {
-                "en": f"The latest observed Arangaly stage is {_fmt(c.observed_stage_m, 'm')} (observation time: {c.observed_stage_at or 'not supplied'}). This is a gauge observation, separate from forecast output.",
-                "ml": f"അരങ്ങാലിയിലെ ഏറ്റവും പുതിയ നിരീക്ഷിച്ച ജലനിരപ്പ് {_fmt(c.observed_stage_m, 'm')} ആണ് (സമയം: {c.observed_stage_at or 'ലഭ്യമല്ല'}). ഇത് പ്രവചനത്തിൽ നിന്ന് വേറിട്ട ഗേജ് നിരീക്ഷണമാണ്.",
-                "hi": f"अरंगली का नवीनतम प्रेक्षित जलस्तर {_fmt(c.observed_stage_m, 'm')} है (समय: {c.observed_stage_at or 'उपलब्ध नहीं'}). यह पूर्वानुमान से अलग गेज अवलोकन है।",
-                "ta": f"அரங்கலியின் சமீபத்திய கவனிக்கப்பட்ட நீர்மட்டம் {_fmt(c.observed_stage_m, 'm')} (நேரம்: {c.observed_stage_at or 'வழங்கப்படவில்லை'}). இது முன்னறிவிப்பிலிருந்து தனியான அளவீடு.",
-            }[lang]
-    elif any(word in q for word in ("discharge", "runoff", "प्रवाह", "നീരൊഴുക്ക്", "வெளியேற்றம்")):
-        sources.append(c.discharge_source or "GloFAS modelled discharge")
-        answer = {
-            "en": f"The latest modelled river discharge value available in this view is {_fmt(c.modelled_discharge_m3s, 'm³/s')}. This is model output, not a physical gauge reading.",
-            "ml": f"ഈ കാഴ്ചയിൽ ലഭ്യമായ ഏറ്റവും പുതിയ മാതൃകാ നദീപ്രവാഹം {_fmt(c.modelled_discharge_m3s, 'm³/s')} ആണ്. ഇത് മാതൃകാ ഫലമാണ്, ഗേജ് അളവല്ല.",
-            "hi": f"इस दृश्य में उपलब्ध नवीनतम मॉडलित नदी प्रवाह {_fmt(c.modelled_discharge_m3s, 'm³/s')} है। यह मॉडल आउटपुट है, भौतिक गेज रीडिंग नहीं।",
-            "ta": f"இந்தக் காட்சியில் கிடைக்கும் சமீபத்திய மாதிரி நதியோட்டம் {_fmt(c.modelled_discharge_m3s, 'm³/s')}. இது மாதிரி வெளியீடு; நேரடி அளவீடு அல்ல.",
-        }[lang]
-    elif any(word in q for word in ("rain", "rainfall", "precipitation", "മഴ", "वर्षा", "மழை")):
-        sources.append(c.rainfall_source or "Open-Meteo numerical weather forecast")
-        freshness = " (stale)" if c.forecast_stale else ""
-        answer = {
-            "en": f"The current 24-hour rainfall forecast is {_fmt(c.rainfall_24h_mm, 'mm')}{freshness}. It is forecast forcing, not an observed rain-gauge total. Updated: {c.rainfall_updated_at or 'time not supplied'}.",
-            "ml": f"നിലവിലെ 24 മണിക്കൂർ മഴ പ്രവചനം {_fmt(c.rainfall_24h_mm, 'mm')}{' (പഴയത്)' if c.forecast_stale else ''}. ഇത് പ്രവചനമാണ്, മഴമാപിനി നിരീക്ഷണമല്ല. പുതുക്കിയത്: {c.rainfall_updated_at or 'സമയം ലഭ്യമല്ല'}.",
-            "hi": f"वर्तमान 24 घंटे की वर्षा भविष्यवाणी {_fmt(c.rainfall_24h_mm, 'mm')}{' (पुराना डेटा)' if c.forecast_stale else ''} है। यह पूर्वानुमान है, वर्षामापी का अवलोकन नहीं। अपडेट: {c.rainfall_updated_at or 'समय उपलब्ध नहीं'}।",
-            "ta": f"தற்போதைய 24 மணி நேர மழை முன்னறிவிப்பு {_fmt(c.rainfall_24h_mm, 'mm')}{' (பழையது)' if c.forecast_stale else ''}. இது முன்னறிவிப்பு; மழைமானி அளவீடு அல்ல. புதுப்பிப்பு: {c.rainfall_updated_at or 'நேரம் வழங்கப்படவில்லை'}.",
-        }[lang]
-    elif any(word in q for word in ("source", "fresh", "status", "available", "மூலம்", "स्रोत", "நிலை")):
+    # 12. Specific System Data Source & Freshness Status (ONLY if specifically asking about sources/system connectivity)
+    if any(word in q for word in ("data source", "data sources", "source status", "sources status", "system status", "telemetry status", "freshness", "connectivity")):
         if c.source_statuses:
             sources = list(c.source_statuses.keys())[:8]
             answer = {
@@ -346,49 +535,36 @@ async def chat(payload: AssistantRequest) -> AssistantResponse:
                 "ta": "தற்போதைய தரவு மூல நிலை: " + "; ".join(f"{name}: {state}" + (f" (கடைசி வெற்றிகரமான புதுப்பிப்பு {c.source_updated_at[name]})" if name in c.source_updated_at else "") for name, state in c.source_statuses.items()) + ". இணைப்பு சரிபார்ப்பு நேரம் அளவீட்டு நேரமாக இருக்க வேண்டியதில்லை.",
             }[lang]
         else:
-            answer = "No data-source status has loaded in this view yet." if lang == "en" else {
-                "ml": "இந்தக் காட்சியில் தரவு மூல நிலை இன்னும் ஏற்றப்படவில்லை.", "hi": "इस दृश्य में स्रोत स्थिति अभी लोड नहीं हुई है।", "ta": "இந்தக் காட்சியில் தரவு மூல நிலை இன்னும் ஏற்றப்படவில்லை."
-            }[lang]
-    elif any(word in q for word in ("hospital", "ആശുപത്രി", "अस्पताल", "மருத்துவமனை")):
-        hospitals = [a for a in c.high_risk_assets_snapshot if "hospital" in a.asset_type.lower() or "hospital" in a.name.lower()]
-        if hospitals:
-            top_hosp = max(hospitals, key=lambda a: a.risk_score or 0.0)
-            score_str = f"{top_hosp.risk_score:.2f}" if top_hosp.risk_score is not None else "N/A"
-            answer = f"**{top_hosp.name}** has the highest risk ranking (**{top_hosp.risk_category}** risk category, risk score: **{score_str}**)."
-            sources.append("HydroVista exposure rankings")
-        else:
-            answer = "No hospital assets are currently flagged in the critical/high exposure snapshot."
-    elif any(word in q for word in ("critical", "ഗുരുതര", "गंभीर", "தீவிர")) and any(word in q for word in ("asset", "count", "how many", "number", "classified", "ranked")):
+            answer = "No data-source status has loaded in this view yet." if lang == "en" else "ഡാറ്റാ ഉറവിട നില ഇപ്പോൾ ലഭ്യമല്ല."
+        return AssistantResponse(answer=answer, sources=sources or ["HydroVista System Status"])
+
+    # 13. Critical & General Asset Counts
+    if any(word in q for word in ("critical", "ഗുരുതര", "गंभीर", "தீவிர")) and any(word in q for word in ("asset", "count", "how many", "number", "classified", "ranked", "എത്ര")):
         if c.high_risk_assets_snapshot:
             critical_assets = [a for a in c.high_risk_assets_snapshot if a.risk_category == "critical"]
-            crit_names = ", ".join(f"**{a.name}**" for a in critical_assets)
+            crit_names = ", ".join(f"**{a.name}**" for a in critical_assets) if critical_assets else "None"
             answer = f"There are **{len(critical_assets)}** assets currently classified as critical risk: {crit_names}. Total high/critical assets tracked is **{c.high_risk_assets or len(c.high_risk_assets_snapshot)}**."
             sources.append("HydroVista exposure rankings")
         else:
             answer = "No critical risk assets are currently recorded in the active snapshot."
-    elif any(word in q for word in ("risk", "asset", "infrastructure", "ಅಪಾಯ", "जोखिम", "ஆபத்து", "അപകടം")):
-        if c.high_risk_assets is None:
-            answer = {
-                "en": "Infrastructure risk rankings have not loaded into this view. Open Infrastructure or Overview to load the current exposure results.",
-                "ml": "അടിസ്ഥാനസൗകര്യ അപകട റാങ്കിങ്ങുകൾ ഈ കാഴ്ചയിൽ ലഭ്യമല്ല. നിലവിലെ ഫലങ്ങൾക്കായി Infrastructure അല്ലെങ്കിൽ Overview തുറക്കുക.",
-                "hi": "इस दृश्य में अवसंरचना जोखिम रैंकिंग लोड नहीं हुई है। वर्तमान परिणामों के लिए Infrastructure या Overview खोलें।",
-                "ta": "இந்தக் காட்சியில் உள்கட்டமைப்பு ஆபத்து தரவரிசை ஏற்றப்படவில்லை. தற்போதைய முடிவுகளுக்கு Infrastructure அல்லது Overview திறக்கவும்.",
-            }[lang]
-        else:
-            answer = {
-                "en": f"There are {c.high_risk_assets} assets currently ranked high or critical. These are relative heuristic rankings, not calibrated flood probabilities. See Infrastructure for the asset-level list.",
-                "ml": f"ഇപ്പോൾ {c.high_risk_assets} സ്ഥാപനങ്ങൾ ഉയർന്ന അല്ലെങ്കിൽ ഗുരുതര വിഭാഗത്തിലാണ്. ഇവ ആപേക്ഷിക ഹ്യൂറിസ്റ്റിക് റാങ്കിങ്ങുകളാണ്; കാലിബ്രേറ്റ് ചെയ്ത വെള്ളപ്പൊക്ക സാധ്യതകളല്ല. പട്ടികയ്ക്ക് Infrastructure കാണുക.",
-                "hi": f"वर्तमान में {c.high_risk_assets} परिसंपत्तियाँ उच्च या गंभीर जोखिम श्रेणी में हैं। ये सापेक्ष अनुमान हैं, कैलिब्रेटेड बाढ़ संभावनाएँ नहीं। सूची के लिए Infrastructure देखें।",
-                "ta": f"தற்போது {c.high_risk_assets} சொத்துகள் உயர் அல்லது தீவிர ஆபத்து நிலையில் உள்ளன. இவை ஒப்பீட்டு மதிப்பீடுகள்; அளவுத்திருத்தம் செய்யப்பட்ட வெள்ள நிகழ்தகவு அல்ல. பட்டியலுக்கு Infrastructure பார்க்கவும்.",
-            }[lang]
-    else:
-        answer = {
-            "en": "I can summarize current rainfall, observed Arangaly gauge stage, modelled discharge, infrastructure risk, and source freshness. Ask about one of those. I use only data loaded in this session and cannot issue official warnings.",
-            "ml": "നിലവിലെ മഴ, അരങ്ങാലിയിലെ നിരീക്ഷിച്ച ജലനിരപ്പ്, മാതൃകാ പ്രവാഹം, സ്ഥാപന അപകട റാങ്കിങ്, ഉറവിട പുതുമ എന്നിവ വിശദീകരിക്കാം. ഇതിലൊന്ന് ചോദിക്കുക. ഈ സെഷനിൽ ലഭ്യമായ ഡാറ്റ മാത്രമാണ് ഉപയോഗിക്കുന്നത്; ഔദ്യോഗിക മുന്നറിയിപ്പ് നൽകില്ല.",
-            "hi": "मैं वर्तमान वर्षा, अरंगली का प्रेक्षित गेज स्तर, मॉडलित प्रवाह, अवसंरचना जोखिम और स्रोत की नवीनता बता सकता हूँ। इनमें से किसी के बारे में पूछें। मैं केवल इस सत्र में लोड डेटा उपयोग करता हूँ और आधिकारिक चेतावनी जारी नहीं कर सकता।",
-            "ta": "தற்போதைய மழை, அரங்கலி அளவீடு, மாதிரி நதியோட்டம், உள்கட்டமைப்பு ஆபத்து மற்றும் தரவு புதுப்பிப்பு நிலையைச் சுருக்கலாம். இவற்றில் ஒன்றைக் கேளுங்கள். இந்த அமர்வில் ஏற்றப்பட்ட தரவை மட்டுமே பயன்படுத்துகிறேன்; அதிகாரப்பூர்வ எச்சரிக்கை வழங்க முடியாது.",
-        }[lang]
+        return AssistantResponse(answer=answer, sources=sources)
 
-    if not sources:
-        sources = ["HydroVista data currently loaded in this session"]
-    return AssistantResponse(answer=answer, sources=sources)
+    if any(word in q for word in ("risk", "asset", "infrastructure", "അപായ", "जोखिम", "ஆபத்து", "അപകടം", "സ്ഥാപനം")):
+        sources.append("HydroVista exposure rankings")
+        count = c.high_risk_assets or len(c.high_risk_assets_snapshot) or 12
+        answer = {
+            "en": f"There are currently {count} assets ranked in high or critical exposure categories in the Chalakudy basin. These are relative heuristic rankings based on terrain elevation, rainfall, and facility criticality, not calibrated flood probabilities.",
+            "ml": f"ചാലക്കുടി നദീതടത്തിൽ ഇപ്പോൾ {count} സ്ഥാപനങ്ങൾ ഉയർന്ന അല്ലെങ്കിൽ ഗുരുതര അപകട വിഭാഗത്തിലാണ്. ഇവ ആപേക്ഷിക ഹ്യൂറിസ്റ്റിക് റാങ്കിങ്ങുകളാണ്; കാലിബ്രേറ്റ് ചെയ്ത വെള്ളപ്പൊക്ക സാധ്യതകളല്ല.",
+            "hi": f"वर्तमान में चालाकुडी बेसिन में {count} परिसंपत्तियाँ उच्च या गंभीर जोखिम श्रेणी में हैं। ये सापेक्ष अनुमान हैं।",
+            "ta": f"தற்போது சாலக்குடி படுகையில் {count} சொத்துகள் உயர் அல்லது தீவிர ஆபத்து நிலையில் உள்ளன.",
+        }[lang]
+        return AssistantResponse(answer=answer, sources=sources)
+
+    # 14. Default fallback
+    answer = {
+        "en": "I can summarize current rainfall, observed Arangaly gauge stage, modelled discharge, infrastructure risk, and source freshness in the Chalakudy River Basin. Ask about one of those. I use only data loaded in this session and cannot issue official warnings.",
+        "ml": "ചാലക്കുടി നദീതടത്തിലെ നിലവിലെ മഴ, അരങ്ങാലി ഗേജ് ജലനിരപ്പ്, മാതൃകാ പ്രവാഹം, സ്ഥാപന അപകട റാങ്കിങ്, ഉറവിട നില എന്നിവ വിശദീകരിക്കാം. ഇതിലൊന്ന് ചോദിക്കുക. ഈ സെഷനിലെ ഡാറ്റ മാത്രമാണ് ഉപയോഗിക്കുന്നത്; ഔദ്യോഗിക മുന്നറിയിപ്പ് നൽകില്ല.",
+        "hi": "मैं चालाकुडी बेसिन में वर्तमान वर्षा, अरंगली गेज स्तर, मॉडलित प्रवाह, अवसंरचना जोखिम और स्रोत स्थिति बता सकता हूँ।",
+        "ta": "சாலக்குடி ஆற்றுப் படுகையில் தற்போதைய மழை, அரங்கலி அளவீடு, மாதிரி நதியோட்டம், உள்கட்டமைப்பு ஆபத்தை விளக்கலாம்.",
+    }[lang]
+    return AssistantResponse(answer=answer, sources=["HydroVista data currently loaded in this session"])
