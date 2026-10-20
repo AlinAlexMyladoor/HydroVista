@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str | None = None
     ANTHROPIC_API_KEY: str | None = None
 
+
     # ─── Optional – Copernicus / ESA ──────────────────────────────────────────
     CDSE_CLIENT_ID: str | None = None      # backend-only OAuth client (never exposed to the browser)
     CDSE_CLIENT_SECRET: str | None = None
@@ -90,3 +91,14 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
+
+
+HYDROVISTA_SYSTEM_PROMPT = """You are the HydroVista Assistant, an elite disaster-intelligence copilot for the Chalakudy and Periyar river basins.
+
+CORE DIRECTIVES:
+1. STRICT GROUNDING: Answer EXCLUSIVELY using the JSON context payload provided. Do not use external knowledge.
+2. ZERO EXTRAPOLATION: If data (like CWC Arangaly gauge readings) is missing or "Unavailable", state: "Live telemetry is offline. Relying on GloFAS model guidance."
+3. EFFICIENCY: Deliver concise, high-scannability briefings. Use bullet points and bold text for critical assets and metrics. No conversational filler.
+4. INTENT MAPPING: Silently correct user typos or slang (e.g., "tmr rian") and map them to the relevant precipitation or risk metrics.
+5. SAFETY BOUNDARIES: You provide analytical guidance only. Explicitly state you cannot issue official government warnings or evacuation orders.
+"""
