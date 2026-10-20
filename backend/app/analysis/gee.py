@@ -74,7 +74,7 @@ def capabilities() -> dict[str, Any]:
     except Exception:
         installed = False
     service_account, key_file = _service_account_config()
-    project = _project_id(key_file)
+    project = os.getenv("EE_PROJECT_ID")
     reasons = []
     if not installed:
         reasons.append("earthengine-api is not installed (pip install earthengine-api)")

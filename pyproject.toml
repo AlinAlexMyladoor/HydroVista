@@ -13,5 +13,6 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+pythonpath = [".", "backend"]
 testpaths = ["tests", "backend/tests", "geospatial"]
 addopts = "-v --tb=short"
