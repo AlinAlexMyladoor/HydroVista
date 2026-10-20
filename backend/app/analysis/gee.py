@@ -73,8 +73,7 @@ def capabilities() -> dict[str, Any]:
         installed = True
     except Exception:
         installed = False
-    service_account, key_file = _service_account_config()
-    project = os.getenv("EE_PROJECT_ID")
+    service_account, key_file, project = _discover_credentials()
     reasons = []
     if not installed:
         reasons.append("earthengine-api is not installed (pip install earthengine-api)")
@@ -108,6 +107,14 @@ def _discover_credentials() -> tuple[str | None, str, str | None]:
     sa_email = os.getenv("EE_SERVICE_ACCOUNT")
     proj_id = os.getenv("EE_PROJECT_ID")
     explicit_file = os.getenv("EE_PRIVATE_KEY_FILE")
+    try:
+        from app.core.config import settings
+
+        sa_email = sa_email or settings.EE_SERVICE_ACCOUNT
+        proj_id = proj_id or settings.EE_PROJECT_ID
+        explicit_file = explicit_file or settings.EE_PRIVATE_KEY_FILE
+    except Exception:
+        pass
 
     # 1. Base64 environment variable (Render / Cloud deployment standard)
     b64_content = os.getenv("EE_SERVICE_ACCOUNT_B64") or os.getenv("GEE_KEY_B64")

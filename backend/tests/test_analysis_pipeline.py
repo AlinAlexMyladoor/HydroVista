@@ -1,5 +1,6 @@
 """Pipeline tests. Synthetic data below exists ONLY to exercise code paths; it never feeds the app."""
 import json
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
@@ -115,6 +116,16 @@ BODY = dict(west=76.2, south=10.15, east=76.55, north=10.45, pre_start="2018-07-
 
 def test_api_validation_errors_are_structured_and_unconfigured_ee_is_503(monkeypatch):
     monkeypatch.delenv("EE_PROJECT_ID", raising=False)
+    monkeypatch.delenv("EE_SERVICE_ACCOUNT", raising=False)
+    monkeypatch.delenv("EE_SERVICE_ACCOUNT_B64", raising=False)
+    monkeypatch.delenv("EE_SERVICE_ACCOUNT_JSON", raising=False)
+    monkeypatch.delenv("GEE_KEY_B64", raising=False)
+    monkeypatch.delenv("GEE_KEY_JSON", raising=False)
+    monkeypatch.setattr("app.analysis.gee.DEFAULT_KEY_FILE", Path("/nonexistent/gee-key.json"))
+    monkeypatch.setenv("EE_PRIVATE_KEY_FILE", "/nonexistent/gee-key.json")
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "EE_PROJECT_ID", None)
+    monkeypatch.setattr(settings, "EE_SERVICE_ACCOUNT", None)
     c = TestClient(app)
     bad = c.post("/api/v1/analysis/runs", json={**BODY, "west": 77.0})
     assert bad.status_code == 422 and bad.json()["detail"]["errors"]
