@@ -118,7 +118,15 @@ function VoiceWave() {
 
 /* ─── Component ──────────────────────────────────────────────────────────── */
 export function AssistantChat() {
-  const { language, assistantOpen: open, setAssistantOpen: setOpen, analysisDrawerOpen } = useStore();
+  const {
+    language,
+    assistantOpen: open,
+    setAssistantOpen: setOpen,
+    analysisDrawerOpen,
+    activeScenario,
+    scenarioRainfall,
+    scenarioDuration,
+  } = useStore();
   const words = copy[language];
 
   /* UI state */
@@ -214,17 +222,28 @@ export function AssistantChat() {
         (p) => p.river_discharge_m3s != null,
       )?.river_discharge_m3s,
       discharge_source: discharge?.source || "GloFAS modelled discharge",
-      high_risk_assets: highRisk,
+      scenario_rainfall_mm: scenarioRainfall,
+      scenario_duration_hours: scenarioDuration,
+      active_scenario_impact: activeScenario
+        ? {
+            severe_risk_count: activeScenario.summary.scenario_high_critical_count,
+            net_change: activeScenario.summary.delta_high_critical,
+            escalated_count: activeScenario.summary.escalated_count,
+            rainfall_mm: activeScenario.rainfall_mm,
+            duration_hours: activeScenario.duration_hours,
+          }
+        : null,
       high_risk_assets_snapshot: (exposure?.items || []).slice(0, 30).map((item) => ({
         name: item.asset_name || `${item.asset_type}`,
         asset_type: item.asset_type,
         risk_category: item.risk_category as "low" | "medium" | "high" | "critical",
         risk_score: item.risk_score,
+        elevation: item.terrain_elevation_m ?? null,
       })),
       source_statuses: sourceStatuses,
       source_updated_at: sourceUpdatedAt,
     };
-  }, [forecast, stage, discharge, exposure, status]);
+  }, [forecast, stage, discharge, exposure, status, activeScenario, scenarioRainfall, scenarioDuration]);
 
   /* ── TTS: speak a message ── */
   const speak = useCallback(

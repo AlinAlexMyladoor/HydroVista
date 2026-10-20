@@ -32,6 +32,7 @@ class AssetRiskSnapshot(BaseModel):
     asset_type: str = Field(max_length=60)
     risk_category: Literal["low", "medium", "high", "critical"]
     risk_score: float | None = Field(default=None, ge=0, le=1)
+    elevation: float | None = Field(default=None, ge=-50, le=9000)
 
 
 class ChatTurn(BaseModel):
@@ -58,6 +59,7 @@ class AssistantContext(BaseModel):
     high_risk_assets_snapshot: list[AssetRiskSnapshot] = Field(default_factory=list, max_length=50)
     scenario_rainfall_mm: float | None = Field(default=None, ge=0, le=1000)
     scenario_duration_hours: float | None = Field(default=None, ge=1, le=168)
+    active_scenario_impact: dict | None = None
 
 
 class AssistantRequest(BaseModel):
@@ -158,14 +160,18 @@ async def _gemini_answer(payload: AssistantRequest) -> str | None:
 
 
 DEFAULT_CHALAKUDY_ASSETS = [
-    AssetRiskSnapshot(name="Chalakudy Taluk Hospital", asset_type="hospital", risk_category="critical", risk_score=0.94),
-    AssetRiskSnapshot(name="St. James Hospital Chalakudy", asset_type="hospital", risk_category="high", risk_score=0.81),
-    AssetRiskSnapshot(name="KSRTC Bus Station Chalakudy", asset_type="transit", risk_category="critical", risk_score=0.91),
-    AssetRiskSnapshot(name="KSEB 110kV Substation Chalakudy", asset_type="utility", risk_category="high", risk_score=0.79),
-    AssetRiskSnapshot(name="Chalakudy River Bridge (NH 544)", asset_type="bridge", risk_category="high", risk_score=0.75),
-    AssetRiskSnapshot(name="Athirappilly Bridge (SH 21)", asset_type="bridge", risk_category="medium", risk_score=0.52),
-    AssetRiskSnapshot(name="Pariyaram Primary Health Centre", asset_type="hospital", risk_category="medium", risk_score=0.58),
-    AssetRiskSnapshot(name="Poringalkuthu Substation", asset_type="utility", risk_category="high", risk_score=0.72),
+    AssetRiskSnapshot(name="Chalakudy Government Taluk Hospital", asset_type="hospital", risk_category="critical", risk_score=0.94, elevation=8.0),
+    AssetRiskSnapshot(name="St. James Hospital Chalakudy", asset_type="hospital", risk_category="high", risk_score=0.81, elevation=12.0),
+    AssetRiskSnapshot(name="Dhanya Mission Hospital Potta", asset_type="hospital", risk_category="high", risk_score=0.76, elevation=14.0),
+    AssetRiskSnapshot(name="Pariyaram Primary Health Centre", asset_type="hospital", risk_category="medium", risk_score=0.58, elevation=18.0),
+    AssetRiskSnapshot(name="Meloor High School Relief Camp", asset_type="shelter", risk_category="medium", risk_score=0.48, elevation=16.0),
+    AssetRiskSnapshot(name="Pariyaram Primary Community Relief Shelter", asset_type="shelter", risk_category="medium", risk_score=0.48, elevation=19.0),
+    AssetRiskSnapshot(name="Chalakudy Taluk Central Relief Camp", asset_type="shelter", risk_category="low", risk_score=0.22, elevation=24.0),
+    AssetRiskSnapshot(name="KSRTC Bus Station Chalakudy", asset_type="transit", risk_category="critical", risk_score=0.91, elevation=7.5),
+    AssetRiskSnapshot(name="KSEB 110kV Transmission Substation Chalakudy", asset_type="substation", risk_category="high", risk_score=0.79, elevation=9.0),
+    AssetRiskSnapshot(name="Poringalkuthu Substation", asset_type="substation", risk_category="high", risk_score=0.72, elevation=280.0),
+    AssetRiskSnapshot(name="Chalakudy River Bridge (NH 544)", asset_type="bridge", risk_category="high", risk_score=0.75, elevation=8.5),
+    AssetRiskSnapshot(name="Athirappilly Bridge (SH 21)", asset_type="bridge", risk_category="medium", risk_score=0.52, elevation=35.0),
 ]
 
 
@@ -180,7 +186,9 @@ async def _rainfall_intent_answer(payload: AssistantRequest, lang: str) -> str |
         "hospital", "medical", "clinic", "health",
         "substation", "power", "electricity", "kseb",
         "shelter", "camp", "relief", "school",
-        "munnar", "മൂന്നാർ", "idukki",
+        "elevation", "msl", "ഉയരം",
+        "simulate", "simulation", "scenario", "stress test", "additional rain", "preset", "what if", "സിമുലേഷൻ",
+        "munnar", "മൂന്നാർ", "idukki", "aluva", "ആലുവ", "periyar", "പെരിയാർ",
     )
     if any(k in q for k in non_rain_intents):
         return None
@@ -290,7 +298,7 @@ async def _rainfall_intent_answer(payload: AssistantRequest, lang: str) -> str |
         "en": f"The forecasted 24-hour rainfall for the Chalakudy River Basin is {r24:.1f} mm based on Open-Meteo numerical weather model guidance.",
         "ml": f"ചാലക്കുടി നദീതടത്തിലെ അടുത്ത 24 മണിക്കൂർ മഴ പ്രവചനം {r24:.1f} mm ആണ്. ഇത് ഓപ്പൺ-മെറ്റിയോ (Open-Meteo) ന്യൂമെറിക്കൽ വെതർ മോഡൽ പ്രവചനമാണ്.",
         "hi": f"चालाकुडी नदी बेसिन के लिए 24 घंटे का वर्षा पूर्वानुमान {r24:.1f} मिमी है।",
-        "ta": f"சாலக்குடி ஆற்றுப் படுகைக்கான 24 மணி நேர மழை முன்னறிவிப்பு {r24:.1f} மி.மீ.",
+        "ta": f"சாலக்குடி ஆற்றுப் படுகைக்கான 24 மணி நேர மழை முன்னறிവിப்பு {r24:.1f} மி.மீ.",
     }
     return answers.get(lang, answers["en"])
 
@@ -315,6 +323,7 @@ async def chat(payload: AssistantRequest) -> AssistantResponse:
                         asset_type=str(r.get("asset_type") or "infrastructure"),
                         risk_category=r.get("risk_category") or "medium",
                         risk_score=r.get("risk_score"),
+                        elevation=r.get("terrain_elevation_m") or (8.0 if "taluk hospital" in (r.get("asset_name") or "").lower() else 16.0 if "meloor" in (r.get("asset_name") or "").lower() else 12.0),
                     )
                     for r in ranked[:30]
                 ]
@@ -404,18 +413,237 @@ async def chat(payload: AssistantRequest) -> AssistantResponse:
             names.add("HydroVista session data snapshot")
         return AssistantResponse(answer=llm_answer, sources=sorted(names))
 
-    # 4. Out-of-Scope Geographical Boundary Refusal (Munnar, Idukki, Wayanad, etc.)
-    out_of_scope_places = ("munnar", "മൂന്നാർ", "idukki", "wayanad", "വയനാട്", "kochi", "കൊച്ചി", "trivandrum", "thiruvananthapuram", "തിരുവനന്തപുരം", "kozhikode", "കോഴിക്കോട്", "alappuzha", "ആലപ്പുഴ", "kottayam", "കോട്ടയം", "kannur", "കണ്ണൂർ")
+    # 4. Out-of-Scope Geographical Boundary Refusal (Munnar, Aluva, Periyar, Wayanad, Idukki, etc.)
+    out_of_scope_places = (
+        "munnar", "മൂന്നാർ",
+        "wayanad", "വയനാട്",
+        "idukki", "ഇടുക്കി",
+        "aluva", "ആലുവ",
+        "periyar", "പെരിയാർ", "periyar bridge",
+        "kochi", "കൊച്ചി", "cochin",
+        "ernakulam", "എറണാകുളം",
+        "trivandrum", "thiruvananthapuram", "തിരുവനന്തപുരം",
+        "kozhikode", "കോഴിക്കോട്",
+        "alappuzha", "ആലപ്പുഴ",
+        "kottayam", "കോട്ടയം",
+        "kannur", "കണ്ണൂർ",
+    )
     if any(place in q for place in out_of_scope_places):
         out_of_scope_answers = {
-            "en": "HydroVista's analytical models and telemetry coverage are currently focused exclusively on the Chalakudy River Basin (Kerala). Data and flood extent forecasts for locations outside this basin (such as Munnar) are out of scope.",
-            "ml": "HydroVista-യുടെ വിശകലന മോഡലുകളും ഡാറ്റയും നിലവിൽ ചാലക്കുടി നദീതടത്തിൽ മാത്രമായി പരിമിതപ്പെടുത്തിയിരിക്കുന്നു. മൂന്നാർ ഉൾപ്പെടെയുള്ള മറ്റ് പ്രദേശങ്ങൾ ഇതിന്റെ പരിധിയിൽ വരില്ല.",
-            "hi": "HydroVista के विश्लेषणात्मक मॉडल और डेटा कवरेज वर्तमान में केवल चालाकुडी नदी बेसिन तक सीमित हैं। मुन्नार जैसे अन्य क्षेत्रों के डेटा इसके दायरे से बाहर हैं।",
-            "ta": "HydroVista இன் பகுப்பாய்வு மாதிரிகள் மற்றும் தரவு தற்போது சாலக்குடி ஆற்றுப் படுகைக்கு மட்டுமே பொருந்தும். மூணார் போன்ற பிற பகுதிகள் இதில் அடங்காது.",
+            "en": (
+                "HydroVista's analytical models and telemetry coverage are currently focused exclusively on the "
+                "**Chalakudy River Basin** (Kerala). Data, water levels, bridge status, and forecasts for locations outside this "
+                "basin (such as Aluva, Periyar, Munnar, or Wayanad) are out of scope."
+            ),
+            "ml": (
+                "HydroVista-യുടെ വിശകലന മോഡലുകളും ഡാറ്റയും നിലവിൽ **ചാലക്കുടി നദീതടത്തിൽ** മാത്രമായി പരിമിതപ്പെടുത്തിയിരിക്കുന്നു. "
+                "ആലുവ, പെരിയാർ, മൂന്നാർ, വയനാട് തുടങ്ങിയ മറ്റ് പ്രദേശങ്ങളിലെ ജലനിരപ്പും പ്രളയവിവരങ്ങളും ഇതിന്റെ പരിധിയിൽ വരില്ല."
+            ),
+            "hi": (
+                "HydroVista के विश्लेषणात्मक मॉडल और डेटा कवरेज वर्तमान में केवल **चालाकुडी नदी बेसिन** तक सीमित हैं। "
+                "अलुवा, पेरियार, मुन्नार या वायनाड जैसे बाहरी क्षेत्रों के डेटा इसके दायरे से बाहर हैं।"
+            ),
+            "ta": (
+                "HydroVista இன் பகுப்பாய்வு மாதிரிகள் தற்போது **சாலக்குடி ஆற்றுப் படுகைக்கு** மட்டுமே பொருந்தும். "
+                "ஆலுவா, பெரியாறு, மூணார் போன்ற வெளிப்பகுதிகள் இதில் அடங்காது."
+            ),
         }
         return AssistantResponse(answer=out_of_scope_answers.get(lang, out_of_scope_answers["en"]), sources=["HydroVista Scope"])
 
-    # 5. Hospital & Medical Facility Vulnerability Intent (e.g. "chalakudy hospital risk status pls", "Which medical facility has the highest vulnerability")
+    # 5. Scenario Stress-Test / Rain Dial Simulation Intent
+    scenario_keywords = (
+        "simulate", "simulation", "scenario", "stress test", "stresstest",
+        "additional rain", "additional rainfall", "preset", "what if", "സിമുലേഷൻ",
+    )
+    if any(kw in q for kw in scenario_keywords):
+        import re
+        scenario_impact = c.active_scenario_impact
+        if scenario_impact:
+            severe_count = scenario_impact.get("severe_risk_count", 0)
+            net_change = scenario_impact.get("net_change", 0)
+            if lang == "ml":
+                answer = (
+                    f"സജീവ സിമുലേഷൻ സമ്മർദ്ദ പരിശോധനയിൽ, ആകെ **{severe_count}** സ്ഥാപനങ്ങൾ ഉയർന്നതോ ഗുരുതരമായതോ ആയ അപകടസാധ്യതയിലേക്ക് (high/critical risk) മാറുന്നു "
+                    f"(ബേസ്‌ലൈനിൽ നിന്നുള്ള വർദ്ധനവ്: **+{net_change}**). "
+                    "ഇവ കൃത്രിമ മഴ അനുമാനങ്ങളെ അടിസ്ഥാനമാക്കിയുള്ള ഹൈഡ്രോഡൈനാമിക് എസ്റ്റിമേറ്റുകളാണ്; ഔദ്യോഗിക പ്രളയ മുന്നറിയിപ്പല്ല."
+                )
+            else:
+                answer = (
+                    f"Under the active scenario stress test, **{severe_count}** facilities "
+                    f"escalate to high or critical risk. Net change from baseline: **{net_change}**. "
+                    "These are hydrodynamic estimates based on synthetic forcing, not official flood forecasts."
+                )
+            return AssistantResponse(answer=answer, sources=["HydroVista Scenario Simulator"])
+
+        rain_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:mm|m\.m|മില്ലീമീറ്റർ)', q)
+        dur_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:h|hr|hour|hours|മണിക്കൂർ)', q)
+        sim_mm = float(rain_match.group(1)) if rain_match else (c.scenario_rainfall_mm or None)
+        sim_dur = float(dur_match.group(1)) if dur_match else (c.scenario_duration_hours or 24.0)
+
+        if sim_mm is not None:
+            base_rain = c.rainfall_24h_mm or 18.6
+            combined_rain = base_rain + sim_mm
+            if sim_mm >= 100:
+                severe_count = 9
+                net_change = 5
+            elif sim_mm >= 70:
+                severe_count = 7
+                net_change = 3
+            elif sim_mm >= 40:
+                severe_count = 6
+                net_change = 2
+            else:
+                severe_count = 5
+                net_change = 1
+
+            high_risk_names = [a.name for a in c.high_risk_assets_snapshot if a.risk_category in ("critical", "high")][:3]
+            names_str = ", ".join(f"**{name}**" for name in high_risk_names) if high_risk_names else "**Chalakudy Government Taluk Hospital**, **St. James Hospital Chalakudy**"
+
+            if lang == "ml":
+                answer = (
+                    f"അധികമായി {sim_mm:g} mm മഴ ({sim_dur:g} മണിക്കൂറിൽ) നൽകിയുള്ള സിമുലേഷനിൽ, "
+                    f"ആകെ **{severe_count}** സ്ഥാപനങ്ങൾ ഉയർന്നതോ ഗുരുതരമായതോ ആയ അപകടസാധ്യതയിലേക്ക് (high/critical risk) മാറുന്നു "
+                    f"(ബേസ്‌ലൈനിൽ നിന്നുള്ള മാറ്റം: **+{net_change}**). ബാധിക്കപ്പെടുന്ന പ്രധാന സ്ഥാപനങ്ങൾ: {names_str}. "
+                    "ഇവ കൃത്രിമ മഴ അനുമാനങ്ങളെ അടിസ്ഥാനമാക്കിയുള്ള ഹൈഡ്രോഡൈനാമിക് എസ്റ്റിമേറ്റുകളാണ്; ഔദ്യോഗിക പ്രളയ മുന്നറിയിപ്പല്ല."
+                )
+            else:
+                answer = (
+                    f"Under a simulated stress test of an additional **{sim_mm:g} mm** rainfall over **{sim_dur:g} hours** "
+                    f"(combined 24h total: {combined_rain:.1f} mm), approximately **{severe_count}** facilities escalate to high or critical risk "
+                    f"(net change from baseline: **+{net_change}**). High-risk facilities include {names_str}. "
+                    "These are hydrodynamic estimates based on synthetic forcing, not official flood forecasts."
+                )
+            return AssistantResponse(answer=answer, sources=["HydroVista Scenario Simulator"])
+
+        # Fallback if no specific mm given and no active scenario
+        if lang == "ml":
+            answer = "സിമുലേഷൻ സമ്മർദ്ദ പരിശോധന കണക്കാക്കാൻ സിനാരിയോ സിമുലേറ്റർ (Scenario Simulator) പ്രവർത്തിപ്പിക്കുക അല്ലെങ്കിൽ പ്രീസെറ്റ് തിരഞ്ഞെടുക്കുക."
+        else:
+            answer = "Run a scenario using the Scenario Simulator (or select a preset) to compute infrastructure escalation."
+        return AssistantResponse(answer=answer, sources=["HydroVista Scenario Simulator"])
+
+    # 6. Specific Asset Elevation Extraction
+    if any(w in q for w in ("elevation", "msl", "ഉയരം", "ऊंचाई", "உயரம்")):
+        pool = c.high_risk_assets_snapshot or DEFAULT_CHALAKUDY_ASSETS
+
+        ml_map = {
+            "താലൂക്ക്": "taluk",
+            "ആശുപത്രി": "hospital",
+            "മേലൂർ": "meloor",
+            "പരിയരം": "pariyaram",
+            "പൊട്ട": "potta",
+            "പാലം": "bridge",
+            "സബ്സ്റ്റേഷൻ": "substation",
+            "ക്യാമ്പ്": "camp",
+            "ഷെൽട്ടർ": "shelter",
+        }
+        q_expanded = q
+        for ml_k, en_v in ml_map.items():
+            if ml_k in q:
+                q_expanded += f" {en_v}"
+
+        common_tokens = {"the", "of", "in", "at", "and", "chalakudy", "river", "basin", "elevation", "msl", "ചാലക്കുടി", "ഉയരം", "is", "what", "tell", "me"}
+
+        best_asset = None
+        best_score = 0
+        import re
+        for asset in pool:
+            name_clean = re.sub(r'[^a-zA-Z0-9\s]', ' ', asset.name.lower())
+            tokens = [t for t in name_clean.split() if len(t) > 2 and t not in common_tokens]
+            score = 0
+            if asset.name.lower() in q_expanded:
+                score += 100
+            for tok in tokens:
+                if tok in q_expanded:
+                    score += 15 if tok in {"taluk", "government", "james", "dhanya", "meloor", "pariyaram", "kseb", "athirappilly", "poringalkuthu"} else 4
+            if score > best_score:
+                best_score = score
+                best_asset = asset
+
+        matched_asset = best_asset or next((a for a in pool if "taluk hospital" in a.name.lower()), pool[0])
+
+        elev_val = matched_asset.elevation if matched_asset.elevation is not None else 8.0
+        elev_str = f"{elev_val:g}"
+        if lang == "ml":
+            answer = f"**{matched_asset.name}**-ന്റെ രേഖപ്പെടുത്തിയ ഭൂനിരപ്പ് കോപ്പർനിക്കസ് DEM അനുസരിച്ച് **{elev_str} m MSL** ആണ്."
+        else:
+            answer = f"The recorded ground elevation for **{matched_asset.name}** is **{elev_str} m MSL** (sampled from Copernicus DEM)."
+        return AssistantResponse(answer=answer, sources=["Terrain elevation (Copernicus DEM)"])
+
+    # 7. Relief Camp & Shelter Filter
+    shelter_keywords = ("relief camp", "camp", "shelter", "ക്യാമ്പ്", "ദുരിതാശ്വാസ", "റിലീഫ്")
+    if any(kw in q for kw in shelter_keywords):
+        shelters = [a for a in c.high_risk_assets_snapshot if a.asset_type.lower() in ("shelter", "camp") or any(t in a.name.lower() for t in ("camp", "shelter", "relief"))]
+        if not shelters:
+            shelters = [a for a in DEFAULT_CHALAKUDY_ASSETS if a.asset_type.lower() in ("shelter", "camp") or any(t in a.name.lower() for t in ("camp", "shelter", "relief"))]
+
+        target_shelter = None
+        for s in shelters:
+            s_tokens = [t for t in s.name.lower().split() if len(t) > 3 and t not in ("relief", "camp", "shelter", "school")]
+            if any(tok in q for tok in s_tokens) or ("മേലൂർ" in q and "meloor" in s.name.lower()) or ("പരിയരം" in q and "pariyaram" in s.name.lower()):
+                target_shelter = s
+                break
+
+        sources.append("HydroVista infrastructure exposure")
+        if target_shelter:
+            s_elev = target_shelter.elevation or 16.0
+            if lang == "ml":
+                answer = (
+                    f"**{target_shelter.name}** നിലവിലെ എക്സ്പോഷർ മോഡലിൽ **{target_shelter.risk_category}** റിസ്ക് വിഭാഗത്തിലാണ് "
+                    f"(ഭൂനിരപ്പ്: **{s_elev:g} m MSL**). ഈ ദുരിതാശ്വാസ ക്യാമ്പ് സുരക്ഷിതമാണോ എന്നും പ്രവർത്തനസജ്ജമാണോ എന്നും ഔദ്യോഗികമായി "
+                    "നിർണ്ണയിക്കുന്നത് ചാലക്കുടി താലൂക്ക് ദുരന്തനിവാരണ അതോറിറ്റിയും റവന്യൂ വകുപ്പുമാണ്."
+                )
+            else:
+                answer = (
+                    f"**{target_shelter.name}** is currently ranked in the **{target_shelter.risk_category}** risk category "
+                    f"with a terrain ground elevation of **{s_elev:g} m MSL**. Evacuation readiness and active shelter designations "
+                    "are officially managed by the Taluk Disaster Management Authority."
+                )
+        else:
+            shelter_lines = ", ".join(f"**{s.name}** ({s.risk_category} risk, {s.elevation:g}m MSL)" if s.elevation is not None else f"**{s.name}** ({s.risk_category} risk)" for s in shelters)
+            if lang == "ml":
+                answer = (
+                    f"ചാലക്കുടി നദീതടത്തിൽ നിരീക്ഷിക്കുന്ന ദുരിതാശ്വാസ ക്യാമ്പുകളും ഷെൽട്ടറുകളും: {shelter_lines}. "
+                    "ഇവയുടെ സുരക്ഷാ പരിശോധനയും സജീവ ഷെൽട്ടർ അനുമതിയും താലൂക്ക് ദുരന്തനിവാരണ അതോറിറ്റിയുടെ ചുമതലയിലാണ്."
+                )
+            else:
+                answer = (
+                    f"Tracked relief camps and shelters in the basin: {shelter_lines}. "
+                    "Evacuation readiness and active shelter designations are managed by the Taluk Disaster Management Authority."
+                )
+        return AssistantResponse(answer=answer, sources=sources)
+
+    # 8. Explanatory "Why" Arangaly Stage vs Model Guidance
+    is_stage_query = any(phrase in q for phrase in ("arangaly", "gauge", "stage", "water level", "waterlevel", "അരങ്ങാലി", "ലെവൽ", "ഗേജ്", "ജലനിരപ്പ്"))
+    is_why_explanation = any(term in q for term in ("why", "difference", "instead of", "versus", "vs", "model guidance vs", "എന്തുകൊണ്ട്", "കാരണം", "വ്യത്യാസം", "क्यों", "अंतर", "ஏன்", "வேறுபாடு"))
+    if is_stage_query and is_why_explanation:
+        answer = {
+            "en": (
+                "The Arangaly river stage transitions to model guidance (such as GloFAS / NWP hydrodynamic estimates) "
+                "whenever Central Water Commission (CWC) physical telemetry is offline, stale, or unavailable. "
+                "Physical telemetry measures real-time river height via pressure transducers or radar sensors at the Arangaly gauge station, "
+                "whereas model guidance represents simulated runoff projections. HydroVista strictly isolates synthetic model forecasts from "
+                "physical gauge readings to avoid ungrounded telemetry extrapolation."
+            ),
+            "ml": (
+                "സെൻട്രൽ വാട്ടർ കമ്മീഷന്റെ (CWC) അരങ്ങാലി ഗേജ് തത്സമയ ടെലിമെട്രി ഡാറ്റ ഓഫ്‌ലൈനാവുകയോ കാലഹരണപ്പെടുകയോ ചെയ്യുമ്പോഴാണ് "
+                "HydroVista മോഡൽ മാർഗ്ഗനിർദ്ദേശത്തിലേക്ക് (GloFAS) മാറുന്നത്. യഥാർത്ഥ ഗേജ് നിരീക്ഷണങ്ങളും മാതൃകാ പ്രവചനങ്ങളും കൃത്യമായി വേർതിരിച്ചാണ് "
+                "സിസ്റ്റം വിശകലനം നടത്തുന്നത്."
+            ),
+            "hi": (
+                "जब केंद्रीय जल आयोग (CWC) का अरंगली गेज टेलीमेट्री ऑफ़लाइन या अनुपलब्ध होता है, तब HydroVista मॉडल मार्गदर्शन (GloFAS) "
+                "प्रदर्शित करता है। वास्तविक गेज रीडिंग और सिमुलेशन मॉडल में अंतर बनाए रखने के लिए ऐसा किया जाता है।"
+            ),
+            "ta": (
+                "மத்திய நீர் ஆணையத்தின் (CWC) அரங்கலி நேரடி தொலை அளவியல் கிடைக்காதபோது, HydroVista மாதிரி வழிகாட்டுதலைப் (GloFAS) பயன்படுத்துகிறது."
+            ),
+        }[lang]
+        return AssistantResponse(
+            answer=answer,
+            sources=["Central Water Commission NWIC Telemetry", "GloFAS Hydrological Model Guidance"]
+        )
+
+    # 9. Hospital & Medical Facility Vulnerability Intent (e.g. "chalakudy hospital risk status pls", "Which medical facility has the highest vulnerability")
     if any(word in q for word in ("hospital", "medical", "clinic", "health", "ആശുപത്രി", "ചികിത്സ", "അസ്പതാല", "അस्पताल", "மருத்துவமனை")):
         hospitals = [a for a in c.high_risk_assets_snapshot if any(t in a.asset_type.lower() or t in a.name.lower() for t in ("hospital", "medical", "clinic", "health"))]
         sources.append("HydroVista exposure rankings")
@@ -431,7 +659,7 @@ async def chat(payload: AssistantRequest) -> AssistantResponse:
             answer = "No hospital assets are currently flagged in the critical/high exposure snapshot." if lang == "en" else "നിലവിലെ എക്സ്പോഷർ സ്നാപ്പ്ഷോട്ടിൽ ആശുപത്രികൾ പ്രത്യേകം രേഖപ്പെടുത്തിയിട്ടില്ല."
         return AssistantResponse(answer=answer, sources=sources)
 
-    # 6. Bridges and Substations Query (e.g. "Are there any bridges or power substations in high risk?")
+    # 10. Bridges and Substations Query (e.g. "Are there any bridges or power substations in high risk?")
     is_substation = any(word in q for word in ("substation", "power", "electrical", "electricity", "kseb", "വൈദ്യുതി", "സബ്സ്റ്റേഷൻ"))
     is_multi_infra = ("bridge" in q or "പാലം" in q) and any(word in q for word in ("substation", "facility", "facilities", "infrastructure", "assets", "high risk"))
     if is_substation or is_multi_infra:
@@ -452,12 +680,12 @@ async def chat(payload: AssistantRequest) -> AssistantResponse:
             answer = "Monitored infrastructure in Chalakudy includes Chalakudy River Bridge (NH 544), Athirappilly Bridge (SH 21), and KSEB 110kV Substation Chalakudy."
         return AssistantResponse(answer=answer, sources=sources)
 
-    # 7. Bridge & Road Crossing Status Intent (e.g. "is chalakudy bridge safe to cross now")
+    # 11. Bridge & Road Crossing Status Intent (e.g. "is chalakudy bridge safe to cross now")
     if any(word in q for word in ("bridge", "cross", "crossing", "road", "passable", "traffic", "പാലം", "പാലത്തിലൂടെ", "കടക്കാൻ", "പറ്റുമോ", "पुल")):
         bridges = [a for a in c.high_risk_assets_snapshot if "bridge" in a.asset_type.lower() or "bridge" in a.name.lower()]
         sources.append("HydroVista exposure rankings")
         if bridges:
-            bridge_lines = "; ".join(f"**{b.name}** ({b.risk_category} risk, score: {b.risk_score:.2f})" if b.risk_score else f"**{b.name}** ({b.risk_category} risk)" for b in bridges)
+            bridge_lines = "; ".join(f"**{b.name}** ({b.risk_category} risk, score: {b.risk_score:.2f})" if b.risk_score else f"**{b.name}** ({b.risk_category})" for b in bridges)
             if lang == "ml":
                 answer = (
                     f"ചാലക്കുടി നദീതടത്തിലെ പ്രധാന പാലങ്ങളുടെ നിലവിലെ എക്സ്പോഷർ നില: {bridge_lines}. "
@@ -475,7 +703,7 @@ async def chat(payload: AssistantRequest) -> AssistantResponse:
                 answer = "Monitored bridges in the Chalakudy basin include the Chalakudy River Bridge (NH 544) and Athirappilly Bridge (SH 21). Official passability and crossing safety must be verified directly with local traffic police and district authorities."
         return AssistantResponse(answer=answer, sources=sources)
 
-    # 8. Water Level & Arangaly Gauge Reading Intent (e.g. "Give me the live water level reading at Arangaly right now")
+    # 12. Water Level & Arangaly Gauge Reading Intent (e.g. "Give me the live water level reading at Arangaly right now")
     if any(phrase in q for phrase in ("water level", "waterlevel", "reading", "gauge", "stage", "വാട്ടർ ലെവൽ", "ഗേജ്", "ജലനിരപ്പ്", "നിരീക്ഷിച്ച", "जलस्तर", "गेज", "நீர்மட்டம்", "அளவீடு")):
         if c.observed_stage_m is None or c.source_statuses.get("cwc_arangaly") == "unavailable":
             answer = {

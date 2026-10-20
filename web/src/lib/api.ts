@@ -67,6 +67,7 @@ export interface AssetRiskSnapshot {
   asset_type: string;
   risk_category: "low" | "medium" | "high" | "critical";
   risk_score?: number | null;
+  elevation?: number | null;
 }
 
 export interface AssistantContext {
@@ -88,6 +89,13 @@ export interface AssistantContext {
   high_risk_assets_snapshot?: AssetRiskSnapshot[];
   scenario_rainfall_mm?: number | null;
   scenario_duration_hours?: number | null;
+  active_scenario_impact?: {
+    severe_risk_count: number;
+    net_change: number;
+    escalated_count?: number;
+    rainfall_mm?: number;
+    duration_hours?: number;
+  } | null;
 }
 
 export interface AssistantResponse {

@@ -93,6 +93,48 @@ async def test_all_critical_queries(client):
             "must_not_contain": ["The forecasted 24-hour rainfall"],
             "desc": "Malayalam 24-hour rainfall query localization",
         },
+        {
+            "query": "If we simulate an additional 110 mm rainfall over 24 hours, how many assets escalate to critical risk?",
+            "must_contain": ["escalate", "risk", "synthetic forcing"],
+            "must_not_contain": ["forecasted 24-hour rainfall is 18.6", "The forecasted 24-hour rainfall for the Chalakudy"],
+            "desc": "Scenario stress test 110mm rainfall simulation",
+        },
+        {
+            "query": "Which facilities become high risk under a 75 mm rain stress test?",
+            "must_contain": ["stress test", "escalate", "high or critical risk"],
+            "must_not_contain": ["The forecasted 24-hour rainfall for the Chalakudy"],
+            "desc": "Scenario stress test 75mm rain simulation",
+        },
+        {
+            "query": "Is the Periyar bridge in Aluva submerged right now?",
+            "must_contain": ["out of scope", "Chalakudy River Basin"],
+            "must_not_contain": ["Monitored infrastructure in Chalakudy", "PWD"],
+            "desc": "Periyar / Aluva bridge out of Chalakudy basin scope rejection",
+        },
+        {
+            "query": "Tell me the elevation of Chalakudy Government Taluk Hospital.",
+            "must_contain": ["Chalakudy Government Taluk Hospital", "8", "MSL", "Copernicus DEM"],
+            "must_not_contain": ["St. James", "highest vulnerability"],
+            "desc": "Accurate asset elevation extraction for Taluk Hospital",
+        },
+        {
+            "query": "Which relief camps in Chalakudy taluk are currently listed as safe?",
+            "must_contain": ["relief camps", "Taluk Disaster Management Authority"],
+            "must_not_contain": ["I can summarize current rainfall"],
+            "desc": "Relief camps and shelters intent routing",
+        },
+        {
+            "query": "മേലൂർ ഹൈസ്കൂൾ ദുരിതാശ്വാസ ക്യാമ്പ് സുരക്ഷിതമാണോ?",
+            "must_contain": ["Meloor High School Relief Camp", "ദുരിതാശ്വാസ", "താലൂക്ക് ദുരന്തനിവാരണ അതോറിറ്റി"],
+            "must_not_contain": ["I can summarize current rainfall"],
+            "desc": "Malayalam relief camp specific facility query",
+        },
+        {
+            "query": "Why is the Arangaly river stage showing as model guidance instead of live observed water level?",
+            "must_contain": ["model guidance", "Central Water Commission", "telemetry"],
+            "must_not_contain": ["The latest observed water level at the **Arangaly gauge** is"],
+            "desc": "Explanatory why question for Arangaly stage vs model guidance",
+        },
     ]
 
     for tc in test_cases:
