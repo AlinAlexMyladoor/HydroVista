@@ -58,10 +58,10 @@
 
 .dark {
   color-scheme: dark;
-  /* Deep, neutral dark — no heavy navy tint */
-  --color-background: #0a0c0f;
-  --color-surface: #13171e;
-  --color-surface-secondary: #1c2230;
+  /* Pure true black base — high contrast ratio for vivid telemetry data */
+  --color-background: #000000;
+  --color-surface: #0a0a0a;
+  --color-surface-secondary: #141414;
   --color-primary: #2dd4bf;
   --color-primary-dark: #14b8a6;
   --color-primary-light: #5eead4;
@@ -71,12 +71,12 @@
   --color-warning-dark: #f59e0b;
   --color-critical: #f87171;
   --color-critical-light: #3b1a1a;
-  --color-text: #f0f4f8;
+  --color-text: #f8fafc;
   --color-text-secondary: #94a3b8;
-  --color-border: #1e2d3d;
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.22);
-  --shadow-panel: 0 8px 32px rgba(0,0,0,0.38);
-  --shadow-elevated: 0 16px 48px rgba(0,0,0,0.46);
+  --color-border: #262626;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.6), 0 4px 16px rgba(0,0,0,0.4);
+  --shadow-panel: 0 8px 32px rgba(0,0,0,0.55);
+  --shadow-elevated: 0 16px 48px rgba(0,0,0,0.65);
 }
 
 /* ─── Base Typography ─────────────────────────────────────────────────────── */
@@ -161,12 +161,17 @@ body {
 .dark aside[aria-label="Map controls"],
 .dark aside[aria-label="Intelligence rail"],
 .dark .analytics-strip,
-.dark .analytics-panel,
-.dark .intel-card,
 .dark [data-readable-panel] {
   background: #13171e !important;
   border-color: #1e2d3d !important;
   color: #f0f4f8 !important;
+}
+
+.intel-card,
+.analytics-panel,
+.dark .intel-card,
+.dark .analytics-panel {
+  border: none !important;
 }
 
 /* Fix inline hardcoded light-mode colours deep in component trees */
@@ -441,10 +446,10 @@ h4 { font-size: 0.8125rem; font-weight: 600; line-height: 1.4; }
 /* ─── Intelligence Rail Cards ─────────────────────────────────────────────── */
 .intel-card {
   background: #FFFFFF;
-  border: 1px solid #DCE4DD;
-  border-radius: 8px;
+  border: none;
+  border-radius: 12px;
   padding: 0.875rem;
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 4px 6px -1px rgba(226, 232, 240, 0.5), 0 2px 4px -2px rgba(226, 232, 240, 0.5);
 }
 
 .intel-card-header {
@@ -642,6 +647,16 @@ h4 { font-size: 0.8125rem; font-weight: 600; line-height: 1.4; }
   font-size: 0.6rem !important;
 }
 
+.dark .maplibregl-ctrl-attrib {
+  background: rgba(12, 18, 30, 0.88) !important;
+  color: #94a3b8 !important;
+  border-top: 1px solid #1e293b !important;
+}
+
+.dark .maplibregl-ctrl-attrib a {
+  color: #2dd4bf !important;
+}
+
 .maplibregl-ctrl-compass .maplibregl-ctrl-icon { opacity: 0.8; }
 
 /* ─── Bottom Analytics Strip ──────────────────────────────────────────────── */
@@ -655,12 +670,12 @@ h4 { font-size: 0.8125rem; font-weight: 600; line-height: 1.4; }
 .analytics-panel {
   flex: 1;
   padding: 0.75rem;
-  border-right: 1px solid #DCE4DD;
+  border: none;
   min-width: 0;
   overflow: hidden;
 }
 
-.analytics-panel:last-child { border-right: none; }
+.analytics-panel:last-child { border: none; }
 
 .analytics-panel-title {
   font-size: 0.6875rem;
@@ -805,10 +820,9 @@ h4 { font-size: 0.8125rem; font-weight: 600; line-height: 1.4; }
 .dark .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: brightness(0) invert(1); }
 .dark .maplibregl-ctrl-group button:hover { background: #263D52 !important; }
 .dark .map-glass,
-.dark .glass-panel { background: #0C2237 !important; border-color: #263D52 !important; color: #F1F6FB !important; backdrop-filter: none; -webkit-backdrop-filter: none; }
-.dark aside,
-.dark header { background-color: #0B2035 !important; border-color: #263D52 !important; }
-.dark aside { background-color: #0C2237 !important; border-color: #263D52 !important; }
+.dark .glass-panel { background: rgba(13, 19, 31, 0.88) !important; border-color: #1e293b !important; color: #F1F6FB !important; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.dark header { background-color: #0d111a !important; border-color: #1e2d3d !important; }
+.dark aside { background-color: #0c121e !important; border-color: #1e293b !important; }
 .dark header button[style*="background: rgb(204, 251, 241)"],
 .dark header button[style*="background: rgb(232, 240, 234)"] { background: #142D44 !important; color: #66E1D0 !important; }
 .dark header button[style*="color: rgb(15, 118, 110)"] { color: #66E1D0 !important; }
@@ -873,12 +887,47 @@ h4 { font-size: 0.8125rem; font-weight: 600; line-height: 1.4; }
 .dark [class~="bg-[#EEF4FF]"] { background: #1E293B !important; }
 
 input[type="range"] { accent-color: #0D9488; }
-.dark input[type="range"] { accent-color: #35CBB9; }
+.dark input[type="range"] { accent-color: #14b8a6; }
 input[type="range"].scenario-range { appearance: none; height: 0.5rem; border-radius: 9999px; }
-input[type="range"].scenario-range::-webkit-slider-thumb { appearance: none; width: 1rem; height: 1rem; border: 2px solid white; border-radius: 9999px; background: #0D9488; box-shadow: 0 1px 4px rgb(15 23 42 / 28%); }
-input[type="range"].scenario-range::-moz-range-thumb { width: 0.8rem; height: 0.8rem; border: 2px solid white; border-radius: 9999px; background: #0D9488; box-shadow: 0 1px 4px rgb(15 23 42 / 28%); }
-.dark input[type="range"].scenario-range::-webkit-slider-thumb,
-.dark input[type="range"].scenario-range::-moz-range-thumb { background: #35CBB9; }
+input[type="range"].scenario-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 2px solid #ffffff;
+  border-radius: 9999px;
+  background: #0d9488;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.28);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  cursor: grab;
+}
+input[type="range"].scenario-range::-moz-range-thumb {
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 2px solid #ffffff;
+  border-radius: 9999px;
+  background: #0d9488;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.28);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  cursor: grab;
+}
+.dark input[type="range"].scenario-range::-webkit-slider-thumb {
+  background: #0d9488;
+  border: 2px solid #2dd4bf;
+  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.45), 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+.dark input[type="range"].scenario-range::-moz-range-thumb {
+  background: #0d9488;
+  border: 2px solid #2dd4bf;
+  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.45), 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+input[type="range"].scenario-range:active::-webkit-slider-thumb {
+  cursor: grabbing;
+  transform: scale(1.1);
+}
+input[type="range"].scenario-range:active::-moz-range-thumb {
+  cursor: grabbing;
+  transform: scale(1.1);
+}
 .scrollbar-hide { scrollbar-width: none; -ms-overflow-style: none; }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 
@@ -891,3 +940,23 @@ input[type="range"].scenario-range::-moz-range-thumb { width: 0.8rem; height: 0.
 details.ux-disclosure { border-radius: 0.75rem; }
 details.ux-disclosure > summary { cursor: pointer; color: var(--color-primary); font-weight: 600; }
 details.ux-disclosure > summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; border-radius: 4px; }
+
+@keyframes beacon-ping {
+  0% { transform: scale(0.9); opacity: 0.95; }
+  70%, 100% { transform: scale(2.6); opacity: 0; }
+}
+.animate-beacon-ping {
+  animation: beacon-ping 1.25s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* ─── Responsive Viewport Height Dashboard Utilities ─────────────────────── */
+@media (max-height: 680px) {
+  .short-screen-compact {
+    display: none !important;
+  }
+}
+@media (min-height: 681px) {
+  .tall-screen-only {
+    display: flex !important;
+  }
+}

@@ -8,6 +8,14 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_APP_ENV: process.env.NEXT_PUBLIC_APP_ENV || "development",
   },
   turbopack: {},
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: "http://localhost:8000/api/:path*",
+      },
+    ];
+  },
 };
 
 export default nextConfig;

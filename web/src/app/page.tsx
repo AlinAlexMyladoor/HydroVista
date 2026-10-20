@@ -37,28 +37,33 @@ function OverviewDashboard() {
   const { leftSidebarOpen, rightRailOpen } = useStore();
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden">
+    <div className="flex min-h-0 flex-1 overflow-hidden bg-background">
+      {/* Left Rail */}
       {leftSidebarOpen && <LeftRail />}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="relative min-h-0 flex-1 overflow-hidden"><FloodMap /></div>
+
+      {/* Central area: Map + Bottom Analytics */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden relative">
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <FloodMap />
+        </div>
         <BottomAnalyticsStrip />
       </div>
+
+      {/* Right Intelligence Rail */}
       {rightRailOpen && <RightRail />}
     </div>
   );
 }
 
-// ─── Map View (full-width map, no right rail, collapsible left rail) ──────────
+// ─── Map View (full-width map with collapsible left rail) ─────────────────────
 function MapFullView() {
   const { leftSidebarOpen } = useStore();
 
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <div className="flex min-h-0 flex-1 overflow-hidden bg-background">
       {leftSidebarOpen && <LeftRail />}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <div className="flex-1 relative overflow-hidden" style={{ minHeight: 0 }}>
-          <FloodMap />
-        </div>
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <FloodMap />
       </div>
     </div>
   );

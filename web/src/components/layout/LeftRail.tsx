@@ -81,11 +81,18 @@ export function LeftRail() {
     setForecastHour,
     isPlayingTimeline,
     setIsPlayingTimeline,
+    playbackSpeed,
+    setPlaybackSpeed,
     setActiveRoute,
+    satelliteInfo,
   } = useStore();
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const t = getTranslations(language);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
 
   const { data: status } = useQuery({
     queryKey: ["system-status"],
@@ -156,25 +163,23 @@ export function LeftRail() {
 
   return (
     <aside
-      className="flex flex-col bg-white border-r border-[#DCE4DD] overflow-y-auto scrollbar-thin flex-shrink-0"
-      style={{ width: 228, fontSize: "0.75rem" }}
+      className="flex flex-col bg-white/85 dark:bg-slate-950/85 backdrop-blur-md border-r border-slate-200/50 dark:border-slate-800/60 overflow-y-auto scrollbar-hide flex-shrink-0 text-xs w-[264px] h-full"
       aria-label="Map controls"
     >
       {/* ─── Study Area ─── */}
-      <section className="border-b border-[#DCE4DD] px-3 py-2">
+      <section className="border-b border-slate-200/50 dark:border-slate-800/60 px-3 py-2.5">
         <div className="flex items-center justify-between">
-          <span style={{ fontWeight: 600, color: "#26332F", fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
             {language !== "ml" ? "Study Area" : "പഠനമേഖല"}
           </span>
         </div>
 
-        <div className="mt-1 rounded-md px-2.5 py-1.5"
-          style={{ background: "#F7F8F4", border: "1px solid #DCE4DD" }}>
+        <div className="mt-1.5 rounded-xl px-3 py-2.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-lg shadow-slate-200/50 dark:shadow-none border-none">
           <div className="min-w-0">
-            <div style={{ fontWeight: 600, color: "#26332F", lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <div className="font-semibold text-slate-800 dark:text-slate-100 text-xs leading-tight truncate">
               {language !== "ml" ? "Chalakudy River Basin" : "ചാലക്കുടിപ്പുഴ തടം"}
             </div>
-            <div style={{ color: "#687770", fontSize: "0.625rem", marginTop: 1 }}>
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
               {language !== "ml" ? "Thrissur, Ernakulam, Kerala" : "തൃശ്ശൂർ, എറണാകുളം, കേരളം"}
             </div>
           </div>
@@ -182,8 +187,8 @@ export function LeftRail() {
       </section>
 
       {/* ─── Forecast Timeline ─── */}
-      <section className="border-b border-[#DCE4DD] p-3">
-        <div style={{ fontWeight: 600, color: "#26332F", fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+      <section className="border-b border-slate-200/60 dark:border-slate-800 p-3">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-2">
           {language !== "ml" ? "Forecast Timeline" : "പ്രവചന ടൈംലൈൻ"}
         </div>
 
@@ -200,16 +205,11 @@ export function LeftRail() {
               <button
                 key={h}
                 onClick={() => { setForecastHorizon(h); setForecastHour(0); }}
-                className="flex-1 rounded text-center transition-all"
-                style={{
-                  padding: "0.25rem 0.125rem",
-                  fontSize: "0.625rem",
-                  fontWeight: isActive ? 600 : 500,
-                  color: isActive ? "white" : "#687770",
-                  background: isActive ? "#155E59" : "#F7F8F4",
-                  border: `1px solid ${isActive ? "#155E59" : "#DCE4DD"}`,
-                  cursor: "pointer",
-                }}
+                className={`flex-1 rounded py-1 px-0.5 text-[11px] text-center transition-all ${
+                  isActive
+                    ? "bg-teal-700 dark:bg-teal-600 text-white font-semibold border border-teal-700 dark:border-none shadow-xs"
+                    : "bg-white text-slate-600 dark:bg-slate-900 dark:text-slate-400 border border-slate-200/80 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200 shadow-xs"
+                }`}
                 aria-pressed={isActive}
               >
                 {language !== "ml" ? labels[h].en : labels[h].ml}
@@ -230,24 +230,26 @@ export function LeftRail() {
             className="timeline-slider w-full"
             aria-label={`Forecast hour: ${forecastHour}`}
           />
-          <div className="flex justify-between" style={{ fontSize: "0.5625rem", color: "#9ca3af" }}>
+          <div className="flex justify-between text-[9px] font-medium text-slate-500 dark:text-slate-400">
             {timelineMarks.map((m) => (
               <span key={m}>{forecastHorizon === 168 && m > 0 ? `${m / 24}d` : `${m}h`}</span>
             ))}
           </div>
 
           {/* Current time display */}
-          <div className="flex items-center justify-between mt-1" style={{ fontSize: "0.625rem", color: "#687770" }}>
-            <span>
+          <div className="flex items-center justify-between mt-1 text-[11px]">
+            <span className="text-slate-500 dark:text-slate-400">
               {language !== "ml" ? "Now" : "ഇപ്പോൾ"}
             </span>
-            <span style={{ fontWeight: 500, color: "#26332F" }}>
+            <span className="font-semibold text-slate-800 dark:text-slate-200 tabular-nums" suppressHydrationWarning>
               {selectedForecastPoint
                 ? `${formatForecastTimestamp(selectedForecastPoint.time, language)} IST`
-                : `${new Date(now.getTime() + forecastHour * 3_600_000).toLocaleString("en-IN", {
-                    weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-                    timeZone: "Asia/Kolkata",
-                  })} IST`}
+                : mounted
+                  ? `${new Date(now.getTime() + forecastHour * 3_600_000).toLocaleString("en-IN", {
+                      weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                      timeZone: "Asia/Kolkata",
+                    })} IST`
+                  : "Loading…"}
             </span>
           </div>
         </div>
@@ -259,41 +261,20 @@ export function LeftRail() {
               if (!isPlayingTimeline && forecastHour >= maxHour) setForecastHour(0);
               setIsPlayingTimeline(!isPlayingTimeline);
             }}
-            className="flex items-center gap-1.5 rounded transition-colors"
-            style={{
-              padding: "0.3125rem 0.625rem",
-              background: "#155E59",
-              color: "white",
-              border: "none",
-              fontSize: "0.6875rem",
-              fontWeight: 600,
-              cursor: "pointer",
-              flex: 1,
-              justifyContent: "center",
-            }}
+            className="flex-1 flex items-center justify-center gap-1.5 rounded py-1.5 px-2.5 bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-500 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer"
             aria-label={isPlayingTimeline ? "Pause forecast playback" : "Play forecast playback"}
             title={language !== "ml" ? "Moves through forecast rainfall hours; flood extent remains the latest analysis." : "മഴ പ്രവചന സമയങ്ങളിലൂടെ നീങ്ങുന്നു; വെള്ളപ്പൊക്ക പരിധി ഏറ്റവും പുതിയ വിശകലനമാണ്."}
           >
             {isPlayingTimeline
-              ? <><Pause style={{ width: 11, height: 11 }} /> {language !== "ml" ? "Pause" : "നിർത്തുക"}</>
-              : <><Play style={{ width: 11, height: 11 }} /> {language !== "ml" ? "Play Forecast" : "പ്രവചനം പ്ലേ ചെയ്യുക"}</>
+              ? <><Pause className="h-3 w-3" /> {language !== "ml" ? "Pause" : "നിർത്തുക"}</>
+              : <><Play className="h-3 w-3" /> {language !== "ml" ? "Play Forecast" : "പ്രവചനം പ്ലേ ചെയ്യുക"}</>
             }
           </button>
 
           {/* Speed */}
           <button
-            onClick={() => setPlaybackSpeed(s => s === 1 ? 2 : s === 2 ? 4 : 1)}
-            className="flex items-center gap-0.5 rounded"
-            style={{
-              padding: "0.3125rem 0.5rem",
-              background: "#F7F8F4",
-              border: "1px solid #DCE4DD",
-              color: "#26332F",
-              fontSize: "0.625rem",
-              fontWeight: 600,
-              cursor: "pointer",
-              flexShrink: 0,
-            }}
+            onClick={() => setPlaybackSpeed(playbackSpeed === 1 ? 2 : playbackSpeed === 2 ? 4 : 1)}
+            className="flex items-center gap-0.5 rounded py-1.5 px-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-[10px] font-semibold shrink-0 shadow-xs cursor-pointer"
             title="Playback speed"
           >
             {playbackSpeed}x
@@ -302,35 +283,24 @@ export function LeftRail() {
           {/* Reset */}
           <button
             onClick={() => { setForecastHour(0); setIsPlayingTimeline(false); }}
-            style={{
-              padding: "0.3125rem",
-              background: "transparent",
-              border: "1px solid #DCE4DD",
-              borderRadius: 5,
-              cursor: "pointer",
-              color: "#687770",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
+            className="flex items-center justify-center rounded p-1.5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 shrink-0 shadow-xs cursor-pointer"
             title={language !== "ml" ? "Reset timeline" : "ടൈംലൈൻ റീസെറ്റ്"}
             aria-label="Reset timeline"
           >
-            <RotateCcw style={{ width: 11, height: 11 }} />
+            <RotateCcw className="h-3 w-3" />
           </button>
         </div>
       </section>
 
       {/* ─── Map Layers ─── */}
-      <section className="border-b border-[#DCE4DD] p-3 flex-1">
+      <section className="border-b border-slate-200/60 dark:border-slate-800 p-3 flex-1">
         <div className="flex items-center justify-between mb-2">
-          <span style={{ fontWeight: 600, color: "#26332F", fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
             {language !== "ml" ? "Map Layers" : "ഭൂപട പാളികൾ"}
           </span>
           <button
             onClick={resetLayers}
-            style={{ fontSize: "0.625rem", color: "#155E59", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            className="text-[11px] text-teal-700 dark:text-teal-400 hover:underline font-medium p-0 cursor-pointer"
           >
             {language !== "ml" ? "Reset" : "പുനഃക്രമം"}
           </button>
@@ -339,30 +309,39 @@ export function LeftRail() {
         <div className="space-y-1.5">
           {LAYER_GROUPS.map((group) => (
             <details key={group.id} open={group.open} className="group/layers">
-              <summary className="cursor-pointer list-none px-1 py-1 font-semibold text-slate-500 hover:text-slate-700">
+              <summary className="cursor-pointer list-none px-1 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-between">
                 <span className="inline-flex items-center gap-1.5">
                   <ChevronRight className="h-3 w-3 transition-transform group-open/layers:rotate-90" />
                   {language !== "ml" ? group.en : group.ml}
                 </span>
               </summary>
-              <div className="space-y-1 pl-1">
+              <div className="space-y-1 pl-1 mt-0.5">
                 {group.layers.map((id) => {
                   const layer = LAYER_ITEMS.find((item) => item.id === id);
                   if (!layer) return null;
                   const Icon = layer.icon;
                   const isOn = !layer.unavailable && visibleLayers.has(layer.id);
+                  const tooltip = layer.id === "satellite" && satelliteInfo ? satelliteInfo : layer.unavailable;
                   return (
                     <label
                       key={layer.id}
-                      className="flex items-center gap-2 rounded py-0.5 px-1 transition-colors hover:bg-[#F7F8F4]"
-                      style={{ userSelect: "none", cursor: layer.unavailable ? "not-allowed" : "pointer", opacity: layer.unavailable ? 0.6 : 1 }}
-                      title={layer.unavailable}
+                      className={`flex items-center gap-2 rounded py-1 px-1.5 transition-colors ${
+                        layer.unavailable
+                          ? "opacity-60 cursor-not-allowed"
+                          : "cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-800/60"
+                      }`}
+                      title={tooltip}
                     >
-                      <input type="checkbox" checked={isOn} disabled={!!layer.unavailable}
-                        onChange={() => toggleLayer(layer.id)} className="layer-checkbox flex-shrink-0"
-                        aria-label={language !== "ml" ? layer.label : layer.mlLabel} />
-                      <Icon style={{ width: 13, height: 13, color: isOn ? layer.iconColor : "#9ca3af", flexShrink: 0 }} />
-                      <span style={{ color: isOn ? "#26332F" : "#9ca3af", fontSize: "0.6875rem", lineHeight: 1.4 }}>
+                      <input
+                        type="checkbox"
+                        checked={isOn}
+                        disabled={!!layer.unavailable}
+                        onChange={() => toggleLayer(layer.id)}
+                        className="layer-checkbox flex-shrink-0"
+                        aria-label={language !== "ml" ? layer.label : layer.mlLabel}
+                      />
+                      <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: isOn ? layer.iconColor : "#9ca3af" }} />
+                      <span className={`text-xs leading-none ${isOn ? "font-medium text-slate-800 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>
                         {language !== "ml" ? layer.label : layer.mlLabel}
                       </span>
                     </label>
@@ -376,35 +355,37 @@ export function LeftRail() {
 
       {/* ─── Data Sources ─── */}
       <section className="p-3">
-        <div className="mb-2 flex items-center justify-between" style={{ fontWeight: 600, color: "#26332F", fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-          {language !== "ml" ? "Data Sources" : "ഡാറ്റ സ്രോതസ്സ്"}
+        <div className="mb-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+          <span>{language !== "ml" ? "Data Sources" : "ഡാറ്റ സ്രോതസ്സ്"}</span>
           <button
             onClick={() => setActiveRoute("about")}
-            className="flex items-center gap-0.5 normal-case tracking-normal"
-            style={{ fontSize: "0.625rem", color: "#155E59", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            className="flex items-center gap-0.5 normal-case tracking-normal text-[11px] font-medium text-teal-700 dark:text-teal-400 hover:underline p-0"
           >
             {language !== "ml" ? "View all" : "എല്ലാം"}
-            <ChevronRight style={{ width: 10, height: 10 }} />
+            <ChevronRight className="h-3 w-3" />
           </button>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           {dataSources.length > 0
             ? dataSources.map((ds) => {
                 const labels = SOURCE_LABELS[ds.slug] ?? { en: ds.name, ml: ds.name };
                 const age = getAgeLabel(ds as any);
                 return (
-                  <div key={ds.slug} className="source-pill">
-                    <span
-                      className="status-dot"
-                      style={{
-                        backgroundColor: ds.is_available ? "#22c55e" : "#9ca3af",
-                      }}
-                    />
-                    <span className="source-name flex-1">
-                      {language !== "ml" ? labels.en : labels.ml}
-                    </span>
-                    <span className="source-age">{age}</span>
+                  <div key={ds.slug} className="flex flex-col py-1 border-b border-slate-100/60 dark:border-slate-800/40 last:border-0">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span
+                        className={`h-2 w-2 rounded-full shrink-0 ${
+                          ds.is_available ? "bg-emerald-500 dark:bg-emerald-400" : "bg-slate-400 dark:bg-slate-600"
+                        }`}
+                      />
+                      <span className="text-slate-800 dark:text-slate-200 font-semibold text-xs leading-snug">
+                        {language !== "ml" ? labels.en : labels.ml}
+                      </span>
+                    </div>
+                    <div className="pl-3.5 text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5" suppressHydrationWarning>
+                      {age}
+                    </div>
                   </div>
                 );
               })
@@ -416,12 +397,14 @@ export function LeftRail() {
                 { slug: "terrarium-dem", name: "Elevation (Terrarium DEM)", status: "checking" },
                 { slug: "worldpop",   name: "Population (WorldPop)", status: "checking" },
               ].map((s) => (
-                <div key={s.slug} className="source-pill">
-                  <span className="status-dot" style={{ backgroundColor: s.status === "available" ? "#22c55e" : "#E7A23B" }} />
-                  <span className="source-name flex-1" style={{ fontSize: "0.625rem" }}>{s.name}</span>
-                  <span className="source-age" style={{ fontSize: "0.5625rem" }}>
+                <div key={s.slug} className="flex flex-col py-1 border-b border-slate-100/60 dark:border-slate-800/40 last:border-0">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${s.status === "available" ? "bg-emerald-500" : "bg-amber-500"}`} />
+                    <span className="text-slate-800 dark:text-slate-200 text-xs font-semibold leading-snug">{s.name}</span>
+                  </div>
+                  <div className="pl-3.5 text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
                     {s.status === "available" ? "Available" : "Checking..."}
-                  </span>
+                  </div>
                 </div>
               ))
             )

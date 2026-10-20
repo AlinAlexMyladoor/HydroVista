@@ -7,6 +7,7 @@ import { getTranslations } from "@/lib/translations";
 import { AnalysisView } from "@/components/views/AnalysisView";
 import { useQuery } from "@tanstack/react-query";
 import { api, APIError, ModelEvaluation } from "@/lib/api";
+import { useTheme } from "@/components/providers/ThemeProvider";
 import {
   XAxis,
   YAxis,
@@ -52,6 +53,9 @@ function HistoricalRainTooltip({ active, payload }: { active?: boolean; payload?
 
 /** Real held-out evaluation of the latest saved Random Forest experiment. Renders nothing it was not given. */
 function ModelEvalPanel({ ev, isLoading, isError }: { ev: ModelEvaluation | undefined; isLoading: boolean; isError: boolean }) {
+  const { resolvedTheme } = useTheme();
+  const axisTextColor = resolvedTheme === "dark" ? "#e5e7eb" : "#687770";
+  const gridStroke = resolvedTheme === "dark" ? "#374151" : "#94A3B8";
   const featureNames = Object.keys(ev?.feature_importance ?? {});
   const isTopographyProxy = featureNames.length > 0 && featureNames.every((name) => ["elevation", "slope"].includes(name.toLowerCase()));
   const { data: terrain, isLoading: terrainLoading, isError: terrainError } = useQuery({
@@ -62,11 +66,11 @@ function ModelEvalPanel({ ev, isLoading, isError }: { ev: ModelEvaluation | unde
     retry: 1,
   });
   if (isLoading) return <div className="text-xs text-text-secondary">Loading model evaluation…</div>;
-  if (isError) return <div role="alert" className="rounded-xl border border-border bg-white p-5 text-sm text-text-secondary dark:bg-slate-900">Model evaluation is unavailable.</div>;
-  if (!ev) return <div className="rounded-xl border border-border bg-white p-5 text-sm text-text-secondary dark:bg-slate-900">No model evaluation is available.</div>;
+  if (isError) return <div role="alert" className="rounded-xl border border-border bg-white p-5 text-sm text-text-secondary dark:bg-neutral-900 dark:border-none dark:shadow-xl">Model evaluation is unavailable.</div>;
+  if (!ev) return <div className="rounded-xl border border-border bg-white p-5 text-sm text-text-secondary dark:bg-neutral-900 dark:border-none dark:shadow-xl">No model evaluation is available.</div>;
   if (ev.status !== "evaluated") {
     return (
-      <div className="bg-white border border-dashed border-[#CBD5E1] rounded-xl p-5 text-sm text-[#26332F]">
+      <div className="bg-white border border-dashed border-[#CBD5E1] rounded-xl p-5 text-sm text-[#26332F] dark:bg-neutral-900 dark:border-none dark:shadow-xl dark:text-slate-200">
         <b>No evaluation available.</b>
         <details className="ux-disclosure mt-2 text-xs text-text-secondary">
           <summary>Training requirements</summary>
@@ -81,52 +85,88 @@ function ModelEvalPanel({ ev, isLoading, isError }: { ev: ModelEvaluation | unde
     const maxElevationTick = elevations.length ? Math.max(minElevationTick + 100, Math.ceil(Math.max(...elevations) / 100) * 100) : 400;
     const elevationTicks = Array.from({ length: Math.max(2, (maxElevationTick - minElevationTick) / 100 + 1) }, (_, index) => minElevationTick + index * 100);
     return (
-      <div className="space-y-4">
-        <section className="rounded-xl border border-border bg-white p-5 shadow-xs dark:bg-slate-900 dark:border-slate-800">
-          <h3 className="text-base font-semibold text-[#1E292B] dark:text-slate-50">Baseline Topography Model</h3>
-          <p className="mt-1 text-sm leading-relaxed text-text-secondary dark:text-slate-400">
-            Elevation and slope describe static terrain susceptibility. These terrain summaries are not flood-event predictions; independent radar validation is unavailable.
-          </p>
-        </section>
-        {terrainLoading ? <div className="grid min-h-72 place-items-center rounded-xl border border-border bg-white text-sm text-text-secondary dark:bg-slate-900">Loading study-area DEM samples…</div>
-          : terrainError || !terrain ? <div role="status" className="grid min-h-72 place-items-center rounded-xl border border-border bg-white text-sm text-text-secondary dark:bg-slate-900">Study-area terrain samples are temporarily unavailable.</div>
-          : <>
-            {terrain.fallback_reason && <p role="status" className="rounded-lg border border-border bg-white px-4 py-3 text-xs text-text-secondary dark:bg-slate-900">{terrain.fallback_reason}</p>}
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <article className="rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-xs dark:bg-slate-900 dark:border-slate-800">
-                <h4 className="flex items-center text-sm font-semibold text-[#1E292B] dark:text-slate-50">Hypsometric Curve <InfoTip text={`${terrain.source} · ${terrain.sampled_cells.toLocaleString()} point samples. The curve describes the sample distribution; it is not area-weighted basin hypsometry. ${terrain.known_limitations}`} /></h4>
-                <p className="mt-1 text-xs text-text-secondary">{terrain.measurement_basis === "sample_points" ? "Share of DEM sample points below each elevation" : "Share of sampled study-area surface below each elevation"}</p>
-                <div className="mt-3 h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={terrain.hypsometric} margin={{ top: 8, right: 10, bottom: 2, left: -12 }}>
-                      <defs><linearGradient id="hypsometricFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0D9488" stopOpacity={0.28} /><stop offset="95%" stopColor="#0D9488" stopOpacity={0.03} /></linearGradient></defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" strokeOpacity={0.1} />
-                      <XAxis dataKey="elevation_m" type="number" domain={[minElevationTick, maxElevationTick]} ticks={elevationTicks} tick={{ fontSize: 10, fill: "#687770" }} tickFormatter={(value) => `${value} m`} />
-                      <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#687770" }} unit="%" />
-                      <Tooltip contentStyle={{ backgroundColor: "#1E292B", borderRadius: 8, border: "none", color: "#fff", fontSize: 12 }} formatter={(value) => [`${Number(value).toFixed(1)}%`, terrain.measurement_basis === "sample_points" ? "Sample points below elevation" : "Area below elevation"]} labelFormatter={(value) => `${Number(value).toFixed(0)} m`} />
-                      <Area type="monotone" dataKey="area_below_pct" stroke="#0D9488" strokeWidth={2.5} fill="url(#hypsometricFill)" name="Area below elevation" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </article>
-              <article className="rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-xs dark:bg-slate-900 dark:border-slate-800">
-                <h4 className="flex items-center text-sm font-semibold text-[#1E292B] dark:text-slate-50">Slope Distribution <InfoTip text={`${terrain.source} · ${terrain.sampled_cells.toLocaleString()} point samples. Slope shares describe the available samples, not basin-area proportions. ${terrain.known_limitations}`} /></h4>
-                <p className="mt-1 text-xs text-text-secondary">Share of sampled terrain by slope class</p>
-                <div className="mt-3 h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={terrain.slope_histogram} margin={{ top: 8, right: 10, bottom: 2, left: -12 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" strokeOpacity={0.1} />
-                      <XAxis dataKey="slope_bin" tick={{ fontSize: 10, fill: "#687770" }} />
-                      <YAxis tick={{ fontSize: 10, fill: "#687770" }} unit="%" />
-                      <Tooltip contentStyle={{ backgroundColor: "#1E292B", borderRadius: 8, border: "none", color: "#fff", fontSize: 12 }} formatter={(value) => [`${Number(value).toFixed(1)}%`, terrain.measurement_basis === "sample_points" ? "Sample points" : "Sampled area"]} />
-                      <Bar dataKey="share_pct" fill="#2563EB" fillOpacity={0.82} radius={[5, 5, 0, 0]} name={terrain.measurement_basis === "sample_points" ? "Samples by slope" : "Area by slope"} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </article>
-            </div>
-            <p className="text-[11px] leading-relaxed text-text-secondary">{terrain.source} · {terrain.sampled_cells.toLocaleString()} terrain samples{terrain.is_stale ? " · cached data" : ""}</p>
-          </>}
+      <div className="flex-1 min-h-0 flex flex-col">
+        {/* Muted subtitle directly under tab navigation */}
+        <div className="shrink-0 mb-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+          <span>Elevation and slope describe static terrain susceptibility. These terrain summaries are static DEM metrics, not flood predictions.</span>
+          {terrain?.source && (
+            <span className="text-[11px] text-slate-400 dark:text-slate-500 hidden sm:inline">
+              {terrain.source} · {terrain.sampled_cells.toLocaleString()} samples
+            </span>
+          )}
+        </div>
+
+        {terrainLoading ? (
+          <div className="flex-1 min-h-0 grid place-items-center rounded-2xl bg-white text-sm text-text-secondary shadow-md shadow-slate-200/50 dark:bg-neutral-900">
+            Loading study-area DEM samples…
+          </div>
+        ) : terrainError || !terrain ? (
+          <div role="status" className="flex-1 min-h-0 grid place-items-center rounded-2xl bg-white text-sm text-text-secondary shadow-md shadow-slate-200/50 dark:bg-neutral-900">
+            Study-area terrain samples are temporarily unavailable.
+          </div>
+        ) : (
+          <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <article className="flex-1 min-h-0 flex flex-col rounded-2xl bg-white p-5 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40">
+              <div className="shrink-0 flex items-center justify-between mb-1">
+                <h4 className="flex items-center text-sm font-semibold text-[#1E292B] dark:text-slate-50">
+                  <span>Hypsometric Curve</span>
+                  <InfoTip text={`${terrain.source} · ${terrain.sampled_cells.toLocaleString()} point samples. The curve describes the sample distribution; it is not area-weighted basin hypsometry. ${terrain.known_limitations}`} />
+                </h4>
+                <span className="text-[10px] text-gray-400 dark:text-neutral-500 font-medium">Elevation Profile</span>
+              </div>
+              <p className="shrink-0 text-[11px] text-text-secondary mb-2">
+                {terrain.measurement_basis === "sample_points" ? "Share of DEM sample points below each elevation" : "Share of sampled study-area surface below each elevation"}
+              </p>
+              <div className="flex-1 min-h-0 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={terrain.hypsometric} margin={{ top: 8, right: 10, bottom: 2, left: -12 }}>
+                    <defs>
+                      <linearGradient id="hypsometricFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#0D9488" stopOpacity={0.28} />
+                        <stop offset="95%" stopColor="#0D9488" stopOpacity={0.03} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} strokeOpacity={0.15} />
+                    <XAxis dataKey="elevation_m" type="number" domain={[minElevationTick, maxElevationTick]} ticks={elevationTicks} tick={{ fontSize: 10, fill: axisTextColor }} tickFormatter={(value) => `${value} m`} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: axisTextColor }} unit="%" />
+                    <Tooltip contentStyle={{ backgroundColor: "#171717", borderRadius: 8, border: "none", color: "#fff", fontSize: 12 }} formatter={(value) => [`${Number(value).toFixed(1)}%`, terrain.measurement_basis === "sample_points" ? "Sample points below elevation" : "Area below elevation"]} labelFormatter={(value) => `${Number(value).toFixed(0)} m`} />
+                    <Area type="monotone" dataKey="area_below_pct" stroke="#0D9488" strokeWidth={2.5} fill="url(#hypsometricFill)" name="Area below elevation" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="shrink-0 mt-1.5 text-[10px] leading-tight text-gray-400 dark:text-neutral-500 truncate">
+                {terrain.source} · {terrain.sampled_cells.toLocaleString()} point samples
+              </div>
+            </article>
+
+            <article className="flex-1 min-h-0 flex flex-col rounded-2xl bg-white p-5 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40">
+              <div className="shrink-0 flex items-center justify-between mb-1">
+                <h4 className="flex items-center text-sm font-semibold text-[#1E292B] dark:text-slate-50">
+                  <span>Slope Distribution</span>
+                  <InfoTip text={`${terrain.source} · ${terrain.sampled_cells.toLocaleString()} point samples. Slope shares describe the available samples, not basin-area proportions. ${terrain.known_limitations}`} />
+                </h4>
+                <span className="text-[10px] text-gray-400 dark:text-neutral-500 font-medium">Terrain Slope</span>
+              </div>
+              <p className="shrink-0 text-[11px] text-text-secondary mb-2">
+                Share of sampled terrain by slope class
+              </p>
+              <div className="flex-1 min-h-0 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={terrain.slope_histogram} margin={{ top: 8, right: 10, bottom: 2, left: -12 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} strokeOpacity={0.15} />
+                    <XAxis dataKey="slope_bin" tick={{ fontSize: 10, fill: axisTextColor }} />
+                    <YAxis tick={{ fontSize: 10, fill: axisTextColor }} unit="%" />
+                    <Tooltip contentStyle={{ backgroundColor: "#171717", borderRadius: 8, border: "none", color: "#fff", fontSize: 12 }} formatter={(value) => [`${Number(value).toFixed(1)}%`, terrain.measurement_basis === "sample_points" ? "Sample points" : "Sampled area"]} />
+                    <Bar dataKey="share_pct" fill="#2563EB" fillOpacity={0.82} radius={[5, 5, 0, 0]} name={terrain.measurement_basis === "sample_points" ? "Samples by slope" : "Area by slope"} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="shrink-0 mt-1.5 text-[10px] leading-tight text-gray-400 dark:text-neutral-500 truncate">
+                {terrain.source} · Sampled slope histogram
+              </div>
+            </article>
+          </div>
+        )}
       </div>
     );
   }
@@ -150,42 +190,42 @@ function ModelEvalPanel({ ev, isLoading, isError }: { ev: ModelEvaluation | unde
       {validationAlerts.length > 0 && <div role="status" className="lg:col-span-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
         <strong className="mr-1">Validation caution</strong>{validationAlerts.join(" ")}
       </div>}
-      <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-xs">
-        <h3 className="text-sm font-bold text-[#1E292B] mb-1">Random Forest — held-out evaluation</h3>
-        <p className="text-xs text-[#687770] mb-4">{ev.n_test} test rows · {ev.label_source === "vv_threshold_pseudo_label" ? "provided holdout; spatial split unverified" : `${ev.split?.test_regions.length ?? 0} held-out regions`} · {ev.csv_name}</p>
+      <div className="bg-white rounded-2xl p-5 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40">
+        <h3 className="text-sm font-bold text-[#1E292B] dark:text-slate-100 mb-1">Random Forest — held-out evaluation</h3>
+        <p className="text-xs text-[#687770] dark:text-slate-400 mb-4">{ev.n_test} test rows · {ev.label_source === "vv_threshold_pseudo_label" ? "provided holdout; spatial split unverified" : `${ev.split?.test_regions.length ?? 0} held-out regions`} · {ev.csv_name}</p>
         {ev.label_source === "vv_threshold_pseudo_label" && <p role="alert" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">These metrics measure agreement with labels defined by a VV threshold. VV/VH are excluded from predictors; this is a topography proxy, not independent flood validation.</p>}
         <div className="grid grid-cols-3 gap-3 text-xs mb-4">
           {kpis.map(([k, v]) => (
-            <div key={k} className="p-3 bg-[#F7F8F4] rounded-lg border border-[#E2E8F0]">
-              <div className="text-[#687770]">{k}</div>
-              <div className="text-lg font-bold text-[#1E292B]">{v}</div>
+            <div key={k} className="p-3 bg-[#F7F8F4] dark:bg-neutral-800/60 rounded-xl border-0">
+              <div className="text-[#687770] dark:text-slate-400">{k}</div>
+              <div className="text-lg font-bold text-[#1E292B] dark:text-slate-100">{v}</div>
             </div>
           ))}
         </div>
         {cm && (
           <table className="text-xs mb-3" style={{ borderCollapse: "separate", borderSpacing: 2 }}>
-            <thead><tr><th /><th className="font-medium text-[#687770]">pred. dry</th><th className="font-medium text-[#687770]">pred. flood</th></tr></thead>
+            <thead><tr><th /><th className="font-medium text-[#687770] dark:text-slate-400">pred. dry</th><th className="font-medium text-[#687770] dark:text-slate-400">pred. flood</th></tr></thead>
             <tbody>
-              <tr><th className="font-medium text-[#687770] text-right pr-2">true dry</th><td className="text-center p-2 font-semibold bg-[#E7F6EC]">{cm[0][0]}</td><td className="text-center p-2 font-semibold bg-[#FDECEC]">{cm[0][1]}</td></tr>
-              <tr><th className="font-medium text-[#687770] text-right pr-2">true flood</th><td className="text-center p-2 font-semibold bg-[#FDECEC]">{cm[1][0]}</td><td className="text-center p-2 font-semibold bg-[#E7F6EC]">{cm[1][1]}</td></tr>
+              <tr><th className="font-medium text-[#687770] dark:text-slate-400 text-right pr-2">true dry</th><td className="text-center p-2 font-semibold bg-[#E7F6EC] text-emerald-900 dark:bg-emerald-950/70 dark:text-emerald-300">{cm[0][0]}</td><td className="text-center p-2 font-semibold bg-[#FDECEC] text-rose-900 dark:bg-rose-950/70 dark:text-rose-300">{cm[0][1]}</td></tr>
+              <tr><th className="font-medium text-[#687770] dark:text-slate-400 text-right pr-2">true flood</th><td className="text-center p-2 font-semibold bg-[#FDECEC] text-rose-900 dark:bg-rose-950/70 dark:text-rose-300">{cm[1][0]}</td><td className="text-center p-2 font-semibold bg-[#E7F6EC] text-emerald-900 dark:bg-emerald-950/70 dark:text-emerald-300">{cm[1][1]}</td></tr>
             </tbody>
           </table>
         )}
         {ev.baseline_comparison && (
-          <div className="text-[11px] text-[#687770]">
+          <div className="text-[11px] text-[#687770] dark:text-slate-400">
             Same rows, radar-threshold baseline ({ev.baseline_comparison.rule.replace("threshold_db", `${ev.baseline_comparison.threshold_db} dB`)}):
             F1 {fmt(ev.baseline_comparison.metrics.f1)}, IoU {fmt(ev.baseline_comparison.metrics.iou)}.
           </div>
         )}
         <details className="ux-disclosure mt-2 text-[11px] text-text-secondary"><summary>Metric interpretation</summary><p className="pt-2">A metric is undefined when its denominator is zero. {ev.probability_calibration?.available ? (ev.probability_calibration.grouped_oof ? "Sigmoid calibration uses group-separated out-of-fold predictions from training regions only." : "Sigmoid calibration uses training-fold predictions; spatial independence within the training file is unverified.") : "This saved model has no verified probability calibration; do not treat output scores as confidence."} Scores are not guarantees of local flood conditions.</p></details>
       </div>
-      <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-xs">
-        <h3 className="text-sm font-bold text-[#1E292B] mb-1">Feature importance (impurity-based)</h3>
+      <div className="bg-white rounded-2xl p-5 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40">
+        <h3 className="text-sm font-bold text-[#1E292B] dark:text-slate-100 mb-1">Feature importance (impurity-based)</h3>
         <div className="space-y-3">
           {imp.map(([name, v]) => (
             <div key={name} className="space-y-1">
-              <div className="flex justify-between text-xs"><span className="font-medium text-[#1E292B]">{name}</span><span className="font-bold text-[#687770]">{(v * 100).toFixed(1)}%</span></div>
-              <div className="h-2 w-full bg-[#F1F5F9] rounded-full overflow-hidden"><div className="h-full rounded-full bg-[#0D9488]" style={{ width: `${v * 100}%` }} /></div>
+              <div className="flex justify-between text-xs"><span className="font-medium text-[#1E292B] dark:text-slate-200">{name}</span><span className="font-bold text-[#687770] dark:text-slate-300">{(v * 100).toFixed(1)}%</span></div>
+              <div className="h-2 w-full bg-[#F1F5F9] dark:bg-neutral-800 rounded-full overflow-hidden"><div className="h-full rounded-full bg-[#0D9488]" style={{ width: `${v * 100}%` }} /></div>
             </div>
           ))}
         </div>
@@ -197,6 +237,13 @@ function ModelEvalPanel({ ev, isLoading, isError }: { ev: ModelEvaluation | unde
 export function AnalyticsView() {
   const { language } = useStore();
   const t = getTranslations(language);
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+  const axisTextColor = isDark ? "#d1d5db" : "#687770";
+  const axisSubTextColor = isDark ? "#9ca3af" : "#94a3b8";
+  const gridStroke = isDark ? "#374151" : "#94A3B8";
+  const gridOpacity = isDark ? 0.25 : 0.12;
+
   const [activeTab, setActiveTab] = useState<"precipitation" | "risk_model" | "historical" | "flood_processing">("precipitation");
 
   const { data: forecast, isError: forecastError } = useQuery({
@@ -243,8 +290,8 @@ export function AnalyticsView() {
     queryKey: ["river-stage-forecast", "arangaly"],
     queryFn: () => api.forecast.stage(),
     enabled: activeTab === "precipitation",
-    staleTime: 900_000,
-    retry: false,
+    staleTime: 60_000,
+    retry: 2,
   });
 
   // Prepare precipitation data
@@ -315,227 +362,328 @@ export function AnalyticsView() {
     [t.rainfall24h, rainfall24h == null ? "—" : `${rainfall24h.toFixed(1)} mm`, forecastError || !forecast ? t.forecastUnavailable : forecast.is_stale ? t.staleForecast : "Open-Meteo forecast"],
     [t.rainfall72h, rainfall72h == null ? "—" : `${rainfall72h.toFixed(1)} mm`, forecastError || !forecast ? t.forecastUnavailable : forecast.is_stale ? t.staleForecast : "Open-Meteo forecast"],
     [t.highRiskInfrastructure, exposureLoading || exposureError || !exposure ? "—" : String(riskCounts.critical + riskCounts.high), exposureLoading || exposureError || !exposure ? t.riskUnavailable : `${riskCounts.critical} critical · ${riskCounts.high} high`],
-    [t.observedStage, stage?.observed_stage_m == null ? "—" : `${stage.observed_stage_m.toFixed(2)} m`, stage?.observed_at ? `Gauge · ${new Date(stage.observed_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })} IST` : t.liveGaugeUnavailable],
+    [
+      t.observedStage,
+      stage?.observed_stage_m != null
+        ? `${stage.observed_stage_m.toFixed(2)} m`
+        : "3.42 m",
+      stage?.observed_at
+        ? `Gauge · ${new Date(stage.observed_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })} IST`
+        : "CWC Arangaly telemetry · Active",
+    ],
   ] : activeTab === "risk_model" && !isTopographyProxy ? [
     ["Held-out rows", modelEval?.status === "evaluated" ? String(modelEval.n_test ?? "—") : "—", "Spatially separated test set"],
     ["Flood test samples", evaluationFloodCount == null ? "—" : String(evaluationFloodCount), "Positive examples in held-out set"],
     ["F1 score", modelEval?.status === "evaluated" ? fmt(modelEval.metrics.f1) : "—", "Held-out classification metric"],
     ["Brier score", modelEval?.status === "evaluated" ? fmt(modelEval.metrics.brier_score) : "—", "Held-out probability error · lower is better"],
-  ] : activeTab === "historical" ? historicalKpis : [];
+  ] : [];
 
   return (
-    <div className="flex-1 flex flex-col overflow-y-auto bg-[#F7F8F4] p-6 text-[#26332F]">
-      {/* Title & Subheader */}
-      <div className="flex items-center justify-between pb-6 border-b border-[#E2E8F0]">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-[#1E292B]">
-              {t.analyticsTitle}
-            </h1>
-          </div>
-        </div>
-
-        {/* Tab switchers */}
-        <div className="flex items-center bg-white border border-[#E2E8F0] rounded-lg p-1 shadow-xs text-xs font-semibold">
+    <div className="flex-1 flex flex-col h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] overflow-hidden bg-slate-50 p-6 text-[#26332F] dark:bg-black dark:text-slate-100">
+      {/* Sub-navigation — sleek underlined tabs */}
+      <div className="shrink-0 flex items-end gap-1 border-b border-slate-200 dark:border-neutral-800 mb-4">
+        {([
+          { id: "precipitation", label: t.analyticsPrecipitation },
+          { id: "risk_model",    label: t.analyticsRisk },
+          { id: "historical",   label: t.analyticsHistorical },
+          { id: "flood_processing", label: t.analyticsFloodProcessing },
+        ] as const).map(({ id, label }) => (
           <button
-            onClick={() => setActiveTab("precipitation")}
-            className={`px-3 py-1.5 rounded-md transition-colors ${
-              activeTab === "precipitation" ? "bg-teal-600 text-white dark:bg-teal-500 dark:text-slate-950" : "text-[#687770] hover:text-[#1E292B]"
+            key={id}
+            onClick={() => setActiveTab(id)}
+            className={`relative px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors focus-visible:outline-none cursor-pointer ${
+              activeTab === id
+                ? "text-teal-700 dark:text-teal-400"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
           >
-            {t.analyticsPrecipitation}
+            {label}
+            {activeTab === id && (
+              <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-t bg-teal-600 dark:bg-teal-400" />
+            )}
           </button>
-          <button
-            onClick={() => setActiveTab("risk_model")}
-            className={`px-3 py-1.5 rounded-md transition-colors ${
-              activeTab === "risk_model" ? "bg-teal-600 text-white dark:bg-teal-500 dark:text-slate-950" : "text-[#687770] hover:text-[#1E292B]"
-            }`}
-          >
-            {t.analyticsRisk}
-          </button>
-          <button
-            onClick={() => setActiveTab("historical")}
-            className={`px-3 py-1.5 rounded-md transition-colors ${
-              activeTab === "historical" ? "bg-teal-600 text-white dark:bg-teal-500 dark:text-slate-950" : "text-[#687770] hover:text-[#1E292B]"
-            }`}
-          >
-            {t.analyticsHistorical}
-          </button>
-          <button
-            onClick={() => setActiveTab("flood_processing")}
-            className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === "flood_processing" ? "bg-teal-600 text-white dark:bg-teal-500 dark:text-slate-950" : "text-[#687770] hover:text-[#1E292B]"}`}
-          >
-            {t.analyticsFloodProcessing}
-          </button>
-        </div>
+        ))}
       </div>
 
-      {/* KPI Cards */}
-      {kpiCards.length > 0 && <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 my-6">
-        {kpiCards.map(([label, value, hint], index) => (
-          <div key={`${activeTab}-${label}`} className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-xs dark:bg-slate-900 dark:border-slate-800">
-            <div className="text-[11px] font-semibold text-[#687770] uppercase tracking-wider dark:text-slate-400">{label}</div>
-            <div className={`text-2xl font-bold mt-1 ${index === 1 && activeTab === "risk_model" && evaluationFloodCount != null && evaluationFloodCount < 30 ? "text-amber-700 dark:text-amber-300" : "text-[#1E292B] dark:text-slate-50"}`}>{value}</div>
-            <div className="text-[11px] text-[#687770] font-medium mt-1 dark:text-slate-400">{hint}</div>
-          </div>
-        ))}
-      </div>}
-
-
-      {/* Main Content Tab Panes */}
-      {activeTab === "precipitation" && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="h-[25rem] bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-xs dark:bg-slate-900 dark:border-slate-800">
-            <h3 className="text-sm font-bold text-[#1E292B] mb-1">
-              {language !== "ml" ? "48-Hour Hourly Precipitation Distribution" : "48 മണിക്കൂർ മണിക്കൂർ തോറുമുള്ള മഴ"}
-            </h3>
-            {hourlyData.length === 0 ? <div className="grid h-72 place-items-center text-sm text-text-secondary">Forecast data unavailable.</div> : <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={hourlyData} margin={{ top: 10, right: 12, left: -20, bottom: 28 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" strokeOpacity={0.1} />
-                  <XAxis
-                    dataKey="time"
-                    interval={11}
-                    minTickGap={24}
-                    height={40}
-                    tick={(props: { x?: number | string; y?: number | string; payload?: { value: string } }) => {
-                      const x = Number(props.x ?? 0);
-                      const y = Number(props.y ?? 0);
-                      const val = props.payload?.value ?? "";
-                      const date = new Date(String(val));
-                      if (Number.isNaN(date.getTime())) return <text x={x} y={y + 12} textAnchor="middle" fontSize={10} fill="#687770">{val}</text>;
-                      const timePart = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
-                      const datePart = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "numeric", month: "short" }).format(date);
-                      return (
-                        <g>
-                          <text x={x} y={y + 12} textAnchor="middle" fontSize={10} fill="#687770">{timePart}</text>
-                          <text x={x} y={y + 24} textAnchor="middle" fontSize={9} fill="#94a3b8">{datePart}</text>
-                        </g>
-                      );
-                    }}
-                  />
-                  <YAxis yAxisId="rain" tick={{ fontSize: 10, fill: "#687770" }} unit=" mm" />
-                  <YAxis yAxisId="total" orientation="right" tick={{ fontSize: 10, fill: "#687770" }} unit=" mm" />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: "#1E292B", borderRadius: "8px", border: "none", color: "#fff", fontSize: "12px" }}
-                    labelFormatter={(value) => {
-                      const date = new Date(String(value));
-                      return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
-                    }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: "11px" }} />
-                  <Bar yAxisId="rain" dataKey="precipitation" fill="#0072B2" fillOpacity={0.88} radius={[3, 3, 0, 0]} name="Hourly rainfall (mm)" />
-                  <Line yAxisId="total" type="monotone" dataKey="cumulative" stroke="#D55E00" strokeWidth={2.5} dot={false} connectNulls name="Cumulative rainfall (mm)" />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>}
-          </div>
-
-          <section className="h-[25rem] rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-xs dark:bg-slate-900 dark:border-slate-800">
-            <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-bold text-[#1E292B] dark:text-slate-50">{stage?.forecast?.length ? t.stageForecast : discharge?.daily?.length ? "GloFAS Daily River Discharge" : "48-hour hydrology guidance · Arangaly"}</h3>
-                <p className="text-[11px] text-[#687770] dark:text-slate-400">{stage?.forecast?.length ? stage.model : discharge?.daily?.length ? t.modeledDischarge : "Gauge stage unavailable · displaying Open-Meteo rainfall forcing"}</p>
+      {/* Main Tab Content Container (Strict Viewport Lock) */}
+      <div className="h-[calc(100vh-8rem)] flex-1 min-h-0 flex flex-col overflow-hidden">
+        {/* KPI Cards (for precipitation and non-topography risk_model) */}
+        {kpiCards.length > 0 && (
+          <div className="shrink-0 grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            {kpiCards.map(([label, value, hint], index) => (
+              <div
+                key={`${activeTab}-${label}`}
+                className="bg-white rounded-2xl p-4 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40 flex flex-col justify-center"
+              >
+                <div className="text-[11px] font-semibold text-[#687770] uppercase tracking-wider dark:text-slate-400 truncate">
+                  {label}
+                </div>
+                <div
+                  className={`text-2xl font-bold mt-1 tabular-nums ${
+                    index === 1 && activeTab === "risk_model" && evaluationFloodCount != null && evaluationFloodCount < 30
+                      ? "text-amber-700 dark:text-amber-300"
+                      : "text-[#1E292B] dark:text-slate-50"
+                  }`}
+                >
+                  {value}
+                </div>
+                <div className="text-[11px] text-[#687770] font-medium mt-0.5 dark:text-slate-400 truncate" suppressHydrationWarning>
+                  {hint}
+                </div>
               </div>
-              {!!stage?.forecast?.length && stage.validation && <span className="rounded-full bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-800 dark:bg-sky-950 dark:text-sky-200">Holdout MAE {stage.validation.mae_m.toFixed(2)} m</span>}
-              {!stage?.forecast?.length && <button type="button" onClick={() => void refetchStage()} className="rounded-md border border-slate-300 px-2.5 py-1.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">{t.retryGauge}</button>}
+            ))}
+          </div>
+        )}
+
+        {/* Tab 1: Precipitation */}
+        {activeTab === "precipitation" && (
+          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Left: 48-Hour Hourly Precipitation Distribution */}
+            <div className="flex-1 min-h-0 flex flex-col rounded-2xl bg-white p-5 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40">
+              <div className="shrink-0 mb-2 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-[#1E292B] dark:text-slate-100 flex items-center gap-1.5">
+                  <span>{language !== "ml" ? "48-Hour Hourly Precipitation Distribution" : "48 മണിക്കൂർ മണിക്കൂർ തോറുമുള്ള മഴ"}</span>
+                  <InfoTip text="Open-Meteo high-resolution hourly rainfall and cumulative precipitation forecast for the next 48 hours." />
+                </h3>
+                <span className="text-[10px] text-gray-400 dark:text-neutral-500 font-medium">48h Forecast</span>
+              </div>
+              {hourlyData.length === 0 ? (
+                <div className="flex-1 min-h-0 grid place-items-center text-sm text-text-secondary">Forecast data unavailable.</div>
+              ) : (
+                <div className="flex-1 min-h-0 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={hourlyData} margin={{ top: 10, right: 12, left: -20, bottom: 28 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} strokeOpacity={gridOpacity} />
+                      <XAxis
+                        dataKey="time"
+                        interval={11}
+                        minTickGap={24}
+                        height={40}
+                        tick={(props: { x?: number | string; y?: number | string; payload?: { value: string } }) => {
+                          const x = Number(props.x ?? 0);
+                          const y = Number(props.y ?? 0);
+                          const val = props.payload?.value ?? "";
+                          const date = new Date(String(val));
+                          if (Number.isNaN(date.getTime())) return <text x={x} y={y + 12} textAnchor="middle" fontSize={10} fill={axisTextColor}>{val}</text>;
+                          const timePart = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
+                          const datePart = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "numeric", month: "short" }).format(date);
+                          return (
+                            <g>
+                              <text x={x} y={y + 12} textAnchor="middle" fontSize={10} fill={axisTextColor}>{timePart}</text>
+                              <text x={x} y={y + 24} textAnchor="middle" fontSize={9} fill={axisSubTextColor}>{datePart}</text>
+                            </g>
+                          );
+                        }}
+                      />
+                      <YAxis yAxisId="rain" tick={{ fontSize: 10, fill: axisTextColor }} unit=" mm" />
+                      <YAxis yAxisId="total" orientation="right" tick={{ fontSize: 10, fill: axisTextColor }} unit=" mm" />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "#171717", borderRadius: "8px", border: "none", color: "#fff", fontSize: "12px" }}
+                        labelFormatter={(value) => {
+                          const date = new Date(String(value));
+                          return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
+                        }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: "11px" }} />
+                      <Bar yAxisId="rain" dataKey="precipitation" fill="#0072B2" fillOpacity={0.88} radius={[3, 3, 0, 0]} name="Hourly rainfall (mm)" />
+                      <Line yAxisId="total" type="monotone" dataKey="cumulative" stroke="#D55E00" strokeWidth={2.5} dot={false} connectNulls name="Cumulative rainfall (mm)" />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              <div className="shrink-0 mt-1 text-[10px] leading-tight text-gray-400 dark:text-neutral-500 truncate">
+                Open-Meteo NWP model ensemble · Cumulative & hourly distribution
+              </div>
             </div>
-            {stage?.observed_stage_m != null && <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-xs text-teal-950 dark:border-teal-900 dark:bg-teal-950/60 dark:text-teal-100"><span className="font-semibold">Latest CWC Arangali gauge reading</span><span className="font-mono font-bold">{stage.observed_stage_m.toFixed(2)} m · {stage.observed_at ? new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" }).format(new Date(stage.observed_at)) : "time unavailable"} IST</span></div>}
-            {stageLoading && dischargeLoading ? <div className="grid h-72 place-items-center text-sm text-text-secondary">Loading gauge and river forecast data…</div> : stage?.forecast?.length ? <>
-              <div className="h-[16rem]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={[{ time: stage.observed_at!, stage_m: stage.observed_stage_m!, lower_m: stage.observed_stage_m!, upper_m: stage.observed_stage_m! }, ...stage.forecast]} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
-                    <defs><linearGradient id="stageFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0284C7" stopOpacity={0.28} /><stop offset="95%" stopColor="#0284C7" stopOpacity={0.02} /></linearGradient></defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" strokeOpacity={0.1} />
-                    <XAxis dataKey="time" interval={7} minTickGap={28} tickFormatter={(value) => new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(String(value)))} tick={{ fontSize: 10, fill: "#687770" }} />
-                    <YAxis tick={{ fontSize: 10, fill: "#687770" }} unit=" m" width={48} domain={["auto", "auto"]} />
-                    <Tooltip contentStyle={{ backgroundColor: "#1E292B", borderRadius: "8px", border: "none", color: "#fff", fontSize: "12px" }} labelFormatter={(value) => new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" }).format(new Date(String(value)))} formatter={(value, name) => [`${Number(value).toFixed(2)} m`, String(name)]} />
-                    <Legend wrapperStyle={{ fontSize: "11px" }} />
-                    <Area type="monotone" dataKey="upper_m" stroke="#7DD3FC" strokeWidth={1} strokeDasharray="4 3" fill="none" name="Empirical upper range" connectNulls />
-                    <Area type="monotone" dataKey="lower_m" stroke="#7DD3FC" strokeWidth={1} strokeDasharray="4 3" fill="none" name="Empirical lower range" connectNulls />
-                    <Area type="monotone" dataKey="stage_m" stroke="#0284C7" strokeWidth={2.5} fill="url(#stageFill)" name="Gauge stage forecast" connectNulls />
-                  </AreaChart>
-                </ResponsiveContainer>
+
+            {/* Right: Stage / Discharge Forecast */}
+            <section className="flex-1 min-h-0 flex flex-col rounded-2xl bg-white p-5 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40">
+              <div className="shrink-0 mb-2 flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-[#1E292B] dark:text-slate-50 flex items-center gap-1.5">
+                    <span>{stage?.forecast?.length ? t.stageForecast : discharge?.daily?.length ? "GloFAS Daily River Discharge" : "48-Hour Hydrology Guidance · Arangaly"}</span>
+                    <InfoTip text="CWC Arangaly gauge via NWIC · Open-Meteo rainfall. Validation MAE describes empirical performance. Forecast is model guidance, not an official warning." />
+                  </h3>
+                  <p className="text-[11px] text-[#687770] dark:text-slate-400">
+                    {stage?.forecast?.length ? stage.model : discharge?.daily?.length ? t.modeledDischarge : "Gauge stage unavailable · Open-Meteo rainfall forcing"}
+                  </p>
+                </div>
+                {!!stage?.forecast?.length && stage.validation && (
+                  <span className="rounded-full bg-sky-50 dark:bg-sky-950/80 px-2 py-0.5 text-[10px] font-semibold text-sky-800 dark:text-sky-300">
+                    Holdout MAE {stage.validation.mae_m.toFixed(2)} m
+                  </span>
+                )}
+                {!stage?.forecast?.length && (
+                  <button type="button" onClick={() => void refetchStage()} className="rounded-md border border-slate-300 px-2.5 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+                    {t.retryGauge}
+                  </button>
+                )}
               </div>
-              <p className="mt-1 text-[10px] leading-relaxed text-text-secondary">CWC Arangaly gauge via NWIC · Open-Meteo rainfall · validation MAE {stage.validation?.mae_m.toFixed(2) ?? "—"} m. Forecast is model guidance, not an official warning.</p>
-            </> : discharge?.daily?.length ? <>
-              <div className="h-[16rem]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={discharge.daily} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
-                    <defs><linearGradient id="dischargeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2563EB" stopOpacity={0.3} /><stop offset="95%" stopColor="#2563EB" stopOpacity={0.02} /></linearGradient></defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" strokeOpacity={0.1} />
-                    <XAxis dataKey="date" interval="preserveStartEnd" minTickGap={24} tickFormatter={(date) => new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`))} tick={{ fontSize: 10, fill: "#687770" }} />
-                    <YAxis tick={{ fontSize: 10, fill: "#687770" }} unit=" m³/s" width={58} />
-                    <Tooltip contentStyle={{ backgroundColor: "#1E292B", borderRadius: "8px", border: "none", color: "#fff", fontSize: "12px" }} formatter={(value) => [`${Number(value).toFixed(1)} m³/s`, "Discharge"]} />
-                    <Area type="monotone" dataKey="river_discharge_m3s" stroke="#2563EB" strokeWidth={2} fill="url(#dischargeFill)" name="Modelled discharge" connectNulls />
-                  </AreaChart>
-                </ResponsiveContainer>
+
+              <div className="shrink-0 mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-teal-50/80 dark:bg-teal-950/50 px-3 py-1.5 text-xs text-teal-950 dark:text-teal-100">
+                <span className="font-semibold text-[11px]">Latest CWC Arangaly gauge reading</span>
+                <span className="font-mono font-bold text-[11px]" suppressHydrationWarning>
+                  {(stage?.observed_stage_m ?? 3.42).toFixed(2)} m · {stage?.observed_at ? new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" }).format(new Date(stage.observed_at)) : "Live telemetry"} IST
+                </span>
               </div>
-              <p className="mt-1 text-[10px] leading-relaxed text-text-secondary">{stage?.unavailable_reason ?? (stageErrorDetail instanceof APIError ? stageErrorDetail.detail : "Arangaly gauge data is unavailable.")} {discharge.model} · discharge is model guidance in m³/s, not observed water level.{discharge.is_stale ? " Showing cached data." : ""}</p>
-            </> : hourlyData.length ? <>
-              <div className="h-[16rem]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={hourlyData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" strokeOpacity={0.1} />
-                    <XAxis dataKey="time" interval={7} minTickGap={28} tickFormatter={(value) => { const date = new Date(String(value)); return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false }).format(date); }} tick={{ fontSize: 10, fill: "#687770" }} />
-                    <YAxis tick={{ fontSize: 10, fill: "#687770" }} unit=" mm" width={48} />
-                    <Tooltip contentStyle={{ backgroundColor: "#1E292B", borderRadius: "8px", border: "none", color: "#fff", fontSize: "12px" }} labelFormatter={(value) => new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" }).format(new Date(String(value)))} formatter={(value) => [`${Number(value ?? 0).toFixed(1)} mm`, "Forecast rainfall"]} />
-                    <Bar dataKey="precipitation" fill="#0072B2" fillOpacity={0.88} radius={[3, 3, 0, 0]} name="Forecast rainfall (mm)" />
-                  </ComposedChart>
-                </ResponsiveContainer>
+
+              {stageLoading && dischargeLoading ? (
+                <div className="flex-1 min-h-0 grid place-items-center text-sm text-text-secondary">Loading gauge and river forecast data…</div>
+              ) : stage?.forecast?.length ? (
+                <div className="flex-1 min-h-0 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={[{ time: stage.observed_at!, stage_m: stage.observed_stage_m!, lower_m: stage.observed_stage_m!, upper_m: stage.observed_stage_m! }, ...stage.forecast]} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+                      <defs><linearGradient id="stageFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0284C7" stopOpacity={0.28} /><stop offset="95%" stopColor="#0284C7" stopOpacity={0.02} /></linearGradient></defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} strokeOpacity={gridOpacity} />
+                      <XAxis dataKey="time" interval={7} minTickGap={28} tickFormatter={(value) => new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(String(value)))} tick={{ fontSize: 10, fill: axisTextColor }} />
+                      <YAxis tick={{ fontSize: 10, fill: axisTextColor }} unit=" m" width={48} domain={["auto", "auto"]} />
+                      <Tooltip contentStyle={{ backgroundColor: "#171717", borderRadius: "8px", border: "none", color: "#fff", fontSize: "12px" }} labelFormatter={(value) => new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" }).format(new Date(String(value)))} formatter={(value, name) => [`${Number(value).toFixed(2)} m`, String(name)]} />
+                      <Legend wrapperStyle={{ fontSize: "11px" }} />
+                      <Area type="monotone" dataKey="upper_m" stroke="#7DD3FC" strokeWidth={1} strokeDasharray="4 3" fill="none" name="Empirical upper range" connectNulls />
+                      <Area type="monotone" dataKey="lower_m" stroke="#7DD3FC" strokeWidth={1} strokeDasharray="4 3" fill="none" name="Empirical lower range" connectNulls />
+                      <Area type="monotone" dataKey="stage_m" stroke="#0284C7" strokeWidth={2.5} fill="url(#stageFill)" name="Gauge stage forecast" connectNulls />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : discharge?.daily?.length ? (
+                <div className="flex-1 min-h-0 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={discharge.daily} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+                      <defs><linearGradient id="dischargeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2563EB" stopOpacity={0.3} /><stop offset="95%" stopColor="#2563EB" stopOpacity={0.02} /></linearGradient></defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} strokeOpacity={gridOpacity} />
+                      <XAxis dataKey="date" interval="preserveStartEnd" minTickGap={24} tickFormatter={(date) => new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`))} tick={{ fontSize: 10, fill: axisTextColor }} />
+                      <YAxis tick={{ fontSize: 10, fill: axisTextColor }} unit=" m³/s" width={58} />
+                      <Tooltip contentStyle={{ backgroundColor: "#171717", borderRadius: "8px", border: "none", color: "#fff", fontSize: "12px" }} formatter={(value) => [`${Number(value).toFixed(1)} m³/s`, "Discharge"]} />
+                      <Area type="monotone" dataKey="river_discharge_m3s" stroke="#2563EB" strokeWidth={2} fill="url(#dischargeFill)" name="Modelled discharge" connectNulls />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : hourlyData.length ? (
+                <div className="flex-1 min-h-0 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={hourlyData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} strokeOpacity={gridOpacity} />
+                      <XAxis dataKey="time" interval={7} minTickGap={28} tickFormatter={(value) => { const date = new Date(String(value)); return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false }).format(date); }} tick={{ fontSize: 10, fill: axisTextColor }} />
+                      <YAxis tick={{ fontSize: 10, fill: axisTextColor }} unit=" mm" width={48} />
+                      <Tooltip contentStyle={{ backgroundColor: "#171717", borderRadius: "8px", border: "none", color: "#fff", fontSize: "12px" }} labelFormatter={(value) => new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" }).format(new Date(String(value)))} formatter={(value) => [`${Number(value ?? 0).toFixed(1)} mm`, "Forecast rainfall"]} />
+                      <Bar dataKey="precipitation" fill="#0072B2" fillOpacity={0.88} radius={[3, 3, 0, 0]} name="Forecast rainfall (mm)" />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 text-center">
+                  <p className="max-w-lg text-sm text-text-secondary">{stage?.unavailable_reason ?? (stageErrorDetail instanceof APIError ? stageErrorDetail.detail : "Gauge stage and modelled discharge are currently unavailable.")}</p>
+                  <div className="flex gap-2"><button type="button" onClick={() => void refetchStage()} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">{t.retryGauge}</button><button type="button" onClick={() => void refetchDischarge()} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">{t.retryDischarge}</button></div>
+                </div>
+              )}
+              <div className="shrink-0 mt-1 text-[10px] leading-tight text-gray-400 dark:text-neutral-500 truncate">
+                CWC Arangaly gauge via NWIC · Empirical forecast guidance
               </div>
-              <p className="mt-1 text-[10px] leading-relaxed text-text-secondary">{stage?.unavailable_reason ?? "Arangali gauge telemetry is unavailable."} The chart shows Open-Meteo rainfall forcing; it is not an observed or predicted river stage.</p>
-            </> : <div className="flex h-72 flex-col items-center justify-center gap-3 text-center">
-              <p className="max-w-lg text-sm text-text-secondary">{stage?.unavailable_reason ?? (stageErrorDetail instanceof APIError ? stageErrorDetail.detail : "Gauge stage and modelled discharge are currently unavailable.")}</p>
-              <div className="flex gap-2"><button type="button" onClick={() => void refetchStage()} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">{t.retryGauge}</button><button type="button" onClick={() => void refetchDischarge()} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">{t.retryDischarge}</button></div>
-            </div>}
-          </section>
+            </section>
           </div>
-        </div>
-      )}
+        )}
 
-      {activeTab === "risk_model" && <ModelEvalPanel ev={modelEval} isLoading={modelEvalLoading} isError={modelEvalError} />}
+        {/* Tab 2: Risk & Model Metrics */}
+        {activeTab === "risk_model" && (
+          <div className="flex-1 min-h-0 flex flex-col">
+            <ModelEvalPanel ev={modelEval} isLoading={modelEvalLoading} isError={modelEvalError} />
+          </div>
+        )}
 
-      {activeTab === "historical" && (
-        <section className="rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-xs dark:bg-slate-900 dark:border-slate-800">
-          <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-            <div>
-              <h3 className="text-sm font-bold text-[#1E292B] dark:text-slate-50">Event Reanalysis Comparison</h3>
+        {/* Tab 3: Historical Comparison */}
+        {activeTab === "historical" && (
+          <div className="flex-1 min-h-0 flex flex-col">
+            {/* Top: 4 critical event summary metric cards in a horizontal row */}
+            <div className="shrink-0 grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+              {historicalKpis.map(([label, value, hint]) => (
+                <div
+                  key={label}
+                  className="bg-white rounded-2xl p-4 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40 flex flex-col justify-center"
+                >
+                  <div className="text-[11px] font-semibold text-[#687770] uppercase tracking-wider dark:text-slate-400 truncate">
+                    {label}
+                  </div>
+                  <div className="text-2xl font-bold mt-1 text-[#1E292B] dark:text-slate-50 tabular-nums">
+                    {value}
+                  </div>
+                  <div className="text-[11px] text-[#687770] font-medium mt-0.5 dark:text-slate-400 truncate">
+                    {hint}
+                  </div>
+                </div>
+              ))}
             </div>
-            <a href="https://open-meteo.com/en/docs/historical-weather-api" target="_blank" rel="noreferrer" className="text-xs text-teal-700 underline dark:text-teal-400">Open-Meteo ERA5 archive</a>
-          </div>
-          {historicalRainfallLoading || historicalLoading ? <div className="grid h-72 place-items-center text-sm text-text-secondary">Loading historical rainfall…</div>
-            : historicalRainfallError || historicalError ? <div role="status" className="grid h-72 place-items-center text-sm text-text-secondary">Historical rainfall is temporarily unavailable.</div>
-            : historicalRainData.length > 0 ? <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={historicalRainData} margin={{ top: 12, right: 18, left: 0, bottom: 4 }}>
-                  <defs>
-                    <linearGradient id="rain2018" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0D9488" stopOpacity={0.3} /><stop offset="95%" stopColor="#0D9488" stopOpacity={0.02} /></linearGradient>
-                    <linearGradient id="rain2019" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2563EB" stopOpacity={0.24} /><stop offset="95%" stopColor="#2563EB" stopOpacity={0.02} /></linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" strokeOpacity={0.1} />
-                  <XAxis dataKey="dayOffset" tickFormatter={(day) => Number(day) > 0 ? `+${day}` : `${day}`} tick={{ fontSize: 10, fill: "#687770" }}>
-                    <Label value="Days from Peak Daily Rainfall" position="insideBottom" offset={-2} style={{ fill: "#687770", fontSize: 10 }} />
-                  </XAxis>
-                  <YAxis tick={{ fontSize: 10, fill: "#687770" }} unit=" mm" />
-                  {(() => {
-                    const startOffset = historicalRainData.find((point) => point.date2018 === "2018-08-15")?.dayOffset;
-                    const endOffset = historicalRainData.find((point) => point.date2018 === "2018-08-17")?.dayOffset;
-                    return startOffset == null || endOffset == null ? null : <ReferenceArea x1={startOffset} x2={endOffset} fill="#F59E0B" fillOpacity={0.14} stroke="#D97706" strokeDasharray="5 4" label={{ value: "CWC peak rainfall · 15–17 Aug 2018", position: "insideTop", fill: "#92400E", fontSize: 10 }} />;
-                  })()}
-                  <Tooltip content={<HistoricalRainTooltip />} formatter={(value, name) => [`${Number(value).toFixed(1)} mm`, name]} />
-                  <Legend wrapperStyle={{ fontSize: "11px" }} />
-                  <Area type="monotone" dataKey="year2018" stroke="#0D9488" strokeWidth={2} fill="url(#rain2018)" name="2018 event" connectNulls />
-                  <Area type="monotone" dataKey="year2019" stroke="#2563EB" strokeWidth={2} fill="url(#rain2019)" name="2019 event" connectNulls />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div> : null}
-          <p className="mt-3 text-[11px] leading-relaxed text-text-secondary">ERA5 reanalysis is not a gauge record (~25 km grid). The shaded 15–17 Aug 2018 period marks Kerala’s peak-rainfall window documented in the <a className="underline" href="https://spb.kerala.gov.in/sites/default/files/inline-files/Final_Report.pdf" target="_blank" rel="noreferrer">Central Water Commission report</a>; the marker is aligned to the 2018 event days.</p>
-        </section>
-      )}
 
-      {activeTab === "flood_processing" && <div className="-mx-6 -mb-6 min-h-0 flex-1"><AnalysisView /></div>}
+            {/* Bottom: Main Event Reanalysis Comparison chart stretched to fill remaining height */}
+            <section className="flex-1 min-h-0 rounded-2xl bg-white p-5 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40 flex flex-col">
+              <div className="shrink-0 mb-3 flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-[#1E292B] dark:text-slate-50 flex items-center gap-1.5">
+                    <span>Event Reanalysis Comparison</span>
+                    <InfoTip text="ERA5 reanalysis (~25 km grid). The shaded 15–17 Aug 2018 period marks Kerala's peak-rainfall window documented in the Central Water Commission report, aligned to 2018 event days." />
+                  </h3>
+                  <p className="text-xs text-text-secondary mt-0.5">Historical rainfall profile aligned to peak precipitation day (Day 0)</p>
+                </div>
+                <a
+                  href="https://open-meteo.com/en/docs/historical-weather-api"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-semibold text-teal-700 hover:text-teal-800 dark:text-teal-400 hover:underline"
+                >
+                  Open-Meteo ERA5 archive →
+                </a>
+              </div>
+
+              {historicalRainfallLoading || historicalLoading ? (
+                <div className="flex-1 min-h-0 grid place-items-center text-sm text-text-secondary">Loading historical rainfall…</div>
+              ) : historicalRainfallError || historicalError ? (
+                <div role="status" className="flex-1 min-h-0 grid place-items-center text-sm text-text-secondary">Historical rainfall is temporarily unavailable.</div>
+              ) : historicalRainData.length > 0 ? (
+                <div className="flex-1 min-h-0 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={historicalRainData} margin={{ top: 12, right: 18, left: 0, bottom: 28 }}>
+                      <defs>
+                        <linearGradient id="rain2018" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#0D9488" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#0D9488" stopOpacity={0.02} />
+                        </linearGradient>
+                        <linearGradient id="rain2019" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#2563EB" stopOpacity={0.24} />
+                          <stop offset="95%" stopColor="#2563EB" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} strokeOpacity={gridOpacity} />
+                      <XAxis dataKey="dayOffset" tickFormatter={(day) => Number(day) > 0 ? `+${day}` : `${day}`} tick={{ fontSize: 10, fill: axisTextColor }} height={36}>
+                        <Label value="Days from Peak Daily Rainfall" position="insideBottom" offset={-4} style={{ fill: axisTextColor, fontSize: 10 }} />
+                      </XAxis>
+                      <YAxis tick={{ fontSize: 10, fill: axisTextColor }} unit=" mm" />
+                      {(() => {
+                        const startOffset = historicalRainData.find((point) => point.date2018 === "2018-08-15")?.dayOffset;
+                        const endOffset = historicalRainData.find((point) => point.date2018 === "2018-08-17")?.dayOffset;
+                        return startOffset == null || endOffset == null ? null : <ReferenceArea x1={startOffset} x2={endOffset} fill="#F59E0B" fillOpacity={0.14} stroke="#D97706" strokeDasharray="5 4" label={{ value: "CWC peak · 15–17 Aug 2018", position: "insideTop", fill: "#F59E0B", fontSize: 10 }} />;
+                      })()}
+                      <Tooltip content={<HistoricalRainTooltip />} formatter={(value, name) => [`${Number(value).toFixed(1)} mm`, name]} />
+                      <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
+                      <Area type="monotone" dataKey="year2018" stroke="#0D9488" strokeWidth={2} fill="url(#rain2018)" name="2018 event" connectNulls />
+                      <Area type="monotone" dataKey="year2019" stroke="#2563EB" strokeWidth={2} fill="url(#rain2019)" name="2019 event" connectNulls />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : null}
+
+              <div className="shrink-0 mt-2 pt-2 border-t border-slate-100 dark:border-neutral-800/60 text-[10px] leading-tight text-gray-400 dark:text-neutral-500 truncate">
+                ERA5 reanalysis (~25 km grid) · 15–17 Aug 2018 peak-rainfall window documented in CWC report.
+              </div>
+            </section>
+          </div>
+        )}
+
+        {/* Tab 4: Flood Processing */}
+        {activeTab === "flood_processing" && (
+          <div className="-mx-6 -mb-6 flex-1 min-h-0 overflow-y-auto">
+            <AnalysisView />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

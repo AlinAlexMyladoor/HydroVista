@@ -118,11 +118,10 @@ function VoiceWave() {
 
 /* ─── Component ──────────────────────────────────────────────────────────── */
 export function AssistantChat() {
-  const { language } = useStore();
+  const { language, assistantOpen: open, setAssistantOpen: setOpen, analysisDrawerOpen } = useStore();
   const words = copy[language];
 
   /* UI state */
-  const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [pending, setPending] = useState(false);
@@ -152,12 +151,21 @@ export function AssistantChat() {
   const { data: exposure } = useQuery({
     queryKey: ["assistant-exposure"],
     queryFn: () => api.exposure.list({ page_size: 200 }),
-    enabled: open, staleTime: 60_000, retry: 1,
+    staleTime: 60_000,
+    retry: 1,
   });
   const { data: status } = useQuery({
     queryKey: ["assistant-sources"], queryFn: api.forecast.dataSources,
     enabled: open, staleTime: 60_000, retry: 1,
   });
+
+  const criticalCount = useMemo(() => {
+    if (!exposure?.items?.length) return 0;
+    return exposure.items.filter(
+      (item) => item.risk_category === "critical" || item.risk_score >= 0.85,
+    ).length;
+  }, [exposure]);
+  const hasCriticalRisk = criticalCount > 0;
 
   /* ── Build context ── */
   const context = useMemo<AssistantContext>(() => {
@@ -334,6 +342,10 @@ export function AssistantChat() {
     void sendMessage(input);
   };
 
+  const rightRailOpen = useStore((s) => s.rightRailOpen);
+  const activeRoute = useStore((s) => s.activeRoute);
+  const isOverviewWithRail = activeRoute === "overview" && rightRailOpen;
+
   const hasSpeechSupport =
     typeof window !== "undefined" &&
     ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
@@ -347,23 +359,24 @@ export function AssistantChat() {
       {/* ── Chat panel ── */}
       {open && (
         <section
-          className="fixed bottom-20 right-5 z-[80] flex flex-col overflow-hidden rounded-2xl shadow-2xl"
+          className={`fixed z-[100] flex flex-col overflow-hidden rounded-2xl shadow-2xl border border-slate-200 dark:border-neutral-800 animate-fade-in ${
+            isOverviewWithRail ? "bottom-15 right-2.5" : "bottom-22 right-6"
+          }`}
           style={{
             width: "min(400px, calc(100vw - 2rem))",
             height: "min(640px, calc(100vh - 7rem))",
             background: "var(--chat-bg, #ffffff)",
-            border: "1px solid var(--chat-border, #e2e8f0)",
           }}
           aria-label={words.title}
         >
           {/* CSS vars for dark mode inside the panel */}
           <style>{`
             .dark section[aria-label="${words.title}"] {
-              --chat-bg: #0d111a;
-              --chat-border: #1e2d3d;
-              --chat-header: #0d111a;
-              --chat-body: #070a10;
-              --chat-footer: #0d111a;
+              --chat-bg: #000000;
+              --chat-border: #262626;
+              --chat-header: #0a0a0a;
+              --chat-body: #050505;
+              --chat-footer: #0a0a0a;
             }
           `}</style>
 
@@ -574,7 +587,7 @@ export function AssistantChat() {
                 disabled={pending || !input.trim()}
                 type="submit"
                 aria-label={words.send}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-teal-600 text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-teal-500 dark:text-slate-950"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-teal-600 text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-teal-600 dark:text-white"
               >
                 <Send size={15} />
               </button>
@@ -587,17 +600,20 @@ export function AssistantChat() {
         </section>
       )}
 
-      {/* ── Floating button ── */}
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-5 right-5 z-[80] inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-teal-600 to-teal-700 px-4 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 dark:from-teal-500 dark:to-teal-600 dark:text-slate-950"
-        aria-label={words.title}
-        aria-expanded={open}
-      >
-        <MessageCircle size={18} />
-        <span>{words.title}</span>
-      </button>
+      {/* ── Floating action button (FAB): only rendered when RightRail is not present and analysis drawer is closed ── */}
+      {!isOverviewWithRail && !analysisDrawerOpen && (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="fixed bottom-4 right-4 z-50 inline-flex h-12 items-center gap-2.5 rounded-full px-4.5 text-xs font-bold text-white shadow-2xl transition-all hover:scale-105 active:scale-95 bg-[#0D7363] hover:bg-teal-800 dark:bg-teal-700 dark:hover:bg-teal-600 cursor-pointer ring-2 ring-white/30 dark:ring-white/15 backdrop-blur-md"
+          aria-label={words.title}
+          title={words.title}
+          aria-expanded={open}
+        >
+          <MessageCircle size={17} />
+          <span>{words.title}</span>
+        </button>
+      )}
     </>
   );
 }

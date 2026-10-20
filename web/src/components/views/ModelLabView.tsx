@@ -81,8 +81,10 @@ export function ModelLabView() {
 
   return (
     <main className="flex-1 overflow-y-auto bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50">
-      <div className="mx-auto max-w-7xl space-y-5 p-5 md:p-7">
-        <header><h1 className="text-xl font-bold">Model Lab</h1><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Compare held-out experiments. Select a row to inspect diagnostics.</p></header>
+      <div className="mx-auto max-w-7xl space-y-4 p-5 md:p-6">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
+          <p className="text-xs text-slate-500 dark:text-slate-400">Compare held-out experiments across validation splits. Select a row to inspect diagnostics.</p>
+        </div>
         {query.isLoading && <p className="text-sm text-slate-500">Loading experiments…</p>}
         {query.isError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-950 dark:bg-rose-950/40 dark:text-rose-200">Experiments could not be loaded. Check backend connectivity and retry.</p>}
         {query.data && experiments.length === 0 && <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm dark:border-slate-800 dark:bg-slate-900"><b>No trained experiments.</b> Training reports appear here after an experiment has been run.</div>}

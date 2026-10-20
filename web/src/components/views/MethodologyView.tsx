@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import {
-  Satellite, CloudRain, Gauge, Map, Database, Cpu, ChevronRight,
+  Satellite, CloudRain, Gauge, Map, Database, Cpu, ChevronRight, ChevronDown,
   Info, CheckCircle2, AlertTriangle, Layers, FlaskConical, Globe,
   Waves, Building2, TreePine,
 } from "lucide-react";
@@ -247,12 +247,12 @@ export function MethodologyView() {
                 <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-teal-500/20">
                   <Waves size={15} className="text-teal-500" />
                 </span>
-                <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-                  System Overview
-                </h1>
+                <span className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-50">
+                  Chalakudy River Basin Intelligence
+                </span>
               </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400 max-w-lg">
-                HydroVista · Chalakudy River Basin Intelligence Platform · Kerala, India
+              <p className="text-xs text-slate-600 dark:text-slate-400 max-w-lg">
+                Geospatial hydrology, Earth Engine SAR pipeline, and infrastructure exposure · Kerala, India
               </p>
             </div>
 
@@ -412,40 +412,83 @@ export function MethodologyView() {
         </section>
 
         {/* ── Other Data Notes ───────────────────────────────────────── */}
+        {/* ── Product Definitions & Limitations (Expandable Accordion Cards) ── */}
         <section>
-          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3">
-            Product Definitions &amp; Limitations
-          </h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+              <Database size={15} className="text-teal-600 dark:text-teal-400" />
+              Product Definitions &amp; Limitations
+            </h2>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400">Click card to expand details</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
             {[
-              { term: "Candidate Inundation", def: "Pixels the threshold algorithm classes as water after exclusions. Not independently validated." },
-              { term: "Heuristic Asset Risk Score", def: "Relative ranking from elevation proxy and NWP rainfall. Not a probability or flood depth." },
-              { term: "River Stage Outlook", def: "48-hour XGBoost model for the CWC Arangaly gauge. Model guidance — not an official hydraulic forecast." },
-              { term: "Asset Elevation", def: "Sampled from Mapzen Terrarium tiles, falling back to Open-Meteo Copernicus GLO-90 API. Elevation ≠ flood depth." },
-              { term: "River Discharge", def: "Open-Meteo GloFAS daily model at a nearby 5 km grid cell. Not a gauge reading; not interchangeable with water level." },
-              { term: "Population Exposure", def: "Estimate from WorldPop raster. Asset risk is a relative heuristic, not a validated flood probability." },
+              {
+                term: "Candidate Inundation",
+                tag: "Sentinel-1 SAR",
+                def: "Pixels classified as water by thresholding backscatter (default −16 dB) after JRC permanent-water and SRTM slope exclusions. Exploratory output; not an independently ground-validated flood map.",
+              },
+              {
+                term: "Heuristic Asset Risk Score",
+                tag: "Terrain + NWP",
+                def: "Relative risk score derived from elevation proxy and NWP rainfall intensity. Serves as a screening tool, not a calibrated flood probability or flood depth estimate.",
+              },
+              {
+                term: "River Stage Outlook",
+                tag: "XGBoost 48h",
+                def: "48-hour machine-learned forecast trained on Arangaly gauge history and basin rainfall forcing. Guidance tool only; not an official hydraulic warning.",
+              },
+              {
+                term: "Asset Elevation Proxy",
+                tag: "Terrarium DEM",
+                def: "Terrain elevation sampled from Mapzen Terrarium / Copernicus GLO-90 DEM tiles. Absolute elevation does not equate to inundation depth.",
+              },
+              {
+                term: "River Discharge",
+                tag: "GloFAS 5km",
+                def: "Open-Meteo GloFAS daily discharge at nearby 5 km grid cell. Modelled runoff guidance, not an in-situ streamflow measurement.",
+              },
+              {
+                term: "Population Exposure",
+                tag: "WorldPop GEE",
+                def: "Zonal population count intersecting candidate flood pixels from WorldPop raster data. Subject to census disaggregation tolerances.",
+              },
             ].map((item) => (
-              <div key={item.term} className="rounded-xl border border-border bg-white dark:bg-slate-900 px-4 py-3">
-                <div className="text-[11px] font-semibold text-slate-800 dark:text-slate-100 mb-0.5">{item.term}</div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">{item.def}</div>
-              </div>
+              <details
+                key={item.term}
+                className="group rounded-xl border border-border bg-white dark:bg-slate-900 transition-all hover:border-slate-300 dark:hover:border-slate-700 overflow-hidden"
+              >
+                <summary className="flex items-center justify-between px-3.5 py-2.5 cursor-pointer select-none list-none text-xs font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="h-1.5 w-1.5 rounded-full bg-teal-500 shrink-0" />
+                    <span className="truncate">{item.term}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 font-mono">
+                      {item.tag}
+                    </span>
+                    <ChevronDown size={13} className="text-slate-400 transition-transform duration-200 group-open:rotate-180" />
+                  </div>
+                </summary>
+                <div className="px-3.5 pb-3 pt-1 border-t border-slate-100 dark:border-slate-800/60 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed bg-slate-50/40 dark:bg-slate-950/30">
+                  {item.def}
+                </div>
+              </details>
             ))}
           </div>
         </section>
 
         {/* ── Reproducibility ────────────────────────────────────────── */}
-        <section className="rounded-xl border border-border bg-white/60 dark:bg-slate-900/60 px-5 py-4 backdrop-blur-sm">
-          <h2 className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
-            <CheckCircle2 size={13} className="text-teal-500" />
-            Reproducibility
-          </h2>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-            Each analysis run stores its parameters, scene counts, dates, dataset IDs, processing scale, compute time, and attempts. Identical parameters reuse a stored result for 24 hours (flagged in the UI). CSV export is available per run.
-          </p>
-          <p className="mt-2 text-[10px] text-slate-400 dark:text-slate-500">
-            HydroVista is a research prototype. It is <strong>NOT</strong> an officially validated flood-warning service.
-          </p>
-        </section>
+        <footer className="rounded-xl border border-border bg-white/60 dark:bg-slate-900/60 px-4 py-3 backdrop-blur-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={14} className="text-teal-500 shrink-0" />
+            <span>Reproducibility: Each analysis run logs scene dates, processing scale, GEE asset IDs, and runtime parameters. Reuses cached result within 24 hours.</span>
+          </div>
+          <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 whitespace-nowrap">
+            Research prototype · Not an official warning service
+          </span>
+        </footer>
 
       </div>
     </div>

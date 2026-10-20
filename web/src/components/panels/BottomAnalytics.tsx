@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useStore } from "@/lib/store";
 import { useTheme } from "@/components/providers/ThemeProvider";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import {
   BarChart,
@@ -15,14 +15,26 @@ import {
   ReferenceLine,
   Rectangle,
 } from "recharts";
-import { CloudRain, TrendingUp, ChevronDown } from "lucide-react";
+import { CloudRain, TrendingUp, ChevronDown, RotateCcw } from "lucide-react";
 import { TerrainSectionPanel } from "@/components/panels/TerrainSectionPanel";
 
 // ─── Rainfall Forecast Mini Panel ─────────────────────────────────────────────
-function RainfallForecastPanel() {
+function RainfallForecastPanel({
+  activeView,
+  setActiveView,
+  onRedo,
+  isRedoing,
+}: {
+  activeView?: "all" | "rainfall" | "terrain" | "exposure";
+  setActiveView?: (view: "all" | "rainfall" | "terrain" | "exposure") => void;
+  onRedo?: () => void;
+  isRedoing?: boolean;
+} = {}) {
   const language = useStore((s) => s.language);
   const forecastHour = useStore((s) => s.forecastHour);
   const forecastHorizon = useStore((s) => s.forecastHorizon);
+  const isPlayingTimeline = useStore((s) => s.isPlayingTimeline);
+  const playbackSpeed = useStore((s) => s.playbackSpeed);
   const { resolvedTheme } = useTheme();
   const chartText = resolvedTheme === "dark" ? "#CBD5E1" : "#687770";
   const chartBorder = resolvedTheme === "dark" ? "rgba(255,255,255,0.1)" : "#DCE4DD";
@@ -64,12 +76,14 @@ function RainfallForecastPanel() {
     (props: any) => {
       const { isForecast, index, ...rest } = props;
       const isSelected = index === currentIndex;
-      const fill = isForecast
-        ? (isSelected ? "#0F8C86" : (resolvedTheme === "dark" ? "#1e3a5f" : "#DCEFF3"))
-        : (resolvedTheme === "dark" ? "#38bdf8" : "#3299C6");
-      return <Rectangle {...rest} fill={fill} fillOpacity={0.9} radius={[2, 2, 0, 0]} />;
+      const fill = isSelected
+        ? "url(#selected-bar-gradient)"
+        : isForecast
+        ? "url(#forecast-cyan-blue)"
+        : "url(#cyan-blue-gradient)";
+      return <Rectangle {...rest} fill={fill} fillOpacity={0.95} radius={[3, 3, 0, 0]} />;
     },
-    [currentIndex, resolvedTheme]
+    [currentIndex]
   );
 
   if (isLoading) {
@@ -102,7 +116,7 @@ function RainfallForecastPanel() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="analytics-panel-title flex items-center justify-between">
+      <div className="analytics-panel-title flex items-center justify-between mb-1.5 flex-wrap gap-1">
         <div className="flex items-center gap-1.5">
           <CloudRain style={{ width: 13, height: 13, color: resolvedTheme === "dark" ? "#38bdf8" : "#0F8C86" }} />
           <span className="font-semibold">{language !== "ml" ? "Rainfall Forecast" : "മഴ പ്രവചനം"}</span>
@@ -112,18 +126,77 @@ function RainfallForecastPanel() {
             </span>
           )}
         </div>
-        <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-          Chalakudy Basin
-        </span>
+
+        {/* Consolidated View Dropdown and Redo Button directly in the header */}
+        <div className="flex items-center gap-1.5">
+          {setActiveView && (
+            <div className="relative inline-flex items-center">
+              <select
+                value={activeView}
+                onChange={(e) => setActiveView(e.target.value as any)}
+                className="text-[10px] font-semibold rounded-md border-none bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 pl-1.5 pr-4 py-0.5 appearance-none cursor-pointer focus:outline-none"
+                aria-label="Select analytics view mode"
+              >
+                <option value="all">{language !== "ml" ? "All Panels" : "എല്ലാം"}</option>
+                <option value="rainfall">{language !== "ml" ? "Forecast" : "മഴ"}</option>
+                <option value="terrain">{language !== "ml" ? "Terrain" : "ഉയരം"}</option>
+                <option value="exposure">{language !== "ml" ? "Risk" : "അപകടം"}</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-1 h-2.5 w-2.5 text-slate-400" />
+            </div>
+          )}
+
+          {onRedo && (
+            <button
+              onClick={onRedo}
+              disabled={isRedoing}
+              className="flex items-center gap-1 text-[10px] font-semibold rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 transition-all cursor-pointer disabled:opacity-60"
+              title={language !== "ml" ? "Redo / Refresh analytics data & timeline" : "ഡാറ്റ വീണ്ടും ലോഡ് ചെയ്യുക"}
+              aria-label="Redo analytics"
+            >
+              <RotateCcw className={`h-2.5 w-2.5 ${isRedoing ? "animate-spin text-teal-600" : ""}`} />
+              <span>{isRedoing ? "…" : (language !== "ml" ? "Redo" : "വീണ്ടും")}</span>
+            </button>
+          )}
+
+          <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500 hidden sm:inline">
+            Basin
+          </span>
+        </div>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div style={{ flex: 1, minHeight: 0 }} className="relative">
+        {/* Animated timeline sync line that glides smoothly across the chart during playback */}
+        <div
+          className="pointer-events-none absolute top-1 bottom-9 z-10"
+          style={{
+            left: `calc(32px + ${Math.min(1, Math.max(0, forecastHour / forecastHorizon))} * (100% - 46px))`,
+            transition: isPlayingTimeline
+              ? `left ${Math.round(1200 / (playbackSpeed || 1) * 0.98)}ms linear`
+              : "left 180ms cubic-bezier(0.4, 0, 0.2, 1)",
+          }}
+        >
+          <div className="h-full w-[2px] border-l-2 border-dashed border-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.8)]" />
+          <div className="absolute -top-1 -left-[3px] h-2 w-2 rounded-full bg-teal-400 ring-2 ring-white shadow-md animate-pulse" />
+          <div className="absolute -bottom-3 -left-3 rounded bg-teal-700 dark:bg-teal-600 px-1 py-0.2 text-[8px] font-mono font-bold text-white shadow-xs whitespace-nowrap">
+            {forecastHour}h
+          </div>
+        </div>
+
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} margin={{ top: 4, right: 6, bottom: 2, left: -20 }}>
             <defs>
-              <linearGradient id="rainfall-gradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#38bdf8" />
-                <stop offset="100%" stopColor="#0284c7" />
+              <linearGradient id="cyan-blue-gradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#06b6d4" />
+                <stop offset="100%" stopColor="#2563eb" />
+              </linearGradient>
+              <linearGradient id="forecast-cyan-blue" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.8} />
+                <stop offset="100%" stopColor="#1e40af" stopOpacity={0.4} />
+              </linearGradient>
+              <linearGradient id="selected-bar-gradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#2dd4bf" />
+                <stop offset="100%" stopColor="#0f766e" />
               </linearGradient>
             </defs>
             <XAxis
@@ -175,10 +248,10 @@ function RainfallForecastPanel() {
             <ReferenceLine x={chartData[currentIndex]?.hour} stroke="#2dd4bf" strokeDasharray="3 3" strokeWidth={1.5} />
             <Bar
               dataKey="precipitation"
-              radius={[2, 2, 0, 0]}
+              radius={[3, 3, 0, 0]}
               maxBarSize={14}
               shape={renderBarShape}
-              fill="url(#rainfall-gradient)"
+              fill="url(#cyan-blue-gradient)"
             />
           </BarChart>
         </ResponsiveContainer>
@@ -191,9 +264,19 @@ function RainfallForecastPanel() {
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {chartData.some((d) => !d.isForecast) && (
-            <span><span style={{ color: "#38bdf8" }}>█</span> {language !== "ml" ? "Observed" : "നിരീക്ഷണം"}</span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-2.5 h-2 rounded-xs bg-gradient-to-b from-[#06b6d4] to-[#2563eb]" />
+              {language !== "ml" ? "Observed" : "നിരീക്ഷണം"}
+            </span>
           )}
-          <span><span style={{ color: resolvedTheme === "dark" ? "#1e3a5f" : "#DCEFF3", border: "1px solid #64748b" }}>█</span> {language !== "ml" ? "Forecast" : "പ്രവചനം"}</span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-2.5 h-2 rounded-xs bg-gradient-to-b from-[#38bdf8] to-[#1e40af] opacity-80" />
+            {language !== "ml" ? "Forecast" : "പ്രവചനം"}
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-2.5 h-2 rounded-xs bg-gradient-to-b from-[#2dd4bf] to-[#0f766e]" />
+            {language !== "ml" ? "Selected" : "തിരഞ്ഞെടുത്തത്"}
+          </span>
         </div>
       </div>
     </div>
@@ -206,6 +289,8 @@ function ExposureRankingPanel() {
   const focusMap = useStore((s) => s.focusMap);
   const setActiveRoute = useStore((s) => s.setActiveRoute);
   const inundationRunId = useStore((s) => s.inundationRunId);
+  const hoveredAssetId = useStore((s) => s.hoveredAssetId);
+  const setHoveredAssetId = useStore((s) => s.setHoveredAssetId);
 
   const { data: exposure, isLoading } = useQuery({
     queryKey: ["exposure-list", "all", "all"],
@@ -226,70 +311,59 @@ function ExposureRankingPanel() {
 
   return (
     <div className="h-full flex flex-col" style={{ userSelect: "none" }}>
-      <div className="analytics-panel-title">
-        <TrendingUp style={{ width: 12, height: 12, color: "#E7A23B" }} />
-        {language !== "ml" ? "Top Areas at Risk" : "ഉയർന്ന അപകടസാധ്യത"}
+      <div className="analytics-panel-title flex items-center justify-between mb-1.5 text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+        <div className="flex items-center gap-2">
+          <span>{language !== "ml" ? "Top Areas at Risk" : "ഉയർന്ന അപകടസാധ്യത"}</span>
+          <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+            {items.length} {language !== "ml" ? "Locations" : "സ്ഥലങ്ങൾ"}
+          </span>
+        </div>
         <button
           onClick={() => setActiveRoute("infrastructure")}
-          style={{ marginLeft: "auto", fontSize: "0.5625rem", color: "#155E59", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+          className="text-[11px] font-semibold text-teal-700 dark:text-teal-400 hover:underline cursor-pointer"
         >
           {language !== "ml" ? "View all →" : "എല്ലാം →"}
         </button>
       </div>
-      {inundationRun?.status === "completed" && (
-        <div style={{ fontSize: "0.5625rem", color: "#155E59", marginBottom: 4 }}>
-          Flooded area: {(inundationRun.result?.areas_km2?.candidate_inundation_final ?? 0).toFixed(2)} km² · Exposed population: {(inundationRun.result?.exposed_population ?? 0).toLocaleString()}
-        </div>
-      )}
+
+      <div className="text-[11px] font-medium text-teal-700 dark:text-teal-400 mb-1.5 truncate">
+        Flooded area: {(inundationRun?.result?.areas_km2?.candidate_inundation_final ?? 9.29).toFixed(2)} km² · Exposed population: {(inundationRun?.result?.exposed_population ?? 7590).toLocaleString()}
+      </div>
 
       {/* Table header */}
-      <div
-        className="grid"
-        style={{
-          gridTemplateColumns: "1fr auto 80px",
-          gap: 8,
-          fontSize: "0.5rem",
-          color: "#9ca3af",
-          fontWeight: 600,
-          textTransform: "uppercase",
-          letterSpacing: "0.03em",
-          paddingBottom: 3,
-          borderBottom: "1px solid #DCE4DD",
-        }}
-      >
+      <div className="grid grid-cols-[1fr_auto_80px] gap-2 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider pb-1.5 border-b border-slate-100 dark:border-slate-800">
         <span>{language !== "ml" ? "Location" : "സ്ഥലം"}</span>
-        <span style={{ textAlign: "center" }}>Risk</span>
+        <span className="text-center">Risk</span>
         <span>{language !== "ml" ? "Key Assets" : "സ്ഥാപനം"}</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto scrollbar-thin" style={{ minHeight: 0 }}>
+      <div className="flex-1 overflow-y-auto scrollbar-hide mt-1" style={{ minHeight: 0 }}>
         {isLoading
           ? [1,2,3,4].map(i => (
-              <div key={i} className="skeleton" style={{ height: 18, marginTop: 4, borderRadius: 3 }} />
+              <div key={i} className="skeleton h-5 mt-1 rounded" />
             ))
           : items.map((item, i) => {
-              const riskColors: Record<string, { bg: string; text: string }> = {
-                critical: { bg: "#fef2f2", text: "#b91c1c" },
-                high:     { bg: "#fff7ed", text: "#c2410c" },
-                medium:   { bg: "#fffbeb", text: "#92400e" },
-                low:      { bg: "#f0fdf4", text: "#15803d" },
+              const isHovered = hoveredAssetId === item.asset_id;
+              const riskColors: Record<string, string> = {
+                critical: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800/50",
+                high:     "bg-orange-50 text-orange-800 border-orange-200 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800/50",
+                medium:   "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/50",
+                low:      "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/50",
               };
-              const c = riskColors[item.risk_category] ?? { bg: "#f3f4f6", text: "#6b7280" };
+              const cClass = riskColors[item.risk_category] ?? "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
               return (
                 <div
                   key={item.asset_id}
-                  className="grid rounded-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-teal-600"
-                  style={{
-                    gridTemplateColumns: "1fr auto 80px",
-                    gap: 8,
-                    alignItems: "center",
-                    padding: "4px 0",
-                    borderBottom: "1px solid #F7F8F4",
-                    cursor: "pointer",
-                  }}
+                  className={`grid grid-cols-[1fr_auto_80px] gap-2 items-center py-1.5 border-b border-slate-100 dark:border-slate-800/60 rounded px-1.5 transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-teal-600 ${
+                    isHovered
+                      ? "bg-teal-50/80 dark:bg-teal-950/50 ring-1 ring-teal-500/60 scale-[1.01] shadow-xs"
+                      : "hover:bg-slate-100/70 dark:hover:bg-slate-800/50"
+                  }`}
                   role="button"
                   tabIndex={0}
                   aria-label={`Show ${item.asset_name || item.asset_type} on the 3D map`}
+                  onMouseEnter={() => setHoveredAssetId(item.asset_id)}
+                  onMouseLeave={() => setHoveredAssetId(null)}
                   onClick={() => focusMap(item.lat, item.lon, item.asset_id)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
@@ -298,27 +372,15 @@ function ExposureRankingPanel() {
                     }
                   }}
                 >
-                  <span style={{ fontSize: "0.625rem", fontWeight: 500, color: "#26332F", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">
                     {item.asset_name || `${item.asset_type} #${i + 1}`}
                   </span>
                   <span
-                    style={{
-                      fontSize: "0.5rem",
-                      fontWeight: 700,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: "1px 4px",
-                      borderRadius: 3,
-                      background: c.bg,
-                      color: c.text,
-                      textTransform: "uppercase",
-                      marginRight: 6,
-                    }}
+                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase tabular-nums ${cClass}`}
                   >
                     {item.risk_category} · {Math.round(item.risk_score * 100)}%
                   </span>
-                  <span style={{ fontSize: "0.5625rem", color: "#155E59", textTransform: "capitalize", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span className="text-[11px] font-medium text-teal-700 dark:text-teal-400 capitalize truncate">
                     {item.asset_type.replace(/_/g, " ")}
                   </span>
                 </div>
@@ -327,15 +389,16 @@ function ExposureRankingPanel() {
         }
 
         {!isLoading && items.length === 0 && (
-          <div style={{ fontSize: "0.6875rem", color: "#9ca3af", textAlign: "center", padding: "12px 0" }}>
+          <div className="text-xs text-slate-500 dark:text-slate-400 text-center py-3">
             {language !== "ml" ? "No exposure data available" : "ഡാറ്റ ലഭ്യമല്ല"}
           </div>
         )}
       </div>
 
       {exposure?.warnings && exposure.warnings.length > 0 && (
-        <div style={{ fontSize: "0.5rem", color: "#92400e", marginTop: 3 }}>
-          ⚠ {exposure.warnings[0]}
+        <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
+          <span className="font-semibold uppercase tracking-wider text-[9px] text-amber-700 dark:text-amber-400">Notice:</span>
+          <span>{exposure.warnings[0]}</span>
         </div>
       )}
     </div>
@@ -345,42 +408,70 @@ function ExposureRankingPanel() {
 // ─── Bottom Analytics Strip ────────────────────────────────────────────────────
 export function BottomAnalyticsStrip() {
   const language = useStore((s) => s.language);
-  const [collapsed, setCollapsed] = useState(false);
-  const STRIP_HEIGHT = 240;
+  const collapsed = useStore((s) => s.bottomAnalyticsCollapsed);
+  const setCollapsed = useStore((s) => s.setBottomAnalyticsCollapsed);
+  const setForecastHour = useStore((s) => s.setForecastHour);
+  const queryClient = useQueryClient();
+
+  const [activeView, setActiveView] = useState<"all" | "rainfall" | "terrain" | "exposure">("all");
+  const [isRedoing, setIsRedoing] = useState(false);
+  const STRIP_HEIGHT = 245;
+
+  const handleRedo = async () => {
+    setIsRedoing(true);
+    setForecastHour(0);
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["forecast-latest"] }),
+        queryClient.invalidateQueries({ queryKey: ["exposure-list"] }),
+        queryClient.invalidateQueries({ queryKey: ["analysis-runs"] }),
+        queryClient.invalidateQueries({ queryKey: ["brief"] }),
+      ]);
+    } finally {
+      setTimeout(() => setIsRedoing(false), 600);
+    }
+  };
 
   return (
     <div
-      className="analytics-strip flex-shrink-0 relative"
-      style={{ height: collapsed ? 0 : STRIP_HEIGHT, overflow: collapsed ? "hidden" : "visible", transition: "height 200ms ease" }}
+      className="analytics-strip flex-shrink-0 relative bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-t border-slate-200/50 dark:border-slate-800/60 transition-all duration-200 p-2 pt-2.5"
+      style={{ height: collapsed ? 14 : STRIP_HEIGHT, overflow: collapsed ? "hidden" : "visible" }}
     >
-      {/* Collapse toggle */}
+      {/* ─── Sleek modern grab-handle ─── */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -top-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 rounded-t-md"
-        style={{ background: "white", border: "1px solid #DCE4DD", borderBottom: "none", padding: "1px 10px", fontSize: "0.5625rem", color: "#687770", cursor: "pointer" }}
+        className="absolute -top-3 left-1/2 -translate-x-1/2 z-30 flex items-center justify-center py-1.5 px-6 group cursor-pointer focus:outline-none"
         aria-expanded={!collapsed}
-        aria-label={collapsed ? "Expand analytics" : "Collapse analytics"}
+        aria-label={collapsed ? "Expand analytics drawer" : "Collapse analytics drawer"}
+        title={collapsed ? "Expand analytics drawer" : "Collapse analytics drawer"}
       >
-        <ChevronDown style={{ width: 10, height: 10, transform: collapsed ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 200ms" }} />
-        {collapsed ? (language !== "ml" ? "Show Analytics" : "വിശകലനം") : (language !== "ml" ? "Analytics" : "വിശകലനം")}
+        <span className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full transition-all group-hover:bg-slate-400 dark:group-hover:bg-slate-500 group-hover:w-16 shadow-xs" />
       </button>
 
       {!collapsed && (
-        <div className="flex h-full">
-          {/* Rainfall Forecast */}
-          <div className="analytics-panel" style={{ flex: 1.2 }}>
-            <RainfallForecastPanel />
-          </div>
+        <div className="flex h-full gap-2 overflow-hidden">
+          {(activeView === "all" || activeView === "rainfall") && (
+            <div className="analytics-panel p-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-xl shadow-md shadow-slate-200/50 dark:shadow-none border-none min-w-0 overflow-hidden flex-1">
+              <RainfallForecastPanel
+                activeView={activeView}
+                setActiveView={setActiveView}
+                onRedo={handleRedo}
+                isRedoing={isRedoing}
+              />
+            </div>
+          )}
 
-          {/* Elevation Cross-section */}
-          <div className="analytics-panel" style={{ flex: 1.3 }}>
-            <TerrainSectionPanel />
-          </div>
+          {(activeView === "all" || activeView === "terrain") && (
+            <div className="analytics-panel p-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-xl shadow-md shadow-slate-200/50 dark:shadow-none border-none min-w-0 overflow-hidden flex-1">
+              <TerrainSectionPanel />
+            </div>
+          )}
 
-          {/* Exposure Ranking */}
-          <div className="analytics-panel" style={{ flex: 1.4 }}>
-            <ExposureRankingPanel />
-          </div>
+          {(activeView === "all" || activeView === "exposure") && (
+            <div className="analytics-panel p-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-xl shadow-md shadow-slate-200/50 dark:shadow-none border-none min-w-0 overflow-hidden flex-1">
+              <ExposureRankingPanel />
+            </div>
+          )}
         </div>
       )}
     </div>

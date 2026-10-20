@@ -371,12 +371,31 @@ function SectionCanvas({
     if (b && b.d < 28) {
       const p = mesh.centerline[b.i];
       setHover({ x: b.sx, y: b.sy, dist: p.distKm, elev: p.elevM, w: sizeRef.current.w });
-    } else setHover(null);
+      const midLine = Math.floor((swath.coords?.length ?? 1) / 2);
+      const coord = swath.coords?.[midLine]?.[b.i];
+      if (coord) {
+        useStore.getState().setTransectHoverPoint({
+          lon: coord.lon,
+          lat: coord.lat,
+          elevM: p.elevM,
+          distKm: p.distKm,
+        });
+      }
+    } else {
+      setHover(null);
+      useStore.getState().setTransectHoverPoint(null);
+    }
   };
   const onPointerUp = () => {
     drag.current = null;
     setDragging(false);
   };
+
+  useEffect(() => {
+    return () => {
+      useStore.getState().setTransectHoverPoint(null);
+    };
+  }, []);
 
   return (
     <div ref={wrapRef} className="relative w-full h-full" style={{ minHeight: 0 }}>
@@ -387,7 +406,10 @@ function SectionCanvas({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerLeave={() => setHover(null)}
+        onPointerLeave={() => {
+          setHover(null);
+          useStore.getState().setTransectHoverPoint(null);
+        }}
         aria-label={`3D elevation block, ${swath.lengthKm.toFixed(0)} km transect. Drag to rotate, scroll to zoom.`}
         role="img"
       />
@@ -399,18 +421,13 @@ function SectionCanvas({
             style={{ left: hover.x - 4, top: hover.y - 4, width: 8, height: 8, background: "#155E59", border: "1.5px solid #fff" }}
           />
           <div
-            className="absolute pointer-events-none rounded px-1.5 py-0.5"
+            className="absolute pointer-events-none rounded-md px-2 py-0.5 shadow-md border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 text-slate-800 dark:text-slate-100 text-[11px] tabular-nums"
             style={{
               left: Math.min(hover.x + 8, hover.w - 110),
               top: Math.max(hover.y - 30, 2),
-              background: "rgba(255,255,255,0.96)",
-              border: "1px solid #DCE4DD",
-              fontSize: "0.625rem",
-              color: "#26332F",
-              fontVariantNumeric: "tabular-nums",
             }}
           >
-            {hover.dist.toFixed(1)} km · <b>{Math.round(hover.elev)} m</b>
+            {hover.dist.toFixed(1)} km · <b className="text-slate-900 dark:text-white">{Math.round(hover.elev)} m</b>
           </div>
         </>
       )}

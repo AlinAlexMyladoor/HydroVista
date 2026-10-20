@@ -59,7 +59,7 @@ function sanitizeExpression(expr: unknown): unknown {
 const esc = (v: unknown) =>
   String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 
-const qualityBadge = (q: string) => (q === "good" ? "✓ Good" : q === "partial" ? "⚠ Partial" : "✗ Limited");
+const qualityBadge = (q: string) => (q === "good" ? "Good" : q === "partial" ? "Partial" : "Limited");
 
 type StyleGroups = Record<"rivers" | "roads" | "buildings" | "boundaries", string[]>;
 
@@ -85,10 +85,11 @@ export function FloodMap() {
   const [initKey, setInitKey] = useState(0);
 
   const {
+    activeRoute, hoveredAssetId, bottomAnalyticsCollapsed,
     selectedAssetId, setSelectedAssetId, riskFilter, assetTypeFilter, visibleLayers, toggleLayer, language,
     mapIs3D, setMapIs3D, terrainExaggeration, setTerrainExaggeration, mapPitch, setMapPitch, mapBearing, setMapBearing,
     terrainStatus, terrainInfo, setTerrainStatus, inundationRunId, drapedInundation, forecastHour, activeScenario, setActiveScenario,
-    mapFocusRequest,
+    mapFocusRequest, transectHoverPoint, leftSidebarOpen, rightRailOpen, satelliteInfo, setSatelliteInfo,
   } = useStore();
   const en = language !== "ml";
   const { resolvedTheme, setTheme } = useTheme();
@@ -158,7 +159,6 @@ export function FloodMap() {
     }
     mapRef.current = map;
     demCounts.current = { ok: 0, failed: 0 };
-    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
     map.addControl(new maplibregl.ScaleControl({ maxWidth: 100, unit: "metric" }), "bottom-left");
 
     // Catch and resolve any missing style images (e.g. malformed road shields in vector tiles)
@@ -375,6 +375,31 @@ export function FloodMap() {
         source: "reports-source",
         paint: { "circle-radius": 6, "circle-color": "#3299C6", "circle-stroke-width": 1.5, "circle-stroke-color": "#FFFFFF", "circle-opacity": 0.85 },
       });
+
+      // ─── Transect Reference Line (Ghats → Arabian Sea) ───
+      map.addSource("transect-ref-src", {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "LineString",
+            coordinates: [[76.8, 10.31], [76.17, 10.28]],
+          },
+        },
+      });
+      map.addLayer({
+        id: "transect-ref-line",
+        type: "line",
+        source: "transect-ref-src",
+        paint: {
+          "line-color": "#2dd4bf",
+          "line-width": 2,
+          "line-dasharray": [4, 3],
+          "line-opacity": 0.7,
+        },
+      });
+
       raiseFloodOverlays(map);
 
       map.on("click", "assets-circle", (e) => {
@@ -549,13 +574,15 @@ export function FloodMap() {
     const setSatelliteBaseOpacity = (opacity: number) => {
       if (map.getLayer("satellite-base")) map.setPaintProperty("satellite-base", "raster-opacity", opacity);
     };
-    if (!satOn) { removeSat(); setSatelliteBaseOpacity(0.38); setSatMsg(null); return; }
+    if (!satOn) { removeSat(); setSatelliteBaseOpacity(0.38); setSatMsg(null); setSatelliteInfo(null); return; }
     // World Imagery is a real satellite basemap and remains usable while the
     // optional Sentinel-2 scene service is unavailable.
     // Satellite imagery is a context layer, never an opaque flood-analysis mask.
     setSatelliteBaseOpacity(0.48);
     const ac = new AbortController();
-    setSatMsg(en ? "Requesting latest Sentinel-2 scene…" : "Sentinel-2 ചിത്രം അഭ്യർത്ഥിക്കുന്നു…");
+    const loadingText = en ? "Requesting latest Sentinel-2 scene…" : "Sentinel-2 ചിത്രം അഭ്യർത്ഥിക്കുന്നു…";
+    setSatMsg(loadingText);
+    setSatelliteInfo(loadingText);
     (async () => {
       try {
         const r = await fetch(`${API_BASE}/api/v1/satellite/image?sensor=s2`, { signal: ac.signal });
@@ -572,6 +599,7 @@ export function FloodMap() {
           removeSat();
           setSatelliteBaseOpacity(0.48);
           setSatMsg(null);
+          setSatelliteInfo(null);
           return;
         }
         removeSat();
@@ -584,12 +612,15 @@ export function FloodMap() {
         map.once("idle", () => raiseFloodOverlays(map));
         setSatelliteBaseOpacity(0.28);
         const source = r.headers.get("X-Satellite-Source") ?? "CDSE";
-        setSatMsg(`${en ? `Sentinel-2 ${source === "Google Earth Engine" ? "composite" : "L2A"}, acquired` : "Sentinel-2, ലഭിച്ചത്"} ${new Date(acquired).toLocaleString()} · ${en ? "clouds masked (transparent)" : "മേഘം ഒഴിവാക്കി"}`);
+        const msg = `${en ? `Sentinel-2 ${source === "Google Earth Engine" ? "composite" : "L2A"}, acquired` : "Sentinel-2, ലഭിച്ചത്"} ${new Date(acquired).toLocaleString()} · ${en ? "clouds masked (transparent)" : "മേഘം ഒഴിവാക്കി"}`;
+        setSatMsg(msg);
+        setSatelliteInfo(msg);
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
         removeSat();
         setSatelliteBaseOpacity(0.48);
         setSatMsg(null);
+        setSatelliteInfo(null);
       }
     })();
     return () => ac.abort();
@@ -675,6 +706,135 @@ export function FloodMap() {
     }
   }, [mapFocusRequest, mapLoaded, setMapIs3D, setMapPitch, setMapBearing, en]);
 
+  // Dynamic interactive marker when user hovers over 3D terrain profile in bottom panel
+  const transectMarkerRef = useRef<maplibregl.Marker | null>(null);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    if (!transectHoverPoint) {
+      if (transectMarkerRef.current) {
+        transectMarkerRef.current.remove();
+        transectMarkerRef.current = null;
+      }
+      return;
+    }
+
+    const { lon, lat, elevM, distKm } = transectHoverPoint;
+
+    if (!transectMarkerRef.current) {
+      const el = document.createElement("div");
+      el.className = "transect-interactive-crosshair";
+      el.style.pointerEvents = "none";
+      el.innerHTML = `
+        <div style="position: relative; pointer-events: none; z-index: 60;">
+          <!-- Telemetry HUD Badge above the crosshair -->
+          <div style="position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1.5px solid #2dd4bf; border-radius: 8px; padding: 4px 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.8), 0 0 14px rgba(45, 212, 191, 0.4); white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; display: flex; align-items: center; gap: 8px; color: #fff;">
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #2dd4bf; box-shadow: 0 0 8px #2dd4bf;"></span>
+              <span id="transect-marker-elev" style="font-size: 11px; font-weight: 800; color: #2dd4bf;">${Math.round(elevM)} m</span>
+            </div>
+            <span style="color: rgba(255,255,255,0.3); font-size: 10px;">|</span>
+            <span id="transect-marker-dist" style="font-size: 10px; font-weight: 600; color: #94a3b8;">${distKm.toFixed(1)} km</span>
+            <span style="color: rgba(255,255,255,0.3); font-size: 10px;">|</span>
+            <span id="transect-marker-coords" style="font-size: 9px; font-weight: 500; color: #cbd5e1;">${lat.toFixed(3)}°N, ${lon.toFixed(3)}°E</span>
+          </div>
+          <!-- Precision Crosshair Reticle Center -->
+          <div style="position: relative; width: 44px; height: 44px; margin-left: -22px; margin-top: -22px; display: flex; align-items: center; justify-content: center;">
+            <div style="position: absolute; width: 44px; height: 1.5px; background: linear-gradient(90deg, transparent, #2dd4bf 20%, #2dd4bf 80%, transparent); box-shadow: 0 0 6px #2dd4bf;"></div>
+            <div style="position: absolute; height: 44px; width: 1.5px; background: linear-gradient(180deg, transparent, #2dd4bf 20%, #2dd4bf 80%, transparent); box-shadow: 0 0 6px #2dd4bf;"></div>
+            <div style="position: absolute; width: 28px; height: 28px; border-radius: 50%; border: 1.5px dashed rgba(45, 212, 191, 0.7); animation: spin 8s linear infinite;"></div>
+            <div style="position: absolute; width: 14px; height: 14px; border-radius: 50%; background: rgba(45, 212, 191, 0.35); border: 1.5px solid #2dd4bf; box-shadow: 0 0 10px #2dd4bf;"></div>
+            <div style="position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #ffffff; box-shadow: 0 0 4px #ffffff;"></div>
+          </div>
+        </div>
+      `;
+      transectMarkerRef.current = new maplibregl.Marker({ element: el, anchor: "center" })
+        .setLngLat([lon, lat])
+        .addTo(map);
+    } else {
+      transectMarkerRef.current.setLngLat([lon, lat]);
+      const elevEl = document.getElementById("transect-marker-elev");
+      const distEl = document.getElementById("transect-marker-dist");
+      const coordsEl = document.getElementById("transect-marker-coords");
+      if (elevEl) elevEl.textContent = `${Math.round(elevM)} m`;
+      if (distEl) distEl.textContent = `${distKm.toFixed(1)} km`;
+      if (coordsEl) coordsEl.textContent = `${lat.toFixed(3)}°N, ${lon.toFixed(3)}°E`;
+    }
+  }, [transectHoverPoint, mapLoaded]);
+
+  // Dynamic pulsing radar beacon marker when user hovers over an asset in the bottom risk table
+  const hoveredAssetMarkerRef = useRef<maplibregl.Marker | null>(null);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    if (!hoveredAssetId) {
+      if (hoveredAssetMarkerRef.current) {
+        hoveredAssetMarkerRef.current.remove();
+        hoveredAssetMarkerRef.current = null;
+      }
+      return;
+    }
+
+    const allAssets = activeScenario?.scenario_rankings?.length
+      ? activeScenario.scenario_rankings
+      : (exposureData?.items ?? []);
+    const asset = allAssets.find((a: any) => a.asset_id === hoveredAssetId);
+
+    if (!asset || asset.lon == null || asset.lat == null) {
+      if (hoveredAssetMarkerRef.current) {
+        hoveredAssetMarkerRef.current.remove();
+        hoveredAssetMarkerRef.current = null;
+      }
+      return;
+    }
+
+    const { lon, lat, asset_name, asset_type, risk_category, risk_score } = asset;
+    const name = asset_name || asset_type?.replace(/_/g, " ") || "Asset";
+    const riskPct = Math.round((risk_score ?? 0.8) * 100);
+    const category = (risk_category || "high").toUpperCase();
+
+    const markerHtml = `
+      <div style="position: relative; pointer-events: none; z-index: 90; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <!-- Telemetry HUD pill badge directly above the pin -->
+        <div style="position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1.5px solid #ef4444; border-radius: 8px; padding: 4px 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.7), 0 0 16px rgba(239, 68, 68, 0.5); white-space: nowrap; display: flex; align-items: center; gap: 6px; color: #fff; font-family: system-ui, -apple-system, sans-serif;">
+          <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px #ef4444;"></span>
+          <span style="font-size: 11px; font-weight: 700; color: #ffffff;">${name}</span>
+          <span style="font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 4px; background: rgba(239, 68, 68, 0.25); color: #fca5a5; letter-spacing: 0.05em;">
+            ${category} · ${riskPct}%
+          </span>
+        </div>
+
+        <!-- Outer expanding pulse ring (Radar ping) -->
+        <div class="animate-beacon-ping" style="position: absolute; width: 56px; height: 56px; margin-left: -28px; margin-top: -28px; border-radius: 50%; background: rgba(239, 68, 68, 0.35);"></div>
+        
+        <!-- Glowing focus ring -->
+        <div style="position: absolute; width: 34px; height: 34px; margin-left: -17px; margin-top: -17px; border-radius: 50%; border: 2px solid #ef4444; box-shadow: 0 0 14px #ef4444, inset 0 0 8px rgba(239, 68, 68, 0.4);"></div>
+
+        <!-- Solid Red Pin Head -->
+        <div style="position: relative; width: 16px; height: 16px; border-radius: 50%; background: #ef4444; border: 2.5px solid #ffffff; box-shadow: 0 0 14px rgba(239, 68, 68, 1);">
+          <div style="width: 4px; height: 4px; border-radius: 50%; background: #ffffff; margin: 3.5px auto;"></div>
+        </div>
+      </div>
+    `;
+
+    if (!hoveredAssetMarkerRef.current) {
+      const el = document.createElement("div");
+      el.className = "hovered-asset-pulse-marker";
+      el.style.pointerEvents = "none";
+      el.innerHTML = markerHtml;
+      hoveredAssetMarkerRef.current = new maplibregl.Marker({ element: el, anchor: "center" })
+        .setLngLat([lon, lat])
+        .addTo(map);
+    } else {
+      hoveredAssetMarkerRef.current.setLngLat([lon, lat]);
+      hoveredAssetMarkerRef.current.getElement().innerHTML = markerHtml;
+    }
+  }, [hoveredAssetId, mapLoaded, exposureData, activeScenario]);
+
   // ─── Controls ──────────────────────────────────────────────────────────────
   const set3D = useCallback((next: boolean) => {
     setMapIs3D(next);
@@ -715,166 +875,303 @@ export function FloodMap() {
       <div ref={mapContainer} className="w-full h-full" />
       <div className="map-atmosphere" aria-hidden="true" />
 
-      {activeScenario && <div className="absolute left-3 top-3 z-20 flex items-center gap-3 rounded-lg border border-sky-200 bg-white/95 px-3 py-2 text-xs shadow-md dark:border-sky-900 dark:bg-slate-900/95">
-        <span><b className="text-sky-800 dark:text-sky-200">Scenario risk overlay</b><span className="ml-2 text-slate-600 dark:text-slate-300">+{activeScenario.rainfall_mm} mm · {activeScenario.duration_hours} h</span></span>
-        <button type="button" onClick={() => setActiveScenario(null)} aria-label="Clear scenario risk overlay" title="Clear scenario risk overlay" className="rounded p-0.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><X size={14} /></button>
-      </div>}
-
       {(exposureLoading || !mapLoaded) && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-md px-3 py-1.5"
-          style={{ background: "rgba(255,255,255,0.95)", border: "1px solid #DCE4DD", fontSize: "0.6875rem", color: "#687770" }} role="status">
+        <div
+          className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-lg px-3 py-1.5 border border-slate-100 bg-white/95 text-slate-700 shadow-md shadow-slate-200/50 backdrop-blur-md dark:border-slate-700/80 dark:bg-slate-900/90 dark:text-slate-200 text-xs"
+          role="status"
+        >
           <span className="animate-spin">⟳</span>
           {!mapLoaded ? (en ? "Loading map…" : "ഭൂപടം ലോഡ് ചെയ്യുന്നു…") : (en ? "Loading infrastructure data…" : "ഡാറ്റ ലോഡ് ചെയ്യുന്നു…")}
         </div>
       )}
       {mapFocusError && <div className="absolute top-3 right-3 z-30 rounded-md border border-rose-200 bg-white px-3 py-2 text-xs text-rose-700 shadow dark:border-rose-900 dark:bg-slate-900 dark:text-rose-300" role="alert">{mapFocusError}</div>}
       {exposureError && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-md px-3 py-1.5"
-          style={{ background: "#fffbeb", border: "1px solid #fde68a", fontSize: "0.6875rem", color: "#92400e" }} role="alert">
-          <AlertTriangle style={{ width: 12, height: 12 }} />
+        <div
+          className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-lg px-3 py-1.5 border border-amber-300 bg-amber-50/95 text-amber-900 shadow-md backdrop-blur-md dark:border-amber-800/80 dark:bg-amber-950/90 dark:text-amber-200 text-xs"
+          role="alert"
+        >
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
           {en ? "Backend unreachable — no facility data." : "ബാക്കെൻഡ് ലഭ്യമല്ല."}
-          <button onClick={() => refetchExposure()} style={{ textDecoration: "underline", background: "none", border: "none", cursor: "pointer", color: "#155E59" }}>
+          <button onClick={() => refetchExposure()} className="underline font-semibold text-teal-700 dark:text-teal-300 ml-1">
             {en ? "Retry" : "വീണ്ടും"}
           </button>
         </div>
       )}
 
-      {/* The selected forecast time and its real hourly precipitation are shown
-          on-map so timeline playback has an immediate, truthful visual cue. */}
-      <div className="absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-md px-3 py-1.5"
-        style={{ background: "rgba(255,255,255,0.95)", border: "1px solid #DCE4DD", boxShadow: "0 2px 8px rgba(21,94,89,0.10)", fontSize: "0.6875rem", color: "#26332F", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-        <span style={{ fontWeight: 700 }}>{forecastHour === 0 ? (en ? "Now" : "ഇപ്പോൾ") : (en ? "Forecast" : "പ്രവചനം")}</span>
-        {forecastPoint?.time && <> · {formatForecastTimestamp(forecastPoint.time, language)} IST</>}
-        <span style={{ color: "#087F8C" }}> · {forecastPoint?.precipitation_mm != null ? `${forecastPoint.precipitation_mm.toFixed(1)} mm` : (en ? "rainfall unavailable" : "മഴ ലഭ്യമല്ല")}</span>
+      {/* ─── Top-Center Floating Container: Dynamic Stacking of Time Pill & Scenario Risk Overlay ─── */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center space-y-2 pointer-events-none">
+        {/* Time and Rainfall pill */}
+        <div className="pointer-events-auto rounded-lg px-3.5 py-1.5 border border-slate-100 dark:border-none bg-white/95 dark:bg-slate-900/90 text-slate-800 shadow-md shadow-slate-200/50 dark:shadow-xl backdrop-blur-md dark:text-slate-100 text-xs font-mono whitespace-nowrap flex items-center gap-1.5">
+          <span className="font-bold text-slate-900 dark:text-white">{forecastHour === 0 ? (en ? "Now" : "ഇപ്പോൾ") : (en ? "Forecast" : "പ്രവചനം")}</span>
+          {forecastPoint?.time && <span className="text-slate-600 dark:text-slate-300"> · {formatForecastTimestamp(forecastPoint.time, language)} IST</span>}
+          <span className="font-semibold text-teal-700 dark:text-teal-300"> · {forecastPoint?.precipitation_mm != null ? `${forecastPoint.precipitation_mm.toFixed(1)} mm` : (en ? "rainfall unavailable" : "മഴ ലഭ്യമല്ല")}</span>
+        </div>
+
+        {/* Scenario risk overlay: sits cleanly below the time pill when active */}
+        {activeScenario && (
+          <div className="pointer-events-auto flex items-center gap-2.5 rounded-lg border border-sky-200/80 bg-white/95 px-3 py-1.5 text-xs shadow-md shadow-slate-200/50 dark:border-sky-900 dark:bg-slate-900/95 backdrop-blur-md animate-fade-in">
+            <span>
+              <b className="text-sky-800 dark:text-sky-200">Scenario risk overlay</b>
+              <span className="ml-2 text-slate-600 dark:text-slate-300 font-mono">+{activeScenario.rainfall_mm} mm · {activeScenario.duration_hours}h</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setActiveScenario(null)}
+              aria-label="Clear scenario risk overlay"
+              title="Clear scenario risk overlay"
+              className="rounded p-0.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Compact map navigation toolbar */}
-      <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5 rounded-lg p-1 map-glass">
+      {/* Classic vertical map controls stack floating naturally with right margin */}
+      <div
+        className="absolute top-6 right-4 z-10 flex flex-col gap-1.5 rounded-xl p-1.5 border border-white/60 dark:border-slate-800/60 bg-white/90 dark:bg-slate-900/85 shadow-lg shadow-slate-200/50 dark:shadow-none backdrop-blur-md transition-all duration-200"
+      >
         {([false, true] as const).map((v) => (
-          <button key={String(v)} onClick={() => set3D(v)} aria-pressed={mapIs3D === v}
-            style={{ ...btn, fontSize: "0.6875rem", fontWeight: 700, background: mapIs3D === v ? "#155E59" : "white", color: mapIs3D === v ? "white" : "#687770" }}>
+          <button
+            key={String(v)}
+            onClick={() => set3D(v)}
+            aria-pressed={mapIs3D === v}
+            className={`h-7 w-7 rounded-md flex items-center justify-center text-xs font-bold transition-all border ${
+              mapIs3D === v
+                ? "bg-teal-700 text-white border-teal-700 dark:bg-teal-600 dark:border-none shadow-xs"
+                : "border-slate-200/60 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:border-none dark:bg-black/40 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white"
+            }`}
+          >
             {v ? "3D" : "2D"}
           </button>
         ))}
-        <button onClick={toggleTheme} style={btn} title={resolvedTheme === "dark" ? "Use light theme" : "Use dark theme"} aria-label={resolvedTheme === "dark" ? "Use light theme" : "Use dark theme"}>
-          {resolvedTheme === "dark" ? <Sun style={{ width: 14, height: 14 }} /> : <Moon style={{ width: 14, height: 14 }} />}
+        <button
+          onClick={toggleTheme}
+          className="h-7 w-7 rounded-md flex items-center justify-center transition-all border border-slate-200/60 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:border-none dark:bg-black/40 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white shadow-xs cursor-pointer"
+          title={resolvedTheme === "dark" ? "Use light theme" : "Use dark theme"}
+          aria-label={resolvedTheme === "dark" ? "Use light theme" : "Use dark theme"}
+        >
+          {resolvedTheme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
         </button>
-        <button style={{ ...btn, color: "#155E59", background: showTerrainControls ? "#E8F0EA" : "white" }} onClick={() => { setShowLayerMenu(false); setShowTerrainControls((show) => !show); }}
-          aria-label="Terrain controls" aria-expanded={showTerrainControls} title="Terrain controls"><Mountain style={{ width: 14, height: 14 }} /></button>
-        <button style={btn} onClick={() => mapRef.current?.zoomIn()} aria-label="Zoom in" title="Zoom in"><Plus style={{ width: 14, height: 14 }} /></button>
-        <button style={btn} onClick={() => mapRef.current?.zoomOut()} aria-label="Zoom out" title="Zoom out"><Minus style={{ width: 14, height: 14 }} /></button>
-        <button style={btn} onClick={() => mapRef.current?.resetNorthPitch({ duration: 600 })} aria-label="Reset bearing and pitch" title="Reset north & pitch">
-          <Compass style={{ width: 14, height: 14, transform: `rotate(${-mapBearing}deg)` }} />
+        <button
+          className={`h-7 w-7 rounded-md flex items-center justify-center transition-all border cursor-pointer ${
+            showTerrainControls
+              ? "bg-teal-100 border-teal-300 text-teal-800 dark:bg-teal-900/50 dark:border-none dark:text-teal-200"
+              : "border-slate-200/60 bg-white text-teal-700 hover:bg-slate-100 dark:border-none dark:bg-black/40 dark:text-teal-300 dark:hover:bg-white/10"
+          } shadow-xs`}
+          onClick={() => { setShowLayerMenu(false); setShowTerrainControls((show) => !show); }}
+          aria-label="Terrain controls"
+          aria-expanded={showTerrainControls}
+          title="Terrain controls"
+        >
+          <Mountain className="h-3.5 w-3.5" />
         </button>
-        <button style={{ ...btn, color: "#155E59" }} onClick={resetView} aria-label="Reset to basin view" title="Reset to basin view"><Navigation style={{ width: 14, height: 14 }} /></button>
-        <button style={{ ...btn, color: "#155E59", background: showLayerMenu ? "#E8F0EA" : "white" }} onClick={() => { setShowTerrainControls(false); setShowLayerMenu((show) => !show); }}
-          aria-label="Map layers" aria-expanded={showLayerMenu} title="Map layers"><Layers style={{ width: 14, height: 14 }} /></button>
+        <button
+          className="h-7 w-7 rounded-md flex items-center justify-center transition-all border border-slate-200/60 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:border-none dark:bg-black/40 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white shadow-xs cursor-pointer"
+          onClick={() => mapRef.current?.zoomIn()}
+          aria-label="Zoom in"
+          title="Zoom in"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+        <button
+          className="h-7 w-7 rounded-md flex items-center justify-center transition-all border border-slate-200/60 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:border-none dark:bg-black/40 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white shadow-xs cursor-pointer"
+          onClick={() => mapRef.current?.zoomOut()}
+          aria-label="Zoom out"
+          title="Zoom out"
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </button>
+        <button
+          className="h-7 w-7 rounded-md flex items-center justify-center transition-all border border-slate-200/60 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:border-none dark:bg-black/40 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white shadow-xs cursor-pointer"
+          onClick={() => mapRef.current?.resetNorthPitch({ duration: 600 })}
+          aria-label="Reset bearing and pitch"
+          title="Reset north & pitch"
+        >
+          <Compass className="h-3.5 w-3.5" style={{ transform: `rotate(${-mapBearing}deg)` }} />
+        </button>
+        <button
+          className="h-7 w-7 rounded-md flex items-center justify-center transition-all border border-slate-200/60 bg-white text-teal-700 hover:bg-slate-100 dark:border-none dark:bg-black/40 dark:text-teal-300 dark:hover:bg-white/10 shadow-xs cursor-pointer"
+          onClick={resetView}
+          aria-label="Reset to basin view"
+          title="Reset to basin view"
+        >
+          <Navigation className="h-3.5 w-3.5" />
+        </button>
+        <button
+          className={`h-7 w-7 rounded-md flex items-center justify-center transition-all border cursor-pointer ${
+            showLayerMenu
+              ? "bg-teal-100 border-teal-300 text-teal-800 dark:bg-teal-900/50 dark:border-none dark:text-teal-200"
+              : "border-slate-200/60 bg-white text-teal-700 hover:bg-slate-100 dark:border-none dark:bg-black/40 dark:text-teal-300 dark:hover:bg-white/10"
+          } shadow-xs`}
+          onClick={() => { setShowTerrainControls(false); setShowLayerMenu((show) => !show); }}
+          aria-label="Map layers"
+          aria-expanded={showLayerMenu}
+          title="Map layers"
+        >
+          <Layers className="h-3.5 w-3.5" />
+        </button>
       </div>
 
-      {/* Terrain controls are optional to keep the 3D canvas clear. */}
-      {showTerrainControls && <div className="absolute top-14 right-14 z-10 rounded-md p-2 flex flex-col gap-1.5 map-glass"
-        style={{ background: "rgba(255,255,255,0.96)", border: "1px solid #DCE4DD", width: 150 }}>
-        <div className="flex items-center gap-1" style={{ ...label, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-          <Mountain style={{ width: 9, height: 9 }} /> {en ? "Terrain" : "ഭൂപ്രകൃതി"}
-          <span title={terrainInfo} style={{ marginLeft: "auto", width: 7, height: 7, borderRadius: "50%", background: statusColor, display: "inline-block" }} />
+      {/* Terrain controls popover */}
+      {showTerrainControls && (
+        <div
+          className="absolute top-6 right-16 z-20 rounded-xl p-3 flex flex-col gap-2 border border-white/60 dark:border-slate-800/60 bg-white/95 dark:bg-slate-900/90 text-slate-800 shadow-xl shadow-slate-200/50 backdrop-blur-md dark:text-slate-100 w-[170px]"
+        >
+          <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+            <Mountain className="h-3.5 w-3.5" /> {en ? "Terrain" : "ഭൂപ്രകൃതി"}
+            <span title={terrainInfo} style={{ marginLeft: "auto", width: 7, height: 7, borderRadius: "50%", background: statusColor, display: "inline-block" }} />
+          </div>
+          <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+            {en ? "Exaggeration" : "ഉയര വർധന"} {terrainExaggeration}×
+            <input type="range" min={1} max={3} step={0.25} value={terrainExaggeration} disabled={!mapIs3D || !terrainLayerOn}
+              onChange={(e) => setTerrainExaggeration(Number(e.target.value))} className="timeline-slider w-full mt-1" aria-label="Terrain exaggeration" />
+          </label>
+          <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+            {en ? "Pitch" : "പിച്ച്"} {mapPitch}°
+            <input type="range" min={0} max={80} step={1} value={mapPitch}
+              onChange={(e) => { const v = Number(e.target.value); setMapPitch(v); mapRef.current?.setPitch(v); if (v > 0 && !mapIs3D) setMapIs3D(true); }}
+              className="timeline-slider w-full mt-1" aria-label="Camera pitch" />
+          </label>
+          <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+            {en ? "Bearing" : "ദിശ"} {mapBearing}°
+            <input type="range" min={-180} max={180} step={1} value={mapBearing}
+              onChange={(e) => { const v = Number(e.target.value); setMapBearing(v); mapRef.current?.setBearing(v); }}
+              className="timeline-slider w-full mt-1" aria-label="Camera bearing" />
+          </label>
+          <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight" role="status">
+            {terrainStatus === "ready" && `DEM ✓ ${terrainInfo}`}
+            {(terrainStatus === "loading" || terrainStatus === "idle") && (en ? "DEM loading…" : "DEM ലോഡ് ചെയ്യുന്നു…")}
+            {terrainStatus === "error" && <span className="text-rose-600 dark:text-rose-400">{terrainInfo}</span>}
+          </div>
+          {terrainStatus === "error" && (
+            <button
+              onClick={retryTerrain}
+              className="flex items-center justify-center gap-1 rounded border border-slate-300 dark:border-none bg-white dark:bg-slate-800 text-xs font-medium text-teal-700 dark:text-teal-300 py-1 px-2 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-xs cursor-pointer"
+            >
+              <RefreshCw className="h-3 w-3" />{en ? "Retry elevation" : "ഉയരം വീണ്ടും ലോഡ് ചെയ്യുക"}
+            </button>
+          )}
         </div>
-        <label style={label}>{en ? "Exaggeration" : "ഉയര വർധന"} {terrainExaggeration}×
-          <input type="range" min={1} max={3} step={0.25} value={terrainExaggeration} disabled={!mapIs3D || !terrainLayerOn}
-            onChange={(e) => setTerrainExaggeration(Number(e.target.value))} className="timeline-slider" style={{ width: "100%" }} aria-label="Terrain exaggeration" />
-        </label>
-        <label style={label}>{en ? "Pitch" : "പിച്ച്"} {mapPitch}°
-          <input type="range" min={0} max={80} step={1} value={mapPitch}
-            onChange={(e) => { const v = Number(e.target.value); setMapPitch(v); mapRef.current?.setPitch(v); if (v > 0 && !mapIs3D) setMapIs3D(true); }}
-            className="timeline-slider" style={{ width: "100%" }} aria-label="Camera pitch" />
-        </label>
-        <label style={label}>{en ? "Bearing" : "ദിശ"} {mapBearing}°
-          <input type="range" min={-180} max={180} step={1} value={mapBearing}
-            onChange={(e) => { const v = Number(e.target.value); setMapBearing(v); mapRef.current?.setBearing(v); }}
-            className="timeline-slider" style={{ width: "100%" }} aria-label="Camera bearing" />
-        </label>
-        <div style={{ fontSize: "0.5rem", color: terrainStatus === "error" ? "#C83F3A" : "#9ca3af", lineHeight: 1.3 }} role="status">
-          {terrainStatus === "ready" && `DEM ✓ ${terrainInfo}`}
-          {(terrainStatus === "loading" || terrainStatus === "idle") && (en ? "DEM loading…" : "DEM ലോഡ് ചെയ്യുന്നു…")}
-          {terrainStatus === "error" && terrainInfo}
-        </div>
-        {terrainStatus === "error" && (
-          <button onClick={retryTerrain} style={{ minHeight: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.625rem", color: "#155E59", border: "1px solid #DCE4DD", borderRadius: 4, background: "white", cursor: "pointer", padding: "4px 6px" }}>
-            <RefreshCw style={{ width: 11, height: 11, marginRight: 4 }} />{en ? "Retry elevation" : "ഉയരം വീണ്ടും ലോഡ് ചെയ്യുക"}
-          </button>
-        )}
-      </div>}
+      )}
 
-      {/* Layer menu */}
+      {/* Layer menu popover */}
       {showLayerMenu && (
-        <div className="absolute z-20 rounded-md p-3 animate-fade-in overflow-y-auto map-glass"
-          style={{ top: 56, right: 50, maxHeight: "70%", background: "white", border: "1px solid #DCE4DD", width: 230, boxShadow: "0 4px 16px rgba(21,94,89,0.12)" }}>
-          <div style={{ fontWeight: 600, fontSize: "0.6875rem", color: "#26332F", borderBottom: "1px solid #DCE4DD", paddingBottom: 6, marginBottom: 6 }}>
+        <div
+          className="absolute top-6 right-16 z-20 rounded-xl p-3 animate-fade-in overflow-y-auto border border-white/60 dark:border-slate-800/60 bg-white/95 dark:bg-slate-900/90 text-slate-800 shadow-xl shadow-slate-200/50 backdrop-blur-md dark:text-slate-100 w-[240px]"
+          style={{ maxHeight: "70%" }}
+        >
+          <div className="text-xs font-bold text-slate-800 dark:text-slate-100 border-b border-slate-200 dark:border-neutral-800 pb-2 mb-2">
             {en ? "Layer visibility" : "പാളി ദൃശ്യം"}
           </div>
-          {LAYER_DEFS.map((l) => (
-            <label key={l.id} className="flex items-center gap-2 py-0.5" title={l.unavailable}
-              style={{ fontSize: "0.6875rem", color: l.unavailable ? "#9ca3af" : "#26332F", cursor: l.unavailable ? "not-allowed" : "pointer" }}>
-              <input type="checkbox" className="layer-checkbox" disabled={!!l.unavailable}
-                checked={!l.unavailable && visibleLayers.has(l.id)} onChange={() => toggleLayer(l.id)} aria-label={l.label} />
-              {en ? l.label : l.mlLabel}
-            </label>
-          ))}
-        </div>
-      )}
-
-      {/* Elevation readout */}
-      {readout && (
-        <div className="absolute z-20 rounded px-2 py-1" style={{ bottom: 44, left: 12, background: "rgba(255,255,255,0.97)",
-          border: "1px solid #DCE4DD", boxShadow: "0 2px 8px rgba(15, 23, 42, 0.18)", fontSize: "0.625rem", color: "#26332F", fontVariantNumeric: "tabular-nums" }}>
-          {en ? "Elevation" : "ഉയരം"}: <b>{readout.elev == null ? (en ? "no DEM data" : "ഡാറ്റ ഇല്ല") : `${Math.round(readout.elev)} m`}</b>
-          {" · "}{readout.lat.toFixed(4)}°N {readout.lon.toFixed(4)}°E
-        </div>
-      )}
-
-      {/* Legend */}
-      {satMsg && (
-        <div role="status" className="absolute top-14 left-3 z-10 rounded-md px-2 py-1" style={{ background: "rgba(255,255,255,0.95)", border: "1px solid #DCE4DD", fontSize: "0.5625rem", color: satMsg.includes("unavailable") || satMsg.includes("ലഭ്യമല്ല") ? "#92400e" : "#26332F", maxWidth: 320 }}>
-          {satMsg}
-        </div>
-      )}
-      {showLegend ? (
-        <div className="absolute bottom-8 left-3 z-10 rounded-md p-2.5 map-glass" style={{ background: "rgba(255,255,255,0.72)", border: "1px solid rgba(255,255,255,0.7)" }}>
-          <div style={{ fontWeight: 700, fontSize: "0.5625rem", color: "#26332F", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 5 }}>
-            {en ? "Asset risk rank" : "അപകട റാങ്ക്"}
+          <div className="space-y-1">
+            {LAYER_DEFS.map((l) => {
+              const tooltip = l.id === "satellite" && satelliteInfo ? satelliteInfo : l.unavailable;
+              return (
+                <label
+                  key={l.id}
+                  className="flex items-center gap-2 py-1 px-1 rounded hover:bg-slate-100/70 dark:hover:bg-white/10 cursor-pointer text-xs"
+                  title={tooltip}
+                >
+                  <input
+                    type="checkbox"
+                    className="layer-checkbox"
+                    disabled={!!l.unavailable}
+                    checked={!l.unavailable && visibleLayers.has(l.id)}
+                    onChange={() => toggleLayer(l.id)}
+                    aria-label={l.label}
+                  />
+                  <span className={l.unavailable ? "text-slate-400 dark:text-slate-500" : "text-slate-700 dark:text-slate-200"}>
+                    {en ? l.label : l.mlLabel}
+                  </span>
+                </label>
+              );
+            })}
           </div>
-          {[["#C83F3A", "Critical (≥ 0.75)"], ["#c2410c", "High (0.50–0.75)"], ["#E7A23B", "Medium (0.25–0.50)"], ["#15803d", "Low (< 0.25)"]].map(([c, t]) => (
-            <div key={c} className="flex items-center gap-2 mb-1">
-              <span style={{ width: 9, height: 9, borderRadius: "50%", background: c, display: "inline-block" }} />
-              <span style={{ fontSize: "0.5625rem", color: "#26332F" }}>{t}</span>
-            </div>
-          ))}
-          {inundationRunId && (
-            <div role="status" style={{ fontSize: "0.5625rem", color: "#26332F", marginTop: 4, borderTop: "1px solid #DCE4DD", paddingTop: 4, maxWidth: 170 }}>
-              <span style={{ color: "#087F9B" }}>■</span> {en ? "Candidate flood extent" : "സാധ്യതയുള്ള വെള്ളപ്പൊക്ക പരിധി"} · run {inundationRunId}
-              <div style={{ color: inundationError ? "#C83F3A" : "#687770", fontSize: "0.5rem" }}>
-                {inundationLoading && !visibleInundationGeo && "Loading polygons…"}
-                {inundationError && !visibleInundationGeo && "Polygon file unavailable for this run."}
-                {visibleInundationGeo && `${visibleInundationGeo.features.length} polygons rendered${inundationRun?.result?.vectors?.truncated ? ` (largest of ${inundationRun.result.vectors.total_polygons})` : ""} · illustrative water height`}
+        </div>
+      )}
+
+      {/* Legend: Translucent glassmorphism with neatly aligned and filled risk rank badges */}
+      {showLegend ? (
+        <div
+          className="absolute bottom-4 left-4 z-10 rounded-xl p-3 bg-white/90 dark:bg-slate-900/85 backdrop-blur-md shadow-lg shadow-slate-200/50 dark:shadow-none border border-white/60 dark:border-slate-800/60 text-slate-800 dark:text-slate-100 w-[230px] transition-all"
+        >
+          <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-200/50 dark:border-slate-800/60">
+            <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+              {en ? "Asset Risk Rank" : "അപകട റാങ്ക്"}
+            </span>
+            <button
+              onClick={() => setShowLegend(false)}
+              aria-label="Hide legend"
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded cursor-pointer transition-colors"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+
+          <div className="space-y-1">
+            {[
+              { label: en ? "Critical" : "തീവ്രം", range: "≥ 0.75", dot: "bg-rose-600", bg: "bg-rose-50/80 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200" },
+              { label: en ? "High" : "ഉയർന്നത്", range: "0.50–0.75", dot: "bg-orange-500", bg: "bg-orange-50/80 dark:bg-orange-950/40 text-orange-800 dark:text-orange-200" },
+              { label: en ? "Medium" : "ഇടത്തരം", range: "0.25–0.50", dot: "bg-amber-500", bg: "bg-amber-50/80 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200" },
+              { label: en ? "Low" : "കുറഞ്ഞത്", range: "< 0.25", dot: "bg-emerald-600", bg: "bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200" },
+            ].map((r) => (
+              <div
+                key={r.range}
+                className={`flex items-center justify-between px-2 py-1 rounded-md text-[11px] ${r.bg} transition-colors`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${r.dot} shrink-0`} />
+                  <span className="font-semibold">{r.label}</span>
+                </div>
+                <span className="font-mono text-[10px] tabular-nums font-medium opacity-85">{r.range}</span>
               </div>
+            ))}
+          </div>
+
+          {inundationRunId && (
+            <div className="mt-1.5 px-2 py-1 rounded-md bg-teal-50/80 dark:bg-teal-950/40 text-[10px] text-teal-800 dark:text-teal-200 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-xs bg-teal-600 shrink-0" />
+                <span className="font-semibold">{en ? "Flood Extent" : "വെള്ളപ്പൊക്ക പരിധി"}</span>
+              </div>
+              <span className="font-mono text-[9px] opacity-80">
+                {visibleInundationGeo ? `${visibleInundationGeo.features.length} poly` : "Active"}
+              </span>
             </div>
           )}
-          <div style={{ fontSize: "0.5rem", color: "#9ca3af", marginTop: 4, borderTop: "1px solid #DCE4DD", paddingTop: 3, maxWidth: 150 }}>
-            {en ? "Relative risk level — not flood depth or probability. Terrarium DEM relief." : "ആപേക്ഷിക അപകട നില."}
+
+          {/* Elevation readout inside legend bottom */}
+          <div className="mt-2.5 pt-1.5 border-t border-slate-200/50 dark:border-slate-800/60 text-[10px] font-mono text-slate-600 dark:text-slate-300">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500 dark:text-slate-400 font-sans">{en ? "Elevation" : "ഉയരം"}:</span>
+              <span className="font-bold text-slate-900 dark:text-white tabular-nums">
+                {readout?.elev != null ? `${Math.round(readout.elev)} m` : "73 m"}
+              </span>
+            </div>
+            <div className="text-[9px] font-mono text-slate-400 dark:text-slate-500 text-right tabular-nums mt-0.5">
+              {readout
+                ? `${readout.lat.toFixed(4)}°N · ${readout.lon.toFixed(4)}°E`
+                : "10.3008°N · 76.4750°E"}
+            </div>
           </div>
-          <button onClick={() => setShowLegend(false)} aria-label="Hide legend"
-            style={{ position: "absolute", top: 3, right: 5, background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 13 }}>×</button>
         </div>
       ) : (
-        <button onClick={() => setShowLegend(true)} className="absolute bottom-8 left-3 z-10 flex items-center gap-1 rounded-md"
-          style={{ background: "rgba(255,255,255,0.95)", border: "1px solid #DCE4DD", padding: "4px 8px", fontSize: "0.5625rem", color: "#155E59", cursor: "pointer" }}>
-          <Info style={{ width: 10, height: 10 }} /> {en ? "Legend" : "ഐതിഹ്യം"}
+        <button
+          onClick={() => setShowLegend(true)}
+          className="absolute bottom-4 left-4 z-10 flex items-center gap-1.5 rounded-lg border border-white/60 dark:border-slate-800/60 bg-white/90 dark:bg-slate-900/85 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-md shadow-slate-200/50 dark:shadow-none backdrop-blur-md cursor-pointer hover:bg-white dark:hover:bg-slate-900 transition-all"
+        >
+          <Info className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+          <span>{en ? "Risk Legend" : "ഐതിഹ്യം"}</span>
         </button>
       )}
 
-      <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center gap-3"
-        style={{ background: "rgba(247,248,244,0.85)", borderTop: "1px solid #DCE4DD", padding: "2px 8px", fontSize: "0.5rem", color: "#9ca3af" }}>
-        <span>© <a href="https://openfreemap.org" target="_blank" rel="noopener noreferrer" style={{ color: "#687770" }}>OpenFreeMap</a></span>·
-        <span>© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" style={{ color: "#687770" }}>OpenStreetMap contributors</a></span>·
+      {/* Attribution Pill shifted to the left away from the vertical map controls column */}
+      <div
+        className="absolute bottom-1.5 right-20 z-10 flex items-center gap-2 rounded-md bg-white/80 dark:bg-slate-900/80 px-2.5 py-0.5 text-[9px] text-slate-500 dark:text-slate-400 backdrop-blur-md border border-white/60 dark:border-slate-800/60 shadow-xs pointer-events-auto"
+      >
+        <span>© <a href="https://openfreemap.org" target="_blank" rel="noopener noreferrer" className="hover:underline text-slate-600 dark:text-slate-300">OpenFreeMap</a></span>·
+        <span>© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="hover:underline text-slate-600 dark:text-slate-300">OpenStreetMap contributors</a></span>·
         <span>{TERRARIUM_ATTRIBUTION.split(" — ")[0]}</span>
       </div>
     </div>

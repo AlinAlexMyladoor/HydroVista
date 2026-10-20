@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     SYNC_DATABASE_URL: str = "postgresql://floodlens:floodlens@localhost:5432/floodlens"
 
     # ─── CORS ─────────────────────────────────────────────────────────────────
-    API_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001"
+    API_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001"
 
     @property
     def API_CORS_ORIGINS_LIST(self) -> List[str]:

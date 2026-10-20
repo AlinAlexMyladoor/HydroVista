@@ -200,14 +200,14 @@ export function Header() {
                     title={!Number.isFinite(asset.lat) || !Number.isFinite(asset.lon) ? "Map coordinates unavailable" : undefined}
                   >
                     <div>
-                      <div style={{ fontWeight: 500, color: "#26332F" }}>
+                      <div className="font-medium text-slate-800 dark:text-slate-100 text-xs">
                         {asset.name || "Unnamed Infrastructure"}
                       </div>
-                      <div style={{ fontSize: "0.6875rem", color: "#687770", textTransform: "capitalize" }}>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 capitalize">
                         {asset.asset_type.replace(/_/g, " ")}
                       </div>
                     </div>
-                    <span style={{ fontSize: "0.6875rem", color: "#155E59", fontWeight: 500 }}>
+                    <span className="text-[11px] font-semibold text-teal-700 dark:text-teal-400">
                       Map →
                     </span>
                   </button>

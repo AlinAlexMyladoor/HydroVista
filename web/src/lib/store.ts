@@ -47,6 +47,8 @@ interface AppState {
   setDrapedInundation: (value: { runId: string; geojson: InundationGeoJSON } | null) => void;
   selectedAssetId: string | null;
   setSelectedAssetId: (id: string | null) => void;
+  hoveredAssetId: string | null;
+  setHoveredAssetId: (id: string | null) => void;
   mapFocusRequest: { lat: number; lon: number; assetId: string | null; bounds?: [[number, number], [number, number]]; requestId: number } | null;
   focusMap: (lat: number, lon: number, assetId?: string | null) => boolean;
   focusMapBounds: (west: number, south: number, east: number, north: number) => boolean;
@@ -56,6 +58,12 @@ interface AppState {
   setForecastHorizon: (h: ForecastHorizon) => void;
   isPlayingTimeline: boolean;
   setIsPlayingTimeline: (v: boolean) => void;
+  playbackSpeed: number;
+  setPlaybackSpeed: (speed: number) => void;
+  bottomAnalyticsCollapsed: boolean;
+  setBottomAnalyticsCollapsed: (v: boolean) => void;
+  transectHoverPoint: { lon: number; lat: number; elevM: number; distKm: number } | null;
+  setTransectHoverPoint: (pt: { lon: number; lat: number; elevM: number; distKm: number } | null) => void;
 
   // Left sidebar collapse
   leftSidebarOpen: boolean;
@@ -93,9 +101,21 @@ interface AppState {
   isOffline: boolean;
   setIsOffline: (v: boolean) => void;
 
+  // Satellite Scene Info
+  satelliteInfo: string | null;
+  setSatelliteInfo: (info: string | null) => void;
+
   // Search
   searchQuery: string;
   setSearchQuery: (q: string) => void;
+
+  // Assistant Chat
+  assistantOpen: boolean;
+  setAssistantOpen: (open: boolean | ((v: boolean) => boolean)) => void;
+
+  // Analysis Drawer
+  analysisDrawerOpen: boolean;
+  setAnalysisDrawerOpen: (open: boolean) => void;
 }
 
 const DEFAULT_LAYERS = new Set(DEFAULT_LAYER_IDS);
@@ -139,11 +159,13 @@ export const useStore = create<AppState>((set) => ({
   setDrapedInundation: (value) => set({ drapedInundation: value }),
   selectedAssetId: null,
   setSelectedAssetId: (id) => set({ selectedAssetId: id }),
+  hoveredAssetId: null,
+  setHoveredAssetId: (id) => set({ hoveredAssetId: id }),
   mapFocusRequest: null,
   focusMap: (lat, lon, assetId = null) => {
     if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) return false;
     set((state) => ({
-      activeRoute: "map",
+      activeRoute: state.activeRoute === "overview" ? "overview" : "map",
       mapIs3D: true,
       mapPitch: 60,
       mapBearing: 30,
@@ -155,7 +177,7 @@ export const useStore = create<AppState>((set) => ({
   focusMapBounds: (west, south, east, north) => {
     if (![west, south, east, north].every(Number.isFinite) || west < -180 || east > 180 || south < -90 || north > 90 || west >= east || south >= north) return false;
     set((state) => ({
-      activeRoute: "map",
+      activeRoute: state.activeRoute === "overview" ? "overview" : "map",
       mapIs3D: true,
       mapPitch: 60,
       mapBearing: 30,
@@ -176,6 +198,12 @@ export const useStore = create<AppState>((set) => ({
   setForecastHorizon: (h) => set({ forecastHorizon: h }),
   isPlayingTimeline: false,
   setIsPlayingTimeline: (v) => set({ isPlayingTimeline: v }),
+  playbackSpeed: 1,
+  setPlaybackSpeed: (speed) => set({ playbackSpeed: speed }),
+  bottomAnalyticsCollapsed: false,
+  setBottomAnalyticsCollapsed: (v) => set({ bottomAnalyticsCollapsed: v }),
+  transectHoverPoint: null,
+  setTransectHoverPoint: (pt) => set({ transectHoverPoint: pt }),
 
   leftSidebarOpen: true,
   setLeftSidebarOpen: (v) => set({ leftSidebarOpen: v }),
@@ -207,6 +235,18 @@ export const useStore = create<AppState>((set) => ({
   isOffline: false,
   setIsOffline: (v) => set({ isOffline: v }),
 
+  satelliteInfo: null,
+  setSatelliteInfo: (info) => set({ satelliteInfo: info }),
+
   searchQuery: "",
   setSearchQuery: (q) => set({ searchQuery: q }),
+
+  assistantOpen: false,
+  setAssistantOpen: (open) =>
+    set((state) => ({
+      assistantOpen: typeof open === "function" ? open(state.assistantOpen) : open,
+    })),
+
+  analysisDrawerOpen: false,
+  setAnalysisDrawerOpen: (open) => set({ analysisDrawerOpen: open }),
 }));
