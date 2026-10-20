@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import {
   Satellite, CloudRain, Gauge, Map, Database, Cpu, ChevronRight, ChevronDown,
-  Info, CheckCircle2, AlertTriangle, Layers, FlaskConical, Globe,
+  CheckCircle2, AlertTriangle, Layers, FlaskConical, Globe,
   Waves, Building2, TreePine,
 } from "lucide-react";
 
@@ -89,7 +89,7 @@ const DATA_SOURCES: DataSource[] = [
     icon: Satellite,
     name: "Sentinel-1 & Sentinel-2",
     provider: "Copernicus / GEE",
-    powers: "SAR flood mapping · optical imagery layer",
+    powers: "SAR flood mapping · optical layer",
     color: "#6366f1",
     status: "on-demand",
   },
@@ -97,7 +97,7 @@ const DATA_SOURCES: DataSource[] = [
     icon: CloudRain,
     name: "Open-Meteo NWP",
     provider: "Open-Meteo",
-    powers: "Rainfall forecast · archive · GloFAS discharge",
+    powers: "Rainfall forecast · GloFAS discharge",
     color: "#0ea5e9",
     status: "live",
   },
@@ -105,7 +105,7 @@ const DATA_SOURCES: DataSource[] = [
     icon: Gauge,
     name: "CWC Arangaly Gauge",
     provider: "NWIC · CWC",
-    powers: "River stage telemetry · stage-forecast input",
+    powers: "River stage telemetry · ML forecast",
     color: "#14b8a6",
     status: "cached",
   },
@@ -121,13 +121,13 @@ const DATA_SOURCES: DataSource[] = [
     icon: Globe,
     name: "Terrarium / Copernicus DEM",
     provider: "Mapzen · AWS Open Data",
-    powers: "Elevation sampling · cross-section · slope mask",
+    powers: "Elevation sampling · slope masking",
     color: "#f59e0b",
     status: "live",
   },
   {
     icon: Database,
-    name: "WorldPop Population Raster",
+    name: "WorldPop Population",
     provider: "WorldPop / GEE",
     powers: "Exposed population estimation",
     color: "#8b5cf6",
@@ -151,18 +151,18 @@ const STATUS_COLORS: Record<string, string> = {
 
 /** Circular gauge for ML metrics */
 function CircleGauge({ label, value, color }: { label: string; value: number; color: string }) {
-  const r = 18;
+  const r = 16;
   const circumference = 2 * Math.PI * r;
   const offset = circumference * (1 - value);
   return (
-    <div className="flex flex-col items-center gap-1">
-      <svg width={50} height={50} viewBox="0 0 50 50" className="rotate-[-90deg]">
-        <circle cx={25} cy={25} r={r} fill="none" stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth={4.5} />
+    <div className="flex flex-col items-center gap-0.5">
+      <svg width={42} height={42} viewBox="0 0 42 42" className="rotate-[-90deg]">
+        <circle cx={21} cy={21} r={r} fill="none" stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth={4} />
         <circle
-          cx={25} cy={25} r={r}
+          cx={21} cy={21} r={r}
           fill="none"
           stroke={color}
-          strokeWidth={4.5}
+          strokeWidth={4}
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           strokeLinecap="round"
@@ -170,8 +170,8 @@ function CircleGauge({ label, value, color }: { label: string; value: number; co
         />
       </svg>
       <div className="text-center -mt-0.5">
-        <div className="text-xs font-bold leading-tight" style={{ color }}>{(value * 100).toFixed(0)}%</div>
-        <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{label}</div>
+        <div className="text-[11px] font-bold leading-tight" style={{ color }}>{(value * 100).toFixed(0)}%</div>
+        <div className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">{label}</div>
       </div>
     </div>
   );
@@ -184,108 +184,81 @@ export function MethodologyView() {
   const SelectedIcon = selectedNode.icon;
 
   return (
-    <div className="flex-1 w-full h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] overflow-y-auto bg-slate-50 dark:bg-[#070b12] text-slate-800 dark:text-slate-100">
-      <div className="max-w-6xl mx-auto p-4 sm:p-5 pb-24 sm:pb-28 space-y-4">
+    <div className="flex-1 w-full h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] overflow-hidden bg-slate-50 dark:bg-[#070b12] text-slate-800 dark:text-slate-100 flex flex-col justify-between p-2.5 sm:p-3 pb-4">
+      <div className="max-w-6xl w-full mx-auto flex-1 flex flex-col justify-between min-h-0 gap-2">
 
-        {/* ── 1. Soft Atmospheric Top Intelligence Banner ─────────────────── */}
+        {/* ── 1. Soft Atmospheric Top Banner with Compressed Height ────────── */}
         <section
-          className="relative overflow-hidden rounded-2xl border border-teal-500/20 dark:border-teal-500/15 px-4 py-3.5 sm:px-5 sm:py-4 shadow-md shadow-blue-900/5 dark:shadow-slate-950/30 transition-all"
+          className="relative overflow-hidden rounded-xl border border-teal-500/15 dark:border-teal-500/10 px-3 py-2 shadow-xs shadow-blue-900/5 dark:shadow-slate-950/20 shrink-0"
           style={{
-            background: "linear-gradient(135deg, rgba(13, 148, 136, 0.08) 0%, rgba(14, 165, 233, 0.06) 45%, rgba(99, 102, 241, 0.05) 100%)",
+            background: "linear-gradient(135deg, rgba(13, 148, 136, 0.07) 0%, rgba(14, 165, 233, 0.05) 50%, rgba(99, 102, 241, 0.04) 100%)",
           }}
         >
-          {/* Subtle Ambient Decorative Glows */}
-          <div
-            className="pointer-events-none absolute -top-10 -right-10 h-44 w-44 rounded-full opacity-10"
-            style={{ background: "radial-gradient(circle, #0ea5e9 0%, transparent 70%)" }}
-          />
-          <div
-            className="pointer-events-none absolute -bottom-8 -left-8 h-36 w-36 rounded-full opacity-10"
-            style={{ background: "radial-gradient(circle, #6366f1 0%, transparent 70%)" }}
-          />
-
-          <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2.5">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-teal-600 text-white shadow-xs shadow-teal-700/20">
-                  <Waves size={14} />
-                </span>
-                <span className="text-sm sm:text-base font-bold tracking-tight text-slate-900 dark:text-slate-50">
-                  Chalakudy River Basin Intelligence
-                </span>
+          <div className="relative flex items-center justify-between gap-2 mb-1">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-teal-600 text-white shadow-2xs">
+                <Waves size={12} />
+              </span>
+              <span className="text-xs sm:text-sm font-bold tracking-tight text-slate-900 dark:text-slate-50 truncate">
+                Chalakudy River Basin Intelligence
+              </span>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 hidden md:inline truncate">
+                · Geospatial hydrology, Earth Engine SAR pipeline &amp; infrastructure exposure
+              </span>
+            </div>
+            {/* Inline Stats on Right */}
+            <div className="flex items-center gap-2.5 text-[11px] shrink-0">
+              <div>
+                <span className="text-[9.5px] text-slate-400 uppercase mr-1">Catchment:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-100">1,704 km²</span>
               </div>
-              <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
-                Geospatial hydrology, Earth Engine SAR pipeline, and infrastructure exposure · Kerala, India
-              </p>
+              <span className="text-slate-300 dark:text-slate-700">•</span>
+              <div>
+                <span className="text-[9.5px] text-slate-400 uppercase mr-1">Reservoirs:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-100">Sholayar · Poringalkuthu</span>
+              </div>
             </div>
           </div>
 
-          {/* Elevation Profile Graphic with Inline Stats in Top-Right */}
-          <div className="rounded-xl border border-white/60 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/85 p-2.5 sm:px-3.5 sm:py-2.5 backdrop-blur-md shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-1.5">
-              <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <span>Basin Elevation Profile</span>
-                <span className="text-slate-300 dark:text-slate-600 font-normal">|</span>
-                <span className="font-normal text-slate-500 dark:text-slate-400">Western Ghats → Arabian Sea</span>
-              </p>
-
-              {/* Merged clean text stats across the top-right corner */}
-              <div className="flex items-center gap-3 text-xs">
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-medium">Catchment:</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-100">1,704 km²</span>
-                </div>
-                <span className="text-slate-300 dark:text-slate-700">•</span>
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-medium">Reservoirs:</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-100">Sholayar · Poringalkuthu</span>
-                </div>
-                <span className="text-slate-300 dark:text-slate-700 hidden md:inline">•</span>
-                <div className="items-center gap-1 hidden md:flex">
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-medium">Platform:</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-100">Basin Intelligence</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Compact Elevation Profile Graphic */}
-            <svg viewBox="0 0 520 54" className="w-full h-10 sm:h-11" preserveAspectRatio="none">
+          {/* Compressed Elevation Profile Graphic (Reduced empty space above peaks) */}
+          <div className="rounded-lg border border-white/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/70 px-2.5 py-1 backdrop-blur-xs shadow-2xs">
+            <svg viewBox="0 0 520 38" className="w-full h-6 sm:h-7" preserveAspectRatio="none">
               <defs>
                 <linearGradient id="elevGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.5} />
-                  <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0.12} />
+                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.45} />
+                  <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0.08} />
                 </linearGradient>
               </defs>
               <path
-                d="M0,50 L30,46 L70,22 L110,7 L140,15 L170,26 L200,11 L230,19 L260,28 L295,36 L330,32 L370,42 L410,44 L450,48 L490,49 L520,50 Z"
+                d="M0,36 L30,33 L70,18 L110,5 L140,11 L170,20 L200,8 L230,14 L260,21 L295,27 L330,24 L370,30 L410,32 L450,34 L490,35 L520,36 Z"
                 fill="url(#elevGrad)"
                 stroke="#6366f1"
-                strokeWidth={1.5}
-                strokeOpacity={0.75}
+                strokeWidth={1.25}
+                strokeOpacity={0.7}
               />
               {[110, 200].map((x) => (
                 <g key={x}>
-                  <circle cx={x} cy={x === 110 ? 7 : 11} r={3.5} fill="#0ea5e9" opacity={0.95} />
-                  <line x1={x} y1={x === 110 ? 10 : 14} x2={x} y2={50} stroke="#0ea5e9" strokeDasharray="2,2" strokeOpacity={0.5} strokeWidth={1} />
+                  <circle cx={x} cy={x === 110 ? 5 : 8} r={3} fill="#0ea5e9" opacity={0.95} />
+                  <line x1={x} y1={x === 110 ? 8 : 11} x2={x} y2={36} stroke="#0ea5e9" strokeDasharray="2,2" strokeOpacity={0.5} strokeWidth={1} />
                 </g>
               ))}
-              <text x={105} y={6} fontSize={6.5} fill="#64748b" className="dark:fill-slate-400" textAnchor="middle" fontWeight="bold">Sholayar</text>
-              <text x={200} y={10} fontSize={6.5} fill="#64748b" className="dark:fill-slate-400" textAnchor="middle" fontWeight="bold">Poringalkuthu</text>
-              <text x={5} y={47} fontSize={6.5} fill="#64748b" className="dark:fill-slate-400">Ghats</text>
-              <text x={515} y={47} fontSize={6.5} fill="#64748b" className="dark:fill-slate-400" textAnchor="end">Sea</text>
-              <text x={260} y={34} fontSize={6.5} fill="#64748b" className="dark:fill-slate-400" textAnchor="middle">Chalakudy River</text>
+              <text x={105} y={4.5} fontSize={6} fill="#64748b" className="dark:fill-slate-400" textAnchor="middle" fontWeight="bold">Sholayar</text>
+              <text x={200} y={7.5} fontSize={6} fill="#64748b" className="dark:fill-slate-400" textAnchor="middle" fontWeight="bold">Poringalkuthu</text>
+              <text x={5} y={33} fontSize={6} fill="#64748b" className="dark:fill-slate-400">Ghats</text>
+              <text x={515} y={33} fontSize={6} fill="#64748b" className="dark:fill-slate-400" textAnchor="end">Sea</text>
+              <text x={260} y={23} fontSize={6} fill="#64748b" className="dark:fill-slate-400" textAnchor="middle">Chalakudy River</text>
             </svg>
           </div>
         </section>
 
-        {/* ── 2. Data Architecture: Clean Borderless Floating Cards ────────── */}
-        <section>
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
-              <Database size={14} className="text-teal-600 dark:text-teal-400" />
+        {/* ── 2. Data Architecture: Ultra-Compact Horizontal Cards (Half Height) */}
+        <section className="shrink-0">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-[10px] font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
+              <Database size={12} className="text-teal-600 dark:text-teal-400" />
               Data Architecture
             </h2>
-            <span className="text-[10px] text-slate-400 dark:text-slate-500">Telemetry, Imagery &amp; Demographics</span>
+            <span className="text-[9px] text-slate-400 dark:text-slate-500">Telemetry, Imagery &amp; Demographics</span>
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3">
@@ -295,28 +268,25 @@ export function MethodologyView() {
               return (
                 <div
                   key={src.name}
-                  className="group rounded-2xl border-0 bg-white dark:bg-slate-900 py-3 px-3.5 shadow-md shadow-slate-200/50 dark:shadow-slate-950/60 hover:shadow-lg transition-all"
+                  className="group rounded-xl border-0 bg-white dark:bg-slate-900 py-1.5 px-2.5 shadow-xs hover:shadow-sm transition-all flex flex-row items-center gap-2.5 min-w-0"
                 >
-                  {/* Inlined Status Badge with Title */}
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md" style={{ background: `${src.color}18` }}>
-                        <Icon size={13} style={{ color: src.color }} />
-                      </div>
-                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{src.name}</span>
+                  {/* Left: Icon & Status Badge */}
+                  <div className="flex flex-col items-center justify-center shrink-0 gap-0.5">
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md" style={{ background: `${src.color}18` }}>
+                      <Icon size={12} style={{ color: src.color }} />
                     </div>
                     <span
-                      className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md shrink-0"
+                      className="text-[7.5px] font-bold uppercase tracking-wider px-1 py-0.2 rounded shrink-0 leading-none"
                       style={{ background: `${statusColor}18`, color: statusColor }}
                     >
                       {src.status}
                     </span>
                   </div>
-                  <div className="text-[10px] text-slate-400 dark:text-slate-500 mb-0.5 pl-8 truncate">
-                    {src.provider}
-                  </div>
-                  <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-tight pl-8">
-                    {src.powers}
+                  {/* Right: Text Block */}
+                  <div className="flex-1 min-w-0 leading-tight">
+                    <div className="text-[11px] font-bold text-slate-800 dark:text-slate-100 truncate">{src.name}</div>
+                    <div className="text-[9px] text-slate-400 dark:text-slate-500 truncate">{src.provider}</div>
+                    <div className="text-[10px] text-slate-600 dark:text-slate-300 truncate mt-0.5">{src.powers}</div>
                   </div>
                 </div>
               );
@@ -324,24 +294,23 @@ export function MethodologyView() {
           </div>
         </section>
 
-        {/* ── 3. Side-by-Side: Pipeline & Model Lab (Matched Height) ──────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+        {/* ── 3. Flexible Middle Section: Pipeline & Model Lab (Absorbs Height) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 items-stretch flex-1 min-h-0">
           
           {/* Left Column: Flood-Mapping Pipeline */}
-          <section className="flex flex-col h-full">
-            <div className="flex items-center justify-between mb-2 shrink-0">
-              <h2 className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
-                <Cpu size={14} className="text-indigo-600 dark:text-indigo-400" />
+          <section className="flex flex-col h-full min-h-0">
+            <div className="flex items-center justify-between mb-1 shrink-0">
+              <h2 className="text-[10px] font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
+                <Cpu size={12} className="text-indigo-600 dark:text-indigo-400" />
                 Flood-Mapping Pipeline
               </h2>
-              <span className="text-[10px] text-slate-400 dark:text-slate-500">Sentinel-1 · GEE COPERNICUS/S1_GRD</span>
+              <span className="text-[9px] text-slate-400 dark:text-slate-500">Sentinel-1 · GEE COPERNICUS/S1_GRD</span>
             </div>
 
-            {/* Card wrapper: borderless floating with flex-col h-full justify-between */}
-            <div className="rounded-2xl border-0 bg-white dark:bg-slate-900 p-4 shadow-md shadow-slate-200/50 dark:shadow-slate-950/60 flex-1 flex flex-col h-full justify-between">
+            <div className="rounded-2xl border-0 bg-white dark:bg-slate-900 p-3 shadow-md shadow-slate-200/50 dark:shadow-slate-950/60 flex-1 flex flex-col justify-between min-h-0">
               
-              {/* Pipeline Nodes: Strictly centered and evenly distributed across 100% width */}
-              <div className="w-full flex items-center justify-between gap-1 mb-2">
+              {/* Pipeline Nodes: Strictly centered with negative top margin on arrows for vertical alignment */}
+              <div className="w-full flex items-center justify-between gap-1 mb-1.5 shrink-0">
                 {PIPELINE.map((node, i) => {
                   const isSelected = selectedNodeId === node.id;
                   const NodeIcon = node.icon;
@@ -355,7 +324,7 @@ export function MethodologyView() {
                         title={`Click to inspect ${node.label}`}
                       >
                         <div
-                          className={`relative text-center flex flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 shadow-2xs transition-all w-full border ${
+                          className={`relative text-center flex flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 shadow-2xs transition-all w-full border ${
                             isSelected
                               ? "ring-2 ring-teal-500/80 dark:ring-teal-400/80 shadow-xs scale-[1.03]"
                               : "opacity-85 hover:opacity-100 hover:scale-[1.02]"
@@ -366,12 +335,12 @@ export function MethodologyView() {
                           }}
                         >
                           <div
-                            className="flex h-5 w-5 items-center justify-center rounded-md shrink-0 transition-transform group-hover:scale-110"
+                            className="flex h-4.5 w-4.5 items-center justify-center rounded-md shrink-0 transition-transform group-hover:scale-110"
                             style={{ background: `${node.color}25` }}
                           >
-                            <NodeIcon size={12} style={{ color: node.color }} />
+                            <NodeIcon size={11} style={{ color: node.color }} />
                           </div>
-                          <span className="text-[9.5px] font-semibold leading-tight text-slate-800 dark:text-slate-100 truncate w-full text-center">
+                          <span className="text-[9px] font-semibold leading-tight text-slate-800 dark:text-slate-100 truncate w-full text-center">
                             {node.label}
                           </span>
                           <span className="text-[7.5px] text-slate-500 dark:text-slate-400 font-mono truncate w-full text-center">
@@ -380,78 +349,76 @@ export function MethodologyView() {
                         </div>
                       </button>
                       {i < PIPELINE.length - 1 && (
-                        <ChevronRight size={11} className="shrink-0 text-slate-400 dark:text-slate-500 mt-[2px] self-center" />
+                        <ChevronRight size={10} className="shrink-0 text-slate-400 dark:text-slate-500 -mt-1.5 self-center" />
                       )}
                     </React.Fragment>
                   );
                 })}
               </div>
 
-              {/* Active Stage Inspector: fills the card with rich, dynamic details */}
-              <div className="rounded-xl bg-slate-50/90 dark:bg-slate-800/50 p-3.5 border border-slate-200/60 dark:border-slate-800/70 flex-1 flex flex-col justify-between transition-all mt-3">
-                <div>
-                  <div className="flex items-center gap-2.5 mb-1.5">
-                    <div
-                      className="flex h-7 w-7 rounded-lg items-center justify-center shrink-0 shadow-2xs"
-                      style={{ background: `${selectedNode.color}25`, color: selectedNode.color }}
+              {/* Active Stage Inspector: Dynamic Details */}
+              <div className="rounded-xl bg-slate-50/90 dark:bg-slate-800/50 p-2.5 border border-slate-200/60 dark:border-slate-800/70 flex-1 flex flex-col justify-start min-h-0 overflow-y-auto transition-all">
+                <div className="flex items-center gap-2 mb-1 shrink-0">
+                  <div
+                    className="flex h-5.5 w-5.5 rounded-md items-center justify-center shrink-0 shadow-2xs"
+                    style={{ background: `${selectedNode.color}25`, color: selectedNode.color }}
+                  >
+                    <SelectedIcon size={13} />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-slate-800 dark:text-slate-100">
+                      {selectedNode.label}
+                    </span>
+                    <span
+                      className="text-[8.5px] font-mono px-1.5 py-0.2 rounded font-semibold"
+                      style={{ background: `${selectedNode.color}20`, color: selectedNode.color }}
                     >
-                      <SelectedIcon size={14} />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
-                        {selectedNode.label}
-                      </span>
-                      <span
-                        className="text-[9px] font-mono px-1.5 py-0.5 rounded font-semibold"
-                        style={{ background: `${selectedNode.color}20`, color: selectedNode.color }}
-                      >
-                        {selectedNode.sublabel}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 ml-auto hidden sm:inline">
-                      Hover / click stage to inspect
+                      {selectedNode.sublabel}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mt-1">
-                    {selectedNode.tooltip}
-                  </p>
+                  <span className="text-[8.5px] text-slate-400 dark:text-slate-500 ml-auto hidden sm:inline">
+                    Hover / click to inspect
+                  </span>
                 </div>
+                <p className="text-[10px] text-slate-600 dark:text-slate-300 leading-relaxed overflow-y-auto">
+                  {selectedNode.tooltip}
+                </p>
               </div>
+
             </div>
           </section>
 
           {/* Right Column: Machine Learning Model Lab */}
-          <section className="flex flex-col h-full">
-            <div className="flex items-center justify-between mb-2 shrink-0">
-              <h2 className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
-                <FlaskConical size={14} className="text-purple-600 dark:text-purple-400" />
+          <section className="flex flex-col h-full min-h-0">
+            <div className="flex items-center justify-between mb-1 shrink-0">
+              <h2 className="text-[10px] font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
+                <FlaskConical size={12} className="text-purple-600 dark:text-purple-400" />
                 Random Forest Model Lab
               </h2>
-              <span className="text-[10px] text-slate-400 dark:text-slate-500">Evaluation Metrics</span>
+              <span className="text-[9px] text-slate-400 dark:text-slate-500">Evaluation Metrics</span>
             </div>
 
-            {/* Card wrapper: borderless floating with flex-col h-full justify-between */}
-            <div className="rounded-2xl border-0 bg-white dark:bg-slate-900 p-4 shadow-md shadow-slate-200/50 dark:shadow-slate-950/60 flex-1 flex flex-col h-full justify-between">
+            <div className="rounded-2xl border-0 bg-white dark:bg-slate-900 p-3 shadow-md shadow-slate-200/50 dark:shadow-slate-950/60 flex-1 flex flex-col justify-between min-h-0">
               
-              {/* Gauges row with shrunk SVG radius */}
-              <div className="flex items-center justify-around gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-800/80">
+              {/* Gauges row */}
+              <div className="flex items-center justify-around gap-2 pb-1.5 border-b border-slate-100 dark:border-slate-800/80 shrink-0">
                 {ML_METRICS.map((m) => (
                   <CircleGauge key={m.label} label={m.label} value={m.value} color={m.color} />
                 ))}
               </div>
 
-              {/* Bulleted text positioned directly underneath */}
-              <div className="mt-2.5 space-y-1.5 text-[10px] text-slate-600 dark:text-slate-400 leading-relaxed">
+              {/* Bulleted text */}
+              <div className="mt-1 space-y-1 text-[9.5px] text-slate-600 dark:text-slate-400 leading-tight">
                 <div className="flex items-start gap-1.5">
-                  <CheckCircle2 size={12} className="mt-0.5 shrink-0 text-teal-600 dark:text-teal-400" />
-                  <span>Trained from a labelled table split by <code className="rounded bg-slate-100 dark:bg-slate-800 px-1 py-0.5 font-mono text-[9px]">region_id</code> (disjoint train/test sets).</span>
+                  <CheckCircle2 size={11} className="mt-0.5 shrink-0 text-teal-600 dark:text-teal-400" />
+                  <span>Trained from a labelled table split by <code className="rounded bg-slate-100 dark:bg-slate-800 px-1 py-0.2 font-mono text-[8.5px]">region_id</code> (disjoint train/test sets).</span>
                 </div>
                 <div className="flex items-start gap-1.5">
-                  <CheckCircle2 size={12} className="mt-0.5 shrink-0 text-teal-600 dark:text-teal-400" />
+                  <CheckCircle2 size={11} className="mt-0.5 shrink-0 text-teal-600 dark:text-teal-400" />
                   <span>Compared with threshold baseline on identical test rows (Precision, Recall, F1, IoU).</span>
                 </div>
                 <div className="flex items-start gap-1.5">
-                  <AlertTriangle size={12} className="mt-0.5 shrink-0 text-amber-500" />
+                  <AlertTriangle size={11} className="mt-0.5 shrink-0 text-amber-500" />
                   <span>Probabilities are <strong>uncalibrated</strong>. Evaluates candidate radar backscatter features.</span>
                 </div>
               </div>
@@ -460,17 +427,18 @@ export function MethodologyView() {
 
         </div>
 
-        {/* ── 4. Product Definitions & Limitations: Floating Pills ────────── */}
-        <section>
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
-              <Database size={14} className="text-teal-600 dark:text-teal-400" />
+        {/* ── 4. Product Definitions & Limitations: Safe Assistant Margin ──── */}
+        <section className="shrink-0">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-[10px] font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
+              <Database size={12} className="text-teal-600 dark:text-teal-400" />
               Product Definitions &amp; Limitations
             </h2>
-            <span className="text-[10px] text-slate-400 dark:text-slate-500">Click pill to toggle definitions</span>
+            <span className="text-[9px] text-slate-400 dark:text-slate-500 mr-28">Click pill to toggle definitions</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+          {/* Right margin (pr-28) completely prevents overlap with floating assistant button */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 pr-28">
             {[
               {
                 term: "Candidate Inundation",
@@ -505,21 +473,21 @@ export function MethodologyView() {
             ].map((item) => (
               <details
                 key={item.term}
-                className="group rounded-xl border-0 bg-white dark:bg-slate-900 shadow-sm shadow-slate-200/50 dark:shadow-slate-950/50 hover:shadow-md transition-all overflow-hidden"
+                className="group rounded-lg border-0 bg-white dark:bg-slate-900 shadow-xs hover:shadow-sm transition-all overflow-hidden"
               >
-                <summary className="flex items-center justify-between px-3.5 py-2 cursor-pointer select-none list-none text-xs font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
-                  <div className="flex items-center gap-2 min-w-0">
+                <summary className="flex items-center justify-between px-3 py-1.5 cursor-pointer select-none list-none text-[11px] font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+                  <div className="flex items-center gap-1.5 min-w-0">
                     <span className="h-1.5 w-1.5 rounded-full bg-teal-500 shrink-0" />
                     <span className="truncate">{item.term}</span>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 font-mono">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[8.5px] px-1 py-0.2 rounded bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 font-mono">
                       {item.tag}
                     </span>
-                    <ChevronDown size={12} className="text-slate-400 transition-transform duration-200 group-open:rotate-180" />
+                    <ChevronDown size={11} className="text-slate-400 transition-transform duration-200 group-open:rotate-180" />
                   </div>
                 </summary>
-                <div className="px-3.5 pb-2.5 pt-1 border-t border-slate-100 dark:border-slate-800/60 text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed bg-slate-50/40 dark:bg-slate-950/30">
+                <div className="px-3 pb-2 pt-0.5 border-t border-slate-100 dark:border-slate-800/60 text-[9.5px] text-slate-500 dark:text-slate-400 leading-relaxed bg-slate-50/40 dark:bg-slate-950/30">
                   {item.def}
                 </div>
               </details>
@@ -527,13 +495,13 @@ export function MethodologyView() {
           </div>
         </section>
 
-        {/* ── 5. Seamless Full-Width Footer ───────────────────────────────── */}
-        <footer className="mt-4 -mx-4 sm:-mx-5 -mb-4 sm:-mb-5 border-t border-slate-200/80 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-900/70 px-4 sm:px-6 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 size={13} className="text-teal-600 dark:text-teal-400 shrink-0" />
-            <span><strong>Reproducibility:</strong> Each analysis run logs scene dates, processing scale, GEE asset IDs, and runtime parameters. Reuses cached result within 24 hours.</span>
+        {/* ── 5. Seamless Bottom Footer with Assistant Clearance ───────────── */}
+        <footer className="shrink-0 -mx-2.5 sm:-mx-3 -mb-3 border-t border-slate-200/80 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-900/80 px-4 sm:px-5 py-1.5 flex flex-col sm:flex-row items-center justify-between gap-2 text-[9.5px] text-slate-500 dark:text-slate-400 pr-52 sm:pr-56">
+          <div className="flex items-center gap-2 min-w-0">
+            <CheckCircle2 size={12} className="text-teal-600 dark:text-teal-400 shrink-0" />
+            <span className="truncate sm:overflow-visible"><strong>Reproducibility:</strong> Each analysis run logs scene dates, processing scale, GEE asset IDs, and runtime parameters. Reuses cached result within 24 hours.</span>
           </div>
-          <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 whitespace-nowrap">
+          <span className="text-[9px] font-medium text-slate-400 dark:text-slate-500 whitespace-nowrap shrink-0">
             Research prototype · Not an official warning service
           </span>
         </footer>
