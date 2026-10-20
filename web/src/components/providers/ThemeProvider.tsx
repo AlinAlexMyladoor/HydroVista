@@ -11,7 +11,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const stored = window.localStorage.getItem("hydrovista-theme") as Theme | null;
-    const initial = stored ?? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    // Default strictly to light theme; only use dark if explicitly selected and stored
+    const initial = stored === "dark" ? "dark" : "light";
     setResolvedTheme(initial);
     document.documentElement.classList.toggle("dark", initial === "dark");
   }, []);
