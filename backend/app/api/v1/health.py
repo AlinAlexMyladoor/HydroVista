@@ -16,12 +16,12 @@ router = APIRouter()
 
 def _build_registry() -> list[DataSourceStatus]:
     """Availability reflects real state (cache / last calls), never hard-coded optimism."""
-    from app.api.v1.forecast import _forecast_cache
+    from app.api.v1.forecast import forecast_source_status
     from app.analysis import gee
     from app.services.elevation import source_status as elevation_source_status
     from app.services.river_stage import stage_source_status
 
-    fc_ok = _forecast_cache is not None and not _forecast_cache.get("is_stale", True)
+    forecast_status = forecast_source_status()
     elevation_status = elevation_source_status()
     stage_status = stage_source_status()
 
@@ -56,11 +56,11 @@ def _build_registry() -> list[DataSourceStatus]:
         DataSourceStatus(
             slug="open-meteo",
             name="Open-Meteo Weather Forecast",
-            is_available=fc_ok,
-            last_checked=None,
-            last_success=(_forecast_cache or {}).get("retrieved_at") if _forecast_cache else None,
+            is_available=forecast_status["is_available"],
+            last_checked=forecast_status["last_checked"],
+            last_success=forecast_status["last_success"],
             requires_credentials=False,
-            known_limitations="NWP model output at basin centroid. Not rain-gauge data.",
+            known_limitations=forecast_status["known_limitations"],
         ),
         DataSourceStatus(
             slug="cwc-river-stage",

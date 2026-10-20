@@ -483,7 +483,54 @@ export const api = {
   status: () => request<StatusResponse>("/api/v1/status"),
 
   forecast: {
-    latest: () => request<ForecastResponse>("/api/v1/forecast/latest"),
+    latest: async (): Promise<ForecastResponse> => {
+      try {
+        return await request<ForecastResponse>("/api/v1/forecast/latest");
+      } catch (err) {
+        // Fallback: If backend is unreachable or sleeping, fetch directly from Open-Meteo client-side!
+        try {
+          const res = await fetch(
+            "https://api.open-meteo.com/v1/forecast?latitude=10.2814&longitude=76.3153&hourly=precipitation,temperature_2m,relative_humidity_2m,wind_speed_10m&forecast_days=7&timezone=Asia%2FKolkata"
+          );
+          if (res.ok) {
+            const raw = await res.json();
+            const hourlyRaw = raw.hourly || {};
+            const times: string[] = hourlyRaw.time || [];
+            const precip: number[] = hourlyRaw.precipitation || [];
+            const temp: number[] = hourlyRaw.temperature_2m || [];
+            const hum: number[] = hourlyRaw.relative_humidity_2m || [];
+            const wind: number[] = hourlyRaw.wind_speed_10m || [];
+            const now = Date.now();
+            const hourly = times.map((t, idx) => ({
+              time: new Date(t).toISOString(),
+              precipitation_mm: precip[idx] ?? 0,
+              temperature_2m: temp[idx] ?? 28,
+              relative_humidity_2m: hum[idx] ?? 80,
+              wind_speed_10m: wind[idx] ?? 10,
+              is_forecast: new Date(t).getTime() > now,
+            }));
+            const r24 = precip.slice(0, 24).reduce((a, b) => a + (b || 0), 0);
+            return {
+              run_id: "client-direct-om",
+              basin: "Chalakudy River Basin",
+              retrieved_at: new Date().toISOString(),
+              lat: 10.2814,
+              lon: 76.3153,
+              hourly,
+              rainfall_accumulations: [
+                { window_hours: 24, accumulation_mm: r24, computed_at: new Date().toISOString(), note: "Client fallback" },
+              ],
+              data_quality_notes: ["Direct client fallback from Open-Meteo"],
+              is_stale: false,
+              stale_since: null,
+            };
+          }
+        } catch {
+          // ignore fallback error and rethrow original error
+        }
+        throw err;
+      }
+    },
     discharge: () => request<RiverDischargeResponse>("/api/v1/forecast/discharge"),
     stage: () => request<RiverStageForecastResponse>("/api/v1/forecast/stage"),
     dataSources: () => request<{ sources: DataSourceStatus[] }>("/api/v1/data-sources"),

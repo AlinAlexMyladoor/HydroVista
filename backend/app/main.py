@@ -40,6 +40,12 @@ async def lifespan(app: FastAPI):
     except Exception as e:  # noqa: BLE001 - never block API start-up on housekeeping
         log.warning("analysis.recover_failed", error=str(e))
     try:
+        from app.api.v1.forecast import _load_persistent_forecast_cache
+
+        _load_persistent_forecast_cache()
+    except Exception as e:  # noqa: BLE001
+        log.warning("forecast.preload_failed", error=str(e))
+    try:
         from app.analysis import gee
 
         cap = gee.capabilities()

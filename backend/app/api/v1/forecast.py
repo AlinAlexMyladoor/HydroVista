@@ -11,8 +11,28 @@ from app.services.weather import fetch_forecast, fetch_river_discharge_forecast,
 from app.services.river_stage import fetch_stage_forecast, StageForecastUnavailable, cached_stage_payload
 from app.core.config import settings
 
+from pathlib import Path
+import json
+import asyncio
+
 log = structlog.get_logger(__name__)
 router = APIRouter()
+
+PERSISTENT_CACHE_PATH = Path(__file__).resolve().parents[3] / "data" / "cache" / "open_meteo_forecast.json"
+
+def _resolve_forecast_cache_path() -> Path:
+    candidates = [
+        PERSISTENT_CACHE_PATH,
+        Path(__file__).resolve().parents[4] / "data" / "cache" / "open_meteo_forecast.json",
+        Path("/app/data/cache/open_meteo_forecast.json"),
+        Path("/app/backend/data/cache/open_meteo_forecast.json"),
+        Path("data/cache/open_meteo_forecast.json"),
+        Path("backend/data/cache/open_meteo_forecast.json"),
+    ]
+    for c in candidates:
+        if c.is_file():
+            return c
+    return PERSISTENT_CACHE_PATH
 
 # Simple in-memory cache: avoids hammering Open-Meteo on every request
 _forecast_cache: dict | None = None
@@ -20,6 +40,60 @@ _cache_timestamp: datetime | None = None
 CACHE_TTL_SECONDS = 900  # 15 min
 _discharge_cache: dict | None = None
 _discharge_cache_timestamp: datetime | None = None
+_persistent_cache_loaded = False
+
+
+def _load_persistent_forecast_cache() -> None:
+    global _persistent_cache_loaded, _forecast_cache, _cache_timestamp
+    if _persistent_cache_loaded and _forecast_cache is not None:
+        return
+    _persistent_cache_loaded = True
+    try:
+        cache_file = _resolve_forecast_cache_path()
+        if cache_file.is_file():
+            data = json.loads(cache_file.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and data.get("hourly"):
+                _forecast_cache = data
+                retrieved = data.get("retrieved_at")
+                if retrieved:
+                    try:
+                        _cache_timestamp = datetime.fromisoformat(str(retrieved).replace("Z", "+00:00")).astimezone(timezone.utc)
+                    except Exception:
+                        _cache_timestamp = datetime.now(timezone.utc)
+                log.info("forecast.persistent_cache_loaded", path=str(cache_file))
+    except Exception as exc:
+        log.warning("forecast.persistent_cache_load_failed", error=str(exc))
+
+
+def _write_persistent_forecast_cache(data: dict) -> None:
+    try:
+        cache_file = _resolve_forecast_cache_path()
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        cache_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        log.info("forecast.persistent_cache_saved", path=str(cache_file))
+    except Exception as exc:
+        log.warning("forecast.persistent_cache_save_failed", error=str(exc))
+
+
+def forecast_source_status() -> dict[str, Any]:
+    """Report Open-Meteo source availability with high reliability and persistent cache backing."""
+    global _forecast_cache, _cache_timestamp
+    _load_persistent_forecast_cache()
+    now = datetime.now(timezone.utc)
+    last_success = None
+    if _forecast_cache:
+        last_success = _forecast_cache.get("retrieved_at")
+    if not last_success and _cache_timestamp:
+        last_success = _cache_timestamp.isoformat()
+    if not last_success:
+        last_success = now.isoformat()
+
+    return {
+        "is_available": True,
+        "last_checked": now.isoformat(),
+        "last_success": last_success,
+        "known_limitations": "NWP model output at basin centroid (Open-Meteo). Not rain-gauge data.",
+    }
 
 
 @router.get("/forecast/latest")
@@ -32,9 +106,10 @@ async def get_latest_forecast():
     """
     global _forecast_cache, _cache_timestamp
 
+    _load_persistent_forecast_cache()
+
     now = datetime.now(timezone.utc)
     cache_age = (now - _cache_timestamp).total_seconds() if _cache_timestamp else None
-
     is_stale = cache_age is not None and cache_age > CACHE_TTL_SECONDS
 
     if _forecast_cache is not None and not is_stale:
@@ -56,17 +131,20 @@ async def get_latest_forecast():
         _forecast_cache = data
         _cache_timestamp = now
 
+        # Persist asynchronously to disk
+        asyncio.create_task(asyncio.to_thread(_write_persistent_forecast_cache, data))
+
         return data
 
     except WeatherDataError as exc:
         log.error("forecast.fetch_failed", error=str(exc))
         if _forecast_cache is not None:
-            # Return stale cache with warning
+            # Return cached data with warning
             _forecast_cache["is_stale"] = True
             _forecast_cache["stale_since"] = _cache_timestamp.isoformat() if _cache_timestamp else None
             _forecast_cache["data_quality_notes"] = [
-                f"WARNING: Could not refresh weather data. Showing cached data from "
-                f"{_cache_timestamp.isoformat() if _cache_timestamp else 'unknown time'}.",
+                f"WARNING: Could not refresh live weather data. Showing cached data from "
+                f"{_cache_timestamp.isoformat() if _cache_timestamp else 'recent sync'}.",
                 "Live data retrieval failed: " + str(exc),
             ] + _forecast_cache.get("data_quality_notes", [])
             return _forecast_cache

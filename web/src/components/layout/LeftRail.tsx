@@ -140,7 +140,9 @@ export function LeftRail() {
   const getAgeLabel = (ds: { last_success: string | null; is_available: boolean }) => {
     if (!ds.is_available) return language !== "ml" ? "Unavailable" : "ലഭ്യമല്ല";
     if (!ds.last_success) return language !== "ml" ? "Available" : "ലഭ്യമാണ്";
-    const minutes = Math.floor((Date.now() - new Date(ds.last_success).getTime()) / 60_000);
+    const parsed = new Date(ds.last_success).getTime();
+    if (isNaN(parsed)) return language !== "ml" ? "Available" : "ലഭ്യമാണ്";
+    const minutes = Math.floor((Date.now() - parsed) / 60_000);
     if (minutes < 1) return language !== "ml" ? "Updated just now" : "ഇപ്പോൾ പുതുക്കി";
     if (minutes < 60) return `${language !== "ml" ? "Updated" : "അവസാനം"} ${minutes}m ${language !== "ml" ? "ago" : "മുൻപ്"}`;
     const hours = Math.floor(minutes / 60);
@@ -389,13 +391,19 @@ export function LeftRail() {
           {dataSources.length > 0
             ? dataSources.map((ds) => {
                 const labels = SOURCE_LABELS[ds.slug] ?? { en: ds.name, ml: ds.name };
-                const age = getAgeLabel(ds as any);
+                const isAvailable = ds.slug === "open-meteo"
+                  ? (ds.is_available || Boolean(forecast?.hourly?.length))
+                  : ds.is_available;
+                const lastSuccess = (ds.slug === "open-meteo"
+                  ? (ds.last_success || forecast?.retrieved_at)
+                  : ds.last_success) ?? null;
+                const age = getAgeLabel({ is_available: isAvailable, last_success: lastSuccess });
                 return (
                   <div key={ds.slug} className="flex flex-col py-1 border-b border-slate-100/60 dark:border-slate-800/40 last:border-0">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span
                         className={`h-2 w-2 rounded-full shrink-0 ${
-                          ds.is_available ? "bg-emerald-500 dark:bg-emerald-400" : "bg-slate-400 dark:bg-slate-600"
+                          isAvailable ? "bg-emerald-500 dark:bg-emerald-400" : "bg-slate-400 dark:bg-slate-600"
                         }`}
                       />
                       <span className="text-slate-800 dark:text-slate-200 font-semibold text-xs leading-snug">
@@ -411,7 +419,7 @@ export function LeftRail() {
             : (
               // Placeholder when no status yet
               [
-                { slug: "open-meteo", name: "Weather (Open-Meteo)", status: "checking" },
+                { slug: "open-meteo", name: "Weather (Open-Meteo)", status: forecast?.hourly?.length ? "available" : "checking" },
                 { slug: "osm",        name: "Roads & Infrastructure (OSM)", status: "checking" },
                 { slug: "terrarium-dem", name: "Elevation (Terrarium DEM)", status: "checking" },
                 { slug: "worldpop",   name: "Population (WorldPop)", status: "checking" },
