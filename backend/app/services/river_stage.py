@@ -45,8 +45,22 @@ DATA_URLS = (
 )
 SOURCE_URL = "https://nwdp.nwic.gov.in/dataset/river-water-level-telemetry-hourly-central-water-commission-cwc"
 CACHE_SECONDS = 15 * 60
-MAX_GAUGE_AGE = timedelta(hours=36)
 PERSISTENT_CACHE_PATH = Path(__file__).resolve().parents[2] / "data" / "cache" / "cwc_arangaly.json"
+
+
+def _resolve_cache_path() -> Path:
+    candidates = [
+        PERSISTENT_CACHE_PATH,
+        Path(__file__).resolve().parents[3] / "data" / "cache" / "cwc_arangaly.json",
+        Path("/app/data/cache/cwc_arangaly.json"),
+        Path("/app/backend/data/cache/cwc_arangaly.json"),
+        Path("data/cache/cwc_arangaly.json"),
+        Path("backend/data/cache/cwc_arangaly.json"),
+    ]
+    for c in candidates:
+        if c.is_file():
+            return c
+    return PERSISTENT_CACHE_PATH
 
 _cache: dict[str, Any] | None = None
 _cache_at: datetime | None = None
@@ -115,7 +129,8 @@ def _load_persistent_cache() -> None:
         return
     _persistent_cache_loaded = True
     try:
-        payload = json.loads(PERSISTENT_CACHE_PATH.read_text(encoding="utf-8"))
+        cache_file = _resolve_cache_path()
+        payload = json.loads(cache_file.read_text(encoding="utf-8"))
         observation = payload.get("observation")
         result = payload.get("result")
         if isinstance(observation, dict) and observation.get("observed_at"):
@@ -305,8 +320,12 @@ def _training_rows(stage: pd.Series, rain: pd.Series) -> tuple[pd.DataFrame, pd.
 
 
 async def _download_telemetry() -> list[bytes]:
-    async with httpx.AsyncClient(timeout=httpx.Timeout(60, connect=15), follow_redirects=True) as client:
-        results = await asyncio.gather(*(client.get(url) for url in DATA_URLS), return_exceptions=True)
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(4.0, connect=1.5), follow_redirects=True) as client:
+            results = await asyncio.gather(*(client.get(url) for url in DATA_URLS), return_exceptions=True)
+    except Exception as exc:
+        log.warning("stage.telemetry_download_error", error=str(exc))
+        raise StageForecastUnavailable("The CWC telemetry download timed out.") from exc
     payloads: list[bytes] = []
     for result in results:
         if isinstance(result, Exception):

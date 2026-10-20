@@ -146,4 +146,8 @@ data/*.csv
 !data/HydroVista_Train_Stratified.csv
 /backend/data/*
 !/backend/data/HydroVista_Train_Stratified.csv
+!/backend/data/cache/
+!/backend/data/cache/*
+!data/cache/
+!data/cache/*
 
