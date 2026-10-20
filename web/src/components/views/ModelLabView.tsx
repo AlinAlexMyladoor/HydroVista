@@ -35,7 +35,7 @@ const autoName = (experiment: Experiment) => {
 
 /** Micro-chart component for metric progress bar */
 function MetricCell({ value }: { value: number | null | undefined }) {
-  if (value == null) {
+  if (value == null || Number.isNaN(value)) {
     return <span className="font-mono text-xs text-slate-300 dark:text-slate-600">—</span>;
   }
   const pct = Math.max(0, Math.min(100, value * 100));
@@ -43,15 +43,17 @@ function MetricCell({ value }: { value: number | null | undefined }) {
   const barColor = pct >= 80 ? "bg-teal-500" : pct >= 65 ? "bg-amber-500" : "bg-rose-500";
 
   return (
-    <div className="flex flex-col gap-1 min-w-[68px]">
+    <div className="flex flex-col min-w-[70px]">
       <span className="font-mono text-xs font-semibold tabular-nums text-slate-800 dark:text-slate-200">
         {formatted}
       </span>
-      <div className="w-16 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-300 ${barColor}`}
-          style={{ width: `${pct}%` }}
-        />
+      <div className="w-full bg-slate-100 dark:bg-slate-800 ring-1 ring-slate-200/50 dark:ring-slate-700/50 h-1.5 rounded-full mt-1 overflow-hidden">
+        {pct > 0 && (
+          <div
+            className={`${barColor} h-1.5 rounded-full transition-all duration-300`}
+            style={{ width: `${pct}%` }}
+          />
+        )}
       </div>
     </div>
   );
@@ -174,7 +176,7 @@ export function ModelLabView() {
 
   return (
     <main className="flex-1 w-full h-[calc(100vh-4rem)] overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50">
-      <div className="h-[calc(100vh-5rem)] flex flex-col max-w-7xl mx-auto px-4 pb-4 overflow-hidden gap-3.5 pt-3">
+      <div className="h-[calc(100vh-5rem)] flex flex-col max-w-7xl mx-auto px-4 pb-4 overflow-hidden gap-3 pt-3">
         
         {/* Top Info Header */}
         <div className="flex items-center justify-between pb-2 border-b border-slate-200/80 dark:border-slate-800 shrink-0">
@@ -205,86 +207,91 @@ export function ModelLabView() {
 
         {experiments.length > 0 && (
           <>
-            {/* Compare experiments control box: Floating borderless card with soft shadow */}
-            <div className="flex flex-wrap items-center gap-3 rounded-xl border-0 bg-white dark:bg-slate-900 p-3 sm:p-3.5 text-xs shadow-md shadow-slate-200/50 dark:shadow-slate-950/50 shrink-0">
-              <span className="font-semibold text-slate-800 dark:text-slate-100">Compare experiments</span>
-              <select
-                value={leftCompare}
-                onChange={(event) => setLeftCompare(event.target.value)}
-                className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 text-xs outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600"
-              >
-                <option value="">Select baseline</option>
-                {experiments.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {aliases[e.id] ?? autoName(e)}
-                  </option>
-                ))}
-              </select>
-              <span className="text-slate-400 font-medium">to</span>
-              <select
-                value={rightCompare}
-                onChange={(event) => setRightCompare(event.target.value)}
-                className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 text-xs outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600"
-              >
-                <option value="">Select comparison</option>
-                {experiments.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {aliases[e.id] ?? autoName(e)}
-                  </option>
-                ))}
-              </select>
-              {selectedA && selectedB && selectedA.id !== selectedB.id && (
-                <div className="flex flex-wrap gap-3 border-l border-slate-200 pl-3 dark:border-slate-700">
-                  {metrics.map((metric) => {
-                    const delta = (value(selectedB, metric) ?? 0) - (value(selectedA, metric) ?? 0);
-                    return (
-                      <span key={metric} className="font-medium text-slate-700 dark:text-slate-300">
-                        {metric.toUpperCase()}{" "}
-                        <b
-                          className={
-                            delta >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-                          }
-                        >
-                          {delta > 0 ? "+" : ""}
-                          {(delta * 100).toFixed(1)} pp
-                        </b>
-                      </span>
-                    );
-                  })}
-                  <span className="text-slate-700 dark:text-slate-300">
-                    Test size{" "}
-                    <b>
-                      {testSize(selectedB) - testSize(selectedA) > 0 ? "+" : ""}
-                      {testSize(selectedB) - testSize(selectedA)}
-                    </b>
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Main Table Wrapper: Floating borderless card with sticky header & internal scroll */}
+            {/* Unified Diagnostics Interface: Consolidated Card */}
             <div className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-xl border-0 bg-white dark:bg-slate-900 shadow-md shadow-slate-200/50 dark:shadow-slate-950/50">
+              
+              {/* Card Controls Header: Compare experiments */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 px-4 py-3 text-xs shrink-0 bg-white dark:bg-slate-900 z-20">
+                <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+                  <span className="font-semibold text-slate-800 dark:text-slate-100">Compare experiments</span>
+                  <select
+                    value={leftCompare}
+                    onChange={(event) => setLeftCompare(event.target.value)}
+                    className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 text-xs outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600"
+                  >
+                    <option value="">Select baseline</option>
+                    {experiments.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {aliases[e.id] ?? autoName(e)}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-slate-400 font-medium">to</span>
+                  <select
+                    value={rightCompare}
+                    onChange={(event) => setRightCompare(event.target.value)}
+                    className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 text-xs outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600"
+                  >
+                    <option value="">Select comparison</option>
+                    {experiments.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {aliases[e.id] ?? autoName(e)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedA && selectedB && selectedA.id !== selectedB.id && (
+                  <div className="flex flex-wrap items-center gap-3 border-l border-slate-200 pl-3 dark:border-slate-700">
+                    {metrics.map((metric) => {
+                      const delta = (value(selectedB, metric) ?? 0) - (value(selectedA, metric) ?? 0);
+                      return (
+                        <span key={metric} className="font-medium text-slate-700 dark:text-slate-300">
+                          {metric.toUpperCase()}{" "}
+                          <b
+                            className={
+                              delta >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                            }
+                          >
+                            {delta > 0 ? "+" : ""}
+                            {(delta * 100).toFixed(1)} pp
+                          </b>
+                        </span>
+                      );
+                    })}
+                    <span className="text-slate-700 dark:text-slate-300">
+                      Test size{" "}
+                      <b>
+                        {testSize(selectedB) - testSize(selectedA) > 0 ? "+" : ""}
+                        {testSize(selectedB) - testSize(selectedA)}
+                      </b>
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Scrollable Table Container */}
               <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
                 <table className="w-full min-w-[980px] border-separate border-spacing-0 text-left text-xs">
                   {/* Sticky Header */}
                   <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900 text-[10px] uppercase tracking-wider shadow-sm">
                     <tr>
-                      <th className="w-9 px-3.5 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800" />
-                      <th className="px-3.5 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">{selectHeader("Experiment", "name")}</th>
-                      <th className="px-3.5 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">{selectHeader("Dataset", "dataset")}</th>
-                      <th className="px-3.5 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 font-semibold text-slate-600 dark:text-slate-300">
+                      <th className="w-8 px-2 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800" />
+                      <th className="px-3 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 min-w-[125px]">{selectHeader("Experiment", "name")}</th>
+                      <th className="px-3 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 min-w-[170px] max-w-[210px]">{selectHeader("Dataset", "dataset")}</th>
+                      <th className="px-3 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 min-w-[190px] max-w-[250px] font-semibold text-slate-600 dark:text-slate-300">
                         Model / predictors
                       </th>
                       {metrics.map((metric) => (
-                        <th key={metric} className="px-3.5 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+                        <th key={metric} className="px-2.5 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 min-w-[76px]">
                           {selectHeader(metric.toUpperCase(), metric)}
                         </th>
                       ))}
-                      <th className="px-3.5 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">{selectHeader("Test size", "n")}</th>
-                      <th className="px-3.5 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 font-semibold text-slate-600 dark:text-slate-300">
+                      <th className="px-2.5 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 min-w-[65px]">{selectHeader("Test size", "n")}</th>
+                      <th className="px-3 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 min-w-[95px] font-semibold text-slate-600 dark:text-slate-300">
                         Data quality
                       </th>
-                      <th className="px-3.5 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 font-semibold text-slate-600 dark:text-slate-300">
+                      <th className="px-2.5 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 min-w-[65px] text-center font-semibold text-slate-600 dark:text-slate-300">
                         Compared
                       </th>
                     </tr>
@@ -299,7 +306,7 @@ export function ModelLabView() {
                             onClick={() => setExpandedId(expanded ? null : experiment.id)}
                             className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
                           >
-                            <td className="px-3.5 py-3">
+                            <td className="w-8 px-2 py-3.5 align-middle text-center">
                               <button
                                 type="button"
                                 aria-label={expanded ? "Hide experiment details" : "Show experiment details"}
@@ -308,44 +315,44 @@ export function ModelLabView() {
                                 {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                               </button>
                             </td>
-                            <td className="px-3.5 py-3" onClick={(e) => e.stopPropagation()}>
+                            <td className="px-3 py-3.5 align-middle" onClick={(e) => e.stopPropagation()}>
                               <input
                                 aria-label="Experiment name"
                                 value={aliases[experiment.id] ?? autoName(experiment)}
                                 onChange={(event) =>
                                   setAliases((current) => ({ ...current, [experiment.id]: event.target.value }))
                                 }
-                                className="w-36 rounded border border-transparent bg-transparent px-1 py-0.5 font-semibold text-slate-900 dark:text-slate-100 hover:border-slate-300 focus:border-teal-600 focus:outline-none dark:hover:border-slate-700"
+                                className="w-32 rounded border border-transparent bg-transparent px-1 py-0.5 font-semibold text-slate-900 dark:text-slate-100 hover:border-slate-300 focus:border-teal-600 focus:outline-none dark:hover:border-slate-700"
                               />
                               <div className="mt-0.5 text-[10px] text-slate-400">
                                 {new Date(experiment.created_at).toLocaleString()}
                               </div>
                             </td>
                             <td
-                              className="max-w-48 truncate px-3.5 py-3 text-slate-700 dark:text-slate-300 font-mono text-[11px]"
+                              className="px-3 py-3.5 align-middle text-slate-700 dark:text-slate-300 font-mono text-[11px] min-w-[170px] max-w-[210px] break-all leading-relaxed"
                               title={datasetName(experiment)}
                             >
                               {datasetName(experiment)}
                             </td>
                             <td
-                              className="max-w-52 truncate px-3.5 py-3 text-slate-600 dark:text-slate-400 text-[11px]"
+                              className="px-3 py-3.5 align-middle text-slate-600 dark:text-slate-300 text-[11px] min-w-[190px] max-w-[250px] break-words leading-relaxed"
                               title={modelName(experiment)}
                             >
                               {modelName(experiment)}
                             </td>
                             {metrics.map((metric) => (
-                              <td key={metric} className="px-3.5 py-3">
+                              <td key={metric} className="px-2.5 py-3.5 align-middle">
                                 <MetricCell value={value(experiment, metric)} />
                               </td>
                             ))}
-                            <td className="px-3.5 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">
+                            <td className="px-2.5 py-3.5 align-middle font-mono text-xs text-slate-700 dark:text-slate-300">
                               {testSize(experiment)}
                             </td>
-                            <td className="px-3.5 py-3">
+                            <td className="px-3 py-3.5 align-middle">
                               {warnings.length > 0 ? (
                                 <span
                                   title={warnings.join("\n")}
-                                  className="inline-flex cursor-help items-center gap-1.5 rounded-full bg-amber-50 text-amber-700 font-semibold px-2.5 py-0.5 text-xs dark:bg-amber-950/50 dark:text-amber-300"
+                                  className="inline-flex cursor-help items-center gap-1.5 rounded-full bg-amber-50 text-amber-700 font-semibold px-2 py-0.5 text-xs dark:bg-amber-950/50 dark:text-amber-300"
                                 >
                                   <AlertTriangle size={12} className="shrink-0" />
                                   {warnings.length} warning{warnings.length === 1 ? "" : "s"}
@@ -356,7 +363,7 @@ export function ModelLabView() {
                                 </span>
                               )}
                             </td>
-                            <td className="px-3.5 py-3" onClick={(e) => e.stopPropagation()}>
+                            <td className="px-2.5 py-3.5 align-middle text-center" onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="checkbox"
                                 aria-label={`Include ${aliases[experiment.id] ?? autoName(experiment)} in comparison`}
@@ -400,7 +407,7 @@ export function ModelLabView() {
             </div>
 
             {/* Bottom helper text: Padded to ensure 100% clearance from the floating assistant button */}
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 pb-20 sm:pb-24 pr-48 shrink-0">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 pb-16 sm:pb-20 pr-48 shrink-0">
               Metrics are shown as percentages. Delta is comparison minus baseline, in percentage points.
             </p>
           </>
