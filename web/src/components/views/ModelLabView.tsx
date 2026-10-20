@@ -66,18 +66,42 @@ function ExperimentDetails({ experiment }: { experiment: ClassificationExperimen
     .map(([feature, score]) => ({ feature, score }))
     .sort((a, b) => b.score - a.score);
 
+  const allValues = [
+    matrix[0]?.[0],
+    matrix[0]?.[1],
+    matrix[1]?.[0],
+    matrix[1]?.[1],
+  ].filter((v): v is number => typeof v === "number");
+  const maxVal = Math.max(1, ...allValues);
+
+  const getMatrixCellStyle = (val: number | undefined) => {
+    if (val == null) return "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500";
+    if (val === 0) return "bg-teal-50/50 text-slate-400 dark:bg-teal-950/20 dark:text-slate-500 font-normal";
+    const ratio = val / maxVal;
+    if (ratio >= 0.7) {
+      return "bg-teal-500 text-white font-bold shadow-xs";
+    }
+    if (ratio >= 0.2) {
+      return "bg-teal-200/90 text-teal-900 font-semibold dark:bg-teal-800/60 dark:text-teal-100";
+    }
+    if (ratio >= 0.04) {
+      return "bg-teal-100/80 text-teal-800 font-medium dark:bg-teal-900/40 dark:text-teal-200";
+    }
+    return "bg-teal-50 text-slate-500 dark:bg-teal-950/30 dark:text-slate-400 font-normal";
+  };
+
   return (
-    <div className="grid gap-5 border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/60 md:grid-cols-2">
+    <div className="grid gap-5 border-t border-slate-200/80 bg-slate-50/90 p-4 dark:border-slate-700/60 dark:bg-slate-800/60 md:grid-cols-2">
       <div>
         <h3 className="mb-2 text-xs font-semibold text-slate-800 dark:text-slate-200">
           Random Forest confusion matrix
         </h3>
-        <table className="w-full max-w-sm border-separate border-spacing-1 text-xs">
+        <table className="w-full max-w-sm border-separate border-spacing-1.5 text-xs">
           <thead>
             <tr>
               <th />
-              <th className="text-slate-500">Predicted dry</th>
-              <th className="text-slate-500">Predicted flood</th>
+              <th className="text-slate-500 font-medium text-center pb-1">Predicted dry</th>
+              <th className="text-slate-500 font-medium text-center pb-1">Predicted flood</th>
             </tr>
           </thead>
           <tbody>
@@ -86,18 +110,18 @@ function ExperimentDetails({ experiment }: { experiment: ClassificationExperimen
               ["True flood", matrix[1]?.[0], matrix[1]?.[1]],
             ].map((row, i) => (
               <tr key={i}>
-                <th className="pr-2 text-right font-medium text-slate-500">{row[0]}</th>
-                <td className="rounded bg-emerald-100 p-2 text-center font-semibold dark:bg-emerald-950 text-slate-900 dark:text-slate-100">
+                <th className="pr-2.5 text-right font-medium text-slate-500 text-xs whitespace-nowrap">{row[0]}</th>
+                <td className={`rounded-lg p-2.5 text-center font-mono text-xs transition-colors ${getMatrixCellStyle(row[1] as number | undefined)}`}>
                   {row[1] ?? "—"}
                 </td>
-                <td className="rounded bg-rose-100 p-2 text-center font-semibold dark:bg-rose-950 text-slate-900 dark:text-slate-100">
+                <td className={`rounded-lg p-2.5 text-center font-mono text-xs transition-colors ${getMatrixCellStyle(row[2] as number | undefined)}`}>
                   {row[2] ?? "—"}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        <p className="mt-2 text-[11px] text-slate-500">
+        <p className="mt-2.5 text-[11px] text-slate-500 dark:text-slate-400">
           Test size {rf.metrics.n} · Training regions {experiment.provenance.split.train_regions.length} · Test regions{" "}
           {experiment.provenance.split.test_regions.length}
         </p>
@@ -110,12 +134,21 @@ function ExperimentDetails({ experiment }: { experiment: ClassificationExperimen
               <CartesianGrid horizontal={false} strokeOpacity={0.15} />
               <XAxis type="number" tick={{ fontSize: 10 }} />
               <YAxis type="category" dataKey="feature" width={92} tick={{ fontSize: 10 }} />
-              <Tooltip formatter={(score) => Number(score).toFixed(3)} />
-              <Bar dataKey="score" fill="#0D9488" radius={[0, 4, 4, 0]} />
+              <Tooltip
+                formatter={(score) => Number(score).toFixed(3)}
+                contentStyle={{
+                  backgroundColor: "#0f172a",
+                  borderRadius: "8px",
+                  border: "none",
+                  color: "#f8fafc",
+                  fontSize: "11px",
+                }}
+              />
+              <Bar dataKey="score" fill="#14b8a6" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <p className="mt-2 text-[11px] text-slate-500">
+        <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
           {experiment.provenance.split.method} · {experiment.provenance.features.join(", ")}
         </p>
       </div>
@@ -304,7 +337,11 @@ export function ModelLabView() {
                         <React.Fragment key={experiment.id}>
                           <tr
                             onClick={() => setExpandedId(expanded ? null : experiment.id)}
-                            className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
+                            className={`transition-colors cursor-pointer group ${
+                              expanded
+                                ? "bg-slate-50 dark:bg-slate-800/70"
+                                : "bg-white dark:bg-slate-900 hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+                            }`}
                           >
                             <td className="w-8 px-2 py-3.5 align-middle text-center">
                               <button
@@ -382,12 +419,12 @@ export function ModelLabView() {
                             </td>
                           </tr>
                           {expanded && (
-                            <tr>
-                              <td colSpan={11} className="p-0">
+                            <tr className="bg-slate-50 dark:bg-slate-800/70">
+                              <td colSpan={11} className="p-0 border-b border-slate-200 dark:border-slate-700/80">
                                 {experiment.task === "flood_classification" ? (
                                   <ExperimentDetails experiment={experiment} />
                                 ) : (
-                                  <div className="border-t border-slate-200 bg-slate-50 p-4 text-xs dark:border-slate-800 dark:bg-slate-950/60">
+                                  <div className="border-t border-slate-200/80 bg-slate-50 p-4 text-xs dark:border-slate-800 dark:bg-slate-900/60">
                                     Validation split: {experiment.provenance.split.method} · Regions:{" "}
                                     {experiment.provenance.split.test_regions.join(", ") || "not specified"}
                                     <div className="mt-2">
