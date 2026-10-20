@@ -220,9 +220,9 @@ export function MethodologyView() {
             </div>
           </div>
 
-          {/* Basin Elevation Profile: Explicit height & headroom so labels float cleanly above peaks */}
-          <div className="rounded-lg border border-white/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/70 px-3 py-1.5 backdrop-blur-xs shadow-2xs min-h-[76px] h-20 sm:h-22 flex flex-col justify-center">
-            <svg viewBox="0 0 540 80" className="w-full h-full" preserveAspectRatio="none">
+          {/* Basin Elevation Profile: h-32 / min-h-[120px] with pt-4/pt-5 for generous label breathing room */}
+          <div className="rounded-lg border border-white/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/70 px-3.5 pt-4 sm:pt-5 pb-2.5 backdrop-blur-xs shadow-2xs min-h-[120px] h-32 flex flex-col justify-center">
+            <svg viewBox="0 0 540 100" className="w-full h-full" preserveAspectRatio="none">
               <defs>
                 <linearGradient id="elevGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#6366f1" stopOpacity={0.45} />
@@ -231,29 +231,29 @@ export function MethodologyView() {
               </defs>
               {/* Mountain & River profile path */}
               <path
-                d="M0,70 L25,67 L65,48 L115,28 L145,36 L180,44 L210,36 L240,44 L280,53 L325,59 L375,63 L430,66 L485,68 L540,70 L540,70 L0,70 Z"
+                d="M0,88 L25,84 L65,64 L115,42 L145,52 L180,62 L210,52 L240,60 L280,70 L325,76 L375,81 L430,84 L485,86 L540,88 L540,88 L0,88 Z"
                 fill="url(#elevGrad)"
                 stroke="#6366f1"
                 strokeWidth={1.5}
                 strokeOpacity={0.8}
               />
-              {/* Reservoir markers with vertical guide lines */}
+              {/* Reservoir markers with vertical guide lines and floating labels */}
               {[
-                { x: 115, y: 28, label: "Sholayar (1,050m)", textY: 14 },
-                { x: 210, y: 36, label: "Poringalkuthu (420m)", textY: 22 },
+                { x: 115, y: 42, label: "Sholayar (1,050m)", textY: 18 },
+                { x: 210, y: 52, label: "Poringalkuthu (420m)", textY: 28 },
               ].map((res) => (
                 <g key={res.label}>
-                  <line x1={res.x} y1={res.y} x2={res.x} y2={70} stroke="#0ea5e9" strokeDasharray="2,2" strokeOpacity={0.55} strokeWidth={1} />
+                  <line x1={res.x} y1={res.y} x2={res.x} y2={88} stroke="#0ea5e9" strokeDasharray="2,2" strokeOpacity={0.55} strokeWidth={1} />
                   <circle cx={res.x} cy={res.y} r={3.5} fill="#0ea5e9" stroke="#ffffff" strokeWidth={1} className="dark:stroke-slate-900" />
-                  <text x={res.x} y={res.textY} fontSize={7.5} fill="#475569" className="dark:fill-slate-300 font-bold" textAnchor="middle">
+                  <text x={res.x} y={res.textY} fontSize={8} fill="#475569" className="dark:fill-slate-300 font-bold" textAnchor="middle">
                     {res.label}
                   </text>
                 </g>
               ))}
               {/* Geographic references */}
-              <text x={8} y={62} fontSize={7} fill="#64748b" className="dark:fill-slate-400 font-medium">Western Ghats (1,200m+)</text>
-              <text x={532} y={62} fontSize={7} fill="#64748b" className="dark:fill-slate-400 font-medium" textAnchor="end">Arabian Sea (0m)</text>
-              <text x={310} y={50} fontSize={7} fill="#64748b" className="dark:fill-slate-400 font-medium" textAnchor="middle">Chalakudy River Descent (~130 km)</text>
+              <text x={8} y={78} fontSize={7.5} fill="#64748b" className="dark:fill-slate-400 font-medium">Western Ghats (1,200m+)</text>
+              <text x={532} y={78} fontSize={7.5} fill="#64748b" className="dark:fill-slate-400 font-medium" textAnchor="end">Arabian Sea (0m)</text>
+              <text x={310} y={66} fontSize={7.5} fill="#64748b" className="dark:fill-slate-400 font-medium" textAnchor="middle">Chalakudy River Descent (~130 km)</text>
             </svg>
           </div>
         </section>
