@@ -97,31 +97,77 @@ _initialised = False
 DEFAULT_KEY_FILE = Path(__file__).resolve().parents[2] / "gee-key.json"
 
 
-def _service_account_config() -> tuple[str | None, str]:
-    key_file = os.getenv("EE_PRIVATE_KEY_FILE", str(DEFAULT_KEY_FILE))
-    service_account = os.getenv("EE_SERVICE_ACCOUNT")
-    if not service_account and os.path.isfile(key_file):
-        try:
-            import json
+def _discover_credentials() -> tuple[str | None, str, str | None]:
+    """Discover service account credentials from env (base64/json), Render secrets, or disk.
 
+    Returns: (service_account_email, key_file_path, project_id)
+    """
+    import base64
+    import json
+
+    sa_email = os.getenv("EE_SERVICE_ACCOUNT")
+    proj_id = os.getenv("EE_PROJECT_ID")
+    explicit_file = os.getenv("EE_PRIVATE_KEY_FILE")
+
+    # 1. Base64 environment variable (Render / Cloud deployment standard)
+    b64_content = os.getenv("EE_SERVICE_ACCOUNT_B64") or os.getenv("GEE_KEY_B64")
+    if b64_content:
+        try:
+            decoded = base64.b64decode(b64_content.strip()).decode("utf-8")
+            data = json.loads(decoded)
+            tmp_key = Path("/tmp/gee-key.json")
+            tmp_key.write_text(decoded, encoding="utf-8")
+            return sa_email or data.get("client_email"), str(tmp_key), proj_id or data.get("project_id")
+        except Exception:
+            pass
+
+    # 2. Raw JSON string environment variable
+    raw_json = os.getenv("EE_SERVICE_ACCOUNT_JSON") or os.getenv("GEE_KEY_JSON")
+    if raw_json and raw_json.strip().startswith("{"):
+        try:
+            data = json.loads(raw_json.strip())
+            tmp_key = Path("/tmp/gee-key.json")
+            tmp_key.write_text(raw_json.strip(), encoding="utf-8")
+            return sa_email or data.get("client_email"), str(tmp_key), proj_id or data.get("project_id")
+        except Exception:
+            pass
+
+    # 3. Secret files on disk (Render Secret Files / local backend/gee-key.json)
+    candidates: list[str] = []
+    if explicit_file:
+        candidates.append(explicit_file)
+    candidates.extend([
+        str(DEFAULT_KEY_FILE),
+        "/etc/secrets/gee-key.json",
+        "/etc/secrets/service_account.json",
+        "/etc/secrets/ee-key.json",
+    ])
+
+    key_file = str(DEFAULT_KEY_FILE)
+    for path in candidates:
+        if os.path.isfile(path):
+            key_file = path
+            break
+
+    if os.path.isfile(key_file):
+        try:
             with open(key_file, encoding="utf-8") as f:
-                service_account = json.load(f).get("client_email")
-        except (OSError, ValueError):
-            service_account = None
-    return service_account, key_file
+                data = json.load(f)
+                return sa_email or data.get("client_email"), key_file, proj_id or data.get("project_id")
+        except Exception:
+            pass
+
+    return sa_email, key_file, proj_id
+
+
+def _service_account_config() -> tuple[str | None, str]:
+    sa, key, _ = _discover_credentials()
+    return sa, key
 
 
 def _project_id(key_file: str) -> str | None:
-    project = os.getenv("EE_PROJECT_ID")
-    if project or not os.path.isfile(key_file):
-        return project
-    try:
-        import json
-
-        with open(key_file, encoding="utf-8") as f:
-            return json.load(f).get("project_id")
-    except (OSError, ValueError):
-        return None
+    _, _, proj = _discover_credentials()
+    return proj
 
 
 def init_ee() -> Any:

@@ -64,7 +64,12 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str | None = None
 
 
-    # ─── Optional – Copernicus / ESA ──────────────────────────────────────────
+    # ─── Optional – Google Earth Engine & Copernicus ──────────────────────────
+    EE_PROJECT_ID: str | None = None
+    EE_SERVICE_ACCOUNT: str | None = None
+    EE_SERVICE_ACCOUNT_B64: str | None = None
+    EE_SERVICE_ACCOUNT_JSON: str | None = None
+    EE_PRIVATE_KEY_FILE: str | None = None
     CDSE_CLIENT_ID: str | None = None      # backend-only OAuth client (never exposed to the browser)
     CDSE_CLIENT_SECRET: str | None = None
     COPERNICUS_USER: str | None = None
