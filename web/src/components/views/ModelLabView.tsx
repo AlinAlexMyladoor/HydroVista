@@ -76,18 +76,18 @@ function ExperimentDetails({ experiment }: { experiment: ClassificationExperimen
 
   const getMatrixCellStyle = (val: number | undefined) => {
     if (val == null) return "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500";
-    if (val === 0) return "bg-teal-50/50 text-slate-400 dark:bg-teal-950/20 dark:text-slate-500 font-normal";
+    if (val === 0) return "bg-teal-50/60 text-slate-800 dark:bg-teal-950/20 dark:text-slate-200 font-medium";
     const ratio = val / maxVal;
     if (ratio >= 0.7) {
       return "bg-teal-500 text-white font-bold shadow-xs";
     }
     if (ratio >= 0.2) {
-      return "bg-teal-200/90 text-teal-900 font-semibold dark:bg-teal-800/60 dark:text-teal-100";
+      return "bg-teal-200/90 text-slate-900 font-semibold dark:bg-teal-800/60 dark:text-teal-100";
     }
     if (ratio >= 0.04) {
-      return "bg-teal-100/80 text-teal-800 font-medium dark:bg-teal-900/40 dark:text-teal-200";
+      return "bg-teal-100/80 text-slate-800 font-medium dark:bg-teal-900/40 dark:text-teal-200";
     }
-    return "bg-teal-50 text-slate-500 dark:bg-teal-950/30 dark:text-slate-400 font-normal";
+    return "bg-teal-50 text-slate-800 dark:bg-teal-950/40 dark:text-slate-200 font-medium";
   };
 
   return (
@@ -414,7 +414,7 @@ export function ModelLabView() {
                                     if (rightCompare === experiment.id) setRightCompare("");
                                   }
                                 }}
-                                className="h-4 w-4 rounded accent-teal-600 cursor-pointer"
+                                className="h-4 w-4 rounded accent-teal-600 cursor-pointer mx-auto block"
                               />
                             </td>
                           </tr>
