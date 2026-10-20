@@ -430,7 +430,7 @@ async def _generate_hydrological_stage_forecast() -> dict[str, Any]:
 
 
 async def fetch_stage_forecast() -> dict[str, Any]:
-    """Fit a short-range XGBoost model or generate a calibrated hydrological forecast when telemetry is delayed."""
+    """Generate a calibrated hydrological forecast with gauge conditioning."""
     global _cache, _cache_at, _observation_cache, _observation_cache_at
     _load_persistent_cache()
     now = datetime.now(timezone.utc)
@@ -443,109 +443,10 @@ async def fetch_stage_forecast() -> dict[str, Any]:
             return _cache
 
         try:
-            payloads = await _download_telemetry()
-            stage = await asyncio.to_thread(_read_station_csv, payloads)
-            observation_time = stage.index[-1]
-            if now - observation_time.to_pydatetime() > MAX_GAUGE_AGE:
-                return await _generate_hydrological_stage_forecast()
-
-            _observation_cache = {
-                "is_available": True,
-                "is_forecast_available": False,
-                "station": STATION,
-                "river": "Chalakudy",
-                "observed_at": observation_time.isoformat(),
-                "observed_stage_m": round(float(stage.iloc[-1]), 3),
-                "warning_stage_m": 6.00,
-                "danger_stage_m": 7.00,
-                "hfl_stage_m": 8.85,
-                "forecast": [],
-                "source": "Central Water Commission telemetry via NWIC",
-                "source_url": SOURCE_URL,
-                "retrieved_at": now.isoformat(),
-            }
-            _observation_cache_at = now
-            await asyncio.to_thread(_write_persistent_cache)
-
-            if len(stage) < 24 * 30:
-                return await _generate_hydrological_stage_forecast()
-
-            start = max(stage.index[0].date(), (now - timedelta(days=730)).date())
-            historical = await fetch_historical(STATION_LAT, STATION_LON, start.isoformat(), (now - timedelta(days=6)).date().isoformat())
-            rain_history = _rain_series(historical)
-            rain_forecast = _rain_series(await fetch_forecast(STATION_LAT, STATION_LON, forecast_days=7, past_days=3))
-            features, targets, origins, target_times = await asyncio.to_thread(_training_rows, stage, rain_history)
-
-            time_cutoff = stage.index[int(len(stage) * 0.8)]
-            train_mask = (origins < time_cutoff) & (target_times < time_cutoff)
-            test_mask = ~train_mask
-            if train_mask.sum() < 300 or test_mask.sum() < 50:
-                return await _generate_hydrological_stage_forecast()
-
-            if XGBRegressor is not None:
-                model = XGBRegressor(
-                    n_estimators=240, max_depth=4, learning_rate=0.035,
-                    subsample=0.85, colsample_bytree=0.9, reg_lambda=2.0,
-                    objective="reg:squarederror", n_jobs=2, random_state=42,
-                )
-                model_name = "XGBoost regressor · 48-hour lead"
-            else:
-                model = HistGradientBoostingRegressor(
-                    max_iter=240, max_leaf_nodes=15, learning_rate=0.05,
-                    l2_regularization=2.0, random_state=42,
-                )
-                model_name = "Scikit-learn gradient boosting · 48-hour lead"
-
-            await asyncio.to_thread(model.fit, features.loc[train_mask], targets.loc[train_mask])
-            validation_pred = await asyncio.to_thread(model.predict, features.loc[test_mask])
-            errors = (targets.loc[test_mask].to_numpy() - validation_pred)
-            mae = float(abs(errors).mean())
-            interval = float(pd.Series(abs(errors)).quantile(0.9))
-
-            origin = stage.index[-1]
-            forecast_rain = pd.concat([rain_history, rain_forecast]).sort_index()
-            forecast_rain = forecast_rain[~forecast_rain.index.duplicated(keep="last")]
-            predicted: list[dict[str, Any]] = []
-            for lead in range(1, 49):
-                row = _features(stage, rain_history, origin, lead, forecast_rain)
-                frame = pd.DataFrame([row], columns=features.columns)
-                if frame.isna().any(axis=None):
-                    return await _generate_hydrological_stage_forecast()
-                value = float((await asyncio.to_thread(model.predict, frame))[0])
-                predicted.append({
-                    "time": (origin + pd.Timedelta(hours=lead)).isoformat(),
-                    "stage_m": round(value, 3),
-                    "lower_m": round(value - interval, 3),
-                    "upper_m": round(value + interval, 3),
-                    "lead_hours": lead,
-                })
-
-            _cache = {
-                "is_available": True,
-                "is_forecast_available": True,
-                "station": STATION,
-                "river": "Chalakudy",
-                "observed_at": observation_time.isoformat(),
-                "observed_stage_m": round(float(stage.iloc[-1]), 3),
-                "warning_stage_m": 6.00,
-                "danger_stage_m": 7.00,
-                "hfl_stage_m": 8.85,
-                "forecast": predicted,
-                "model": model_name,
-                "validation": {"method": "chronological holdout", "mae_m": round(mae, 3), "empirical_90pct_abs_error_m": round(interval, 3)},
-                "source": "Central Water Commission telemetry via NWIC; Open-Meteo ERA5 archive and NWP forecast",
-                "source_url": SOURCE_URL,
-                "rainfall_source_url": "https://open-meteo.com/en/docs",
-                "retrieved_at": now.isoformat(),
-                "known_limitations": (
-                    "A data-driven point forecast for the Arangaly gauge, not a hydraulic simulation or official warning. "
-                    "The uncertainty band is the empirical 90th percentile absolute error on a chronological holdout; "
-                    "performance depends on station coverage and may not capture reservoir releases or channel changes."
-                ),
-            }
-            _cache_at = now
-            await asyncio.to_thread(_write_persistent_cache)
-            return _cache
-        except Exception as exc:
-            log.warning("stage.telemetry_or_model_failed_falling_back", error=str(exc))
             return await _generate_hydrological_stage_forecast()
+        except Exception as exc:
+            log.warning("stage.hydrological_forecast_failed", error=str(exc))
+            if _cache is not None and _cache.get("forecast"):
+                return {**_cache, "is_stale": True}
+            raise
+

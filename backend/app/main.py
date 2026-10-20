@@ -72,6 +72,88 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+class UniversalCORSMiddleware:
+    """Outermost ASGI middleware ensuring every request (especially OPTIONS preflight)
+    and response unconditionally receives full CORS access control headers."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        headers = dict(scope.get("headers", []))
+        origin_bytes = headers.get(b"origin")
+        origin = origin_bytes.decode("latin1") if origin_bytes else None
+
+        allow_origin = None
+        if origin:
+            if (
+                origin.endswith(".vercel.app")
+                or "localhost" in origin
+                or "127.0.0.1" in origin
+                or origin in settings.API_CORS_ORIGINS_LIST
+                or "hydro-vista" in origin
+            ):
+                allow_origin = origin
+            else:
+                allow_origin = origin
+
+        # Handle preflight OPTIONS immediately with zero overhead
+        if scope["method"] == "OPTIONS":
+            resp_headers = [
+                (b"access-control-allow-origin", allow_origin.encode("latin1") if allow_origin else b"*"),
+                (b"access-control-allow-methods", b"GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"),
+                (b"access-control-allow-headers", b"*"),
+                (b"access-control-allow-credentials", b"true"),
+                (b"access-control-max-age", b"86400"),
+                (b"content-length", b"0"),
+                (b"content-type", b"text/plain; charset=utf-8"),
+            ]
+            await send({
+                "type": "http.response.start",
+                "status": 200,
+                "headers": resp_headers,
+            })
+            await send({"type": "http.response.body", "body": b""})
+            return
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                resp_headers = list(message.get("headers", []))
+                has_cors = any(h[0].lower() == b"access-control-allow-origin" for h in resp_headers)
+                if not has_cors and allow_origin:
+                    resp_headers.append((b"access-control-allow-origin", allow_origin.encode("latin1")))
+                    resp_headers.append((b"access-control-allow-credentials", b"true"))
+                    resp_headers.append((b"access-control-allow-methods", b"GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"))
+                    resp_headers.append((b"access-control-allow-headers", b"*"))
+                    resp_headers.append((b"vary", b"Origin"))
+                message["headers"] = resp_headers
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_wrapper)
+        except Exception as exc:
+            log.error("server.fatal_unhandled", error=str(exc))
+            resp_headers = [
+                (b"content-type", b"application/json"),
+                (b"access-control-allow-origin", allow_origin.encode("latin1") if allow_origin else b"*"),
+                (b"access-control-allow-credentials", b"true"),
+                (b"access-control-allow-methods", b"GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"),
+                (b"access-control-allow-headers", b"*"),
+            ]
+            body = b'{"detail":"Internal server error"}'
+            resp_headers.append((b"content-length", str(len(body)).encode("latin1")))
+            await send({
+                "type": "http.response.start",
+                "status": 500,
+                "headers": resp_headers,
+            })
+            await send({"type": "http.response.body", "body": body})
+
+
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
     CORSMiddleware,
@@ -82,6 +164,8 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+app.add_middleware(UniversalCORSMiddleware)
+
 
 
 @app.exception_handler(Exception)
