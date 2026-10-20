@@ -979,8 +979,8 @@ export function AnalysisView() {
   );
 
   return (
-    <div className="flex-1 overflow-y-auto bg-slate-50 text-[#26332F] dark:bg-black dark:text-slate-100">
-      <div className="max-w-7xl mx-auto p-6 space-y-4">
+    <div className="flex-1 h-[calc(100dvh-3.5rem)] lg:h-[calc(100vh-4rem)] overflow-y-auto bg-slate-50 text-[#26332F] dark:bg-black dark:text-slate-100">
+      <div className="max-w-7xl mx-auto p-3 sm:p-5 lg:p-6 pb-20 lg:pb-6 space-y-4">
         {/* Workspace Action Toolbar (Consolidated Command Row) */}
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-neutral-800">
           <div>

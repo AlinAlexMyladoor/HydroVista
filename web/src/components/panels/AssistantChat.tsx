@@ -381,15 +381,21 @@ export function AssistantChat() {
   /* ─────────────────────────────────────────────────────────────────────── */
   return (
     <>
+      {/* ── Mobile Backdrop ── */}
+      {open && (
+        <div
+          className="fixed inset-0 z-[95] bg-black/45 backdrop-blur-xs sm:hidden animate-in fade-in duration-200"
+          onClick={() => setOpen(false)}
+        />
+      )}
+
       {/* ── Chat panel ── */}
       {open && (
         <section
-          className={`fixed z-[100] flex flex-col overflow-hidden rounded-2xl shadow-2xl border border-slate-200 dark:border-neutral-800 animate-fade-in ${
-            isOverviewWithRail ? "bottom-15 right-2.5" : "bottom-22 right-6"
+          className={`fixed z-[100] flex flex-col overflow-hidden shadow-2xl border border-slate-200 dark:border-neutral-800 animate-in slide-in-from-bottom-4 duration-200 inset-x-0 bottom-0 h-[85dvh] max-h-[85dvh] rounded-t-2xl sm:rounded-2xl sm:inset-x-auto sm:w-[400px] sm:h-[640px] sm:max-h-[calc(100vh-7rem)] ${
+            isOverviewWithRail ? "sm:bottom-15 sm:right-2.5" : "sm:bottom-20 sm:right-6"
           }`}
           style={{
-            width: "min(400px, calc(100vw - 2rem))",
-            height: "min(640px, calc(100vh - 7rem))",
             background: "var(--chat-bg, #ffffff)",
           }}
           aria-label={words.title}
@@ -407,8 +413,11 @@ export function AssistantChat() {
 
           {/* Header */}
           <header
-            className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-[#0d111a]"
+            className="flex shrink-0 flex-col border-b border-slate-200 bg-white px-4 pt-2 pb-3 dark:border-slate-800 dark:bg-[#0d111a]"
           >
+            {/* Mobile drag handle */}
+            <div className="w-10 h-1 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mb-2 sm:hidden" />
+            <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <span
                 className="relative grid h-9 w-9 place-items-center rounded-xl"
@@ -463,6 +472,7 @@ export function AssistantChat() {
               >
                 <X size={17} />
               </button>
+            </div>
             </div>
           </header>
 
@@ -630,7 +640,7 @@ export function AssistantChat() {
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="fixed bottom-4 right-4 z-50 inline-flex h-12 items-center gap-2.5 rounded-full px-4.5 text-xs font-bold text-white shadow-2xl transition-all hover:scale-105 active:scale-95 bg-[#0D7363] hover:bg-teal-800 dark:bg-teal-700 dark:hover:bg-teal-600 cursor-pointer ring-2 ring-white/30 dark:ring-white/15 backdrop-blur-md"
+          className="fixed bottom-16 right-3.5 sm:bottom-4 sm:right-4 z-40 sm:z-50 inline-flex h-11 sm:h-12 items-center gap-2 sm:gap-2.5 rounded-full px-3.5 sm:px-4.5 text-xs font-bold text-white shadow-2xl transition-all hover:scale-105 active:scale-95 bg-[#0D7363] hover:bg-teal-800 dark:bg-teal-700 dark:hover:bg-teal-600 cursor-pointer ring-2 ring-white/30 dark:ring-white/15 backdrop-blur-md"
           aria-label={words.title}
           title={words.title}
           aria-expanded={open}

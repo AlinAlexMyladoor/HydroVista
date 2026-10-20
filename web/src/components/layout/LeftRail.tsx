@@ -26,6 +26,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  X,
 } from "lucide-react";
 
 // ─── Layer definition ──────────────────────────────────────────────────────────
@@ -161,11 +162,29 @@ export function LeftRail() {
 
   const now = new Date();
 
+  const setLeftSidebarOpen = useStore((s) => s.setLeftSidebarOpen);
+
   return (
     <aside
-      className="flex flex-col bg-white/85 dark:bg-slate-950/85 backdrop-blur-md border-r border-slate-200/50 dark:border-slate-800/60 overflow-y-auto scrollbar-hide flex-shrink-0 text-xs w-[264px] h-full"
+      className="flex flex-col bg-white/95 lg:bg-white/85 dark:bg-slate-950/95 lg:dark:bg-slate-950/85 backdrop-blur-md border-r border-slate-200/50 dark:border-slate-800/60 overflow-y-auto scrollbar-hide flex-shrink-0 text-xs w-full lg:w-[264px] h-full"
       aria-label="Map controls"
     >
+      {/* Mobile drawer header with close button */}
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-200/60 dark:border-slate-800/60 lg:hidden shrink-0">
+        <span className="font-bold text-xs text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+          <Layers className="h-4 w-4 text-teal-600" />
+          <span>{language !== "ml" ? "Map Layers & Timeline" : "ഭൂപട നിയന്ത്രണങ്ങൾ"}</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => setLeftSidebarOpen(false)}
+          className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 cursor-pointer"
+          aria-label="Close"
+        >
+          <X size={16} />
+        </button>
+      </div>
+
       {/* ─── Study Area ─── */}
       <section className="border-b border-slate-200/50 dark:border-slate-800/60 px-3 py-2.5">
         <div className="flex items-center justify-between">

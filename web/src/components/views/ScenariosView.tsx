@@ -468,10 +468,10 @@ export function ScenariosView() {
   };
 
   return (
-    <div className="flex-1 w-full h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] overflow-hidden p-3 sm:p-4 flex flex-col bg-slate-50 text-[#26332F] dark:bg-black dark:text-slate-100">
-      <div className="grid grid-cols-12 gap-3 sm:gap-4 h-full min-h-0 w-full">
-        {/* Left Column (Parameter Panels): col-span-12 lg:col-span-4 h-full flex flex-col gap-2.5 sm:gap-3 min-h-0 */}
-        <div className="col-span-12 lg:col-span-4 h-full flex flex-col gap-2.5 sm:gap-3 min-h-0">
+    <div className="flex-1 w-full h-[calc(100dvh-3.5rem)] lg:h-[calc(100vh-4rem)] lg:max-h-[calc(100vh-4rem)] overflow-y-auto lg:overflow-hidden p-3 sm:p-4 pb-20 lg:pb-4 flex flex-col bg-slate-50 text-[#26332F] dark:bg-black dark:text-slate-100">
+      <div className="grid grid-cols-12 gap-3 sm:gap-4 lg:h-full min-h-0 w-full">
+        {/* Left Column (Parameter Panels): col-span-12 lg:col-span-4 flex flex-col gap-2.5 sm:gap-3 min-h-0 */}
+        <div className="col-span-12 lg:col-span-4 flex flex-col gap-2.5 sm:gap-3 min-h-0">
           {/* Card 1: Preset Buttons (shrink-0) */}
           <div className="shrink-0 bg-white rounded-2xl px-4 py-1.5 sm:py-2 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40">
             <h3 className="text-[10px] sm:text-[10.5px] font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-1">
@@ -727,9 +727,9 @@ export function ScenariosView() {
           </div>
         </div>
 
-        {/* Right Column (Simulated Inundation Impact): col-span-12 lg:col-span-8 h-full flex flex-col min-h-0 */}
-        <div className="col-span-12 lg:col-span-8 h-full flex flex-col min-h-0">
-          <div className="h-full w-full flex flex-col bg-white rounded-2xl p-5 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40 overflow-hidden">
+        {/* Right Column (Simulated Inundation Impact): col-span-12 lg:col-span-8 flex flex-col min-h-0 */}
+        <div className="col-span-12 lg:col-span-8 flex flex-col min-h-0">
+          <div className="h-full w-full flex flex-col bg-white rounded-2xl p-4 sm:p-5 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40 overflow-hidden">
             {/* Card Header (shrink-0) */}
             <div className="shrink-0 flex items-center justify-between pb-3 border-b border-slate-100 dark:border-neutral-800">
               <div className="flex items-center gap-2">
@@ -816,12 +816,12 @@ export function ScenariosView() {
               )}
             </div>
 
-            {/* Map Container: dynamically fills space (flex-1 min-h-0) when before scenario, or pinned (shrink-0 h-60) when facilities list is active */}
+            {/* Map Container: dynamically fills space (flex-1 min-h-[260px] sm:min-h-[320px] lg:min-h-0) when before scenario, or pinned (shrink-0 h-60) when facilities list is active */}
             <div
               className={`relative ${
                 scenarioResult && !isRunning && !!scenarioResult.escalated_assets?.length
                   ? "shrink-0 h-60 mb-3"
-                  : "flex-1 min-h-0 mb-2"
+                  : "flex-1 min-h-[260px] sm:min-h-[320px] lg:min-h-0 mb-2"
               } rounded-xl overflow-hidden`}
             >
               <ScenarioMiniMap points={mapPoints} elevatedIds={elevatedIds} focusedAsset={focusedAsset} />

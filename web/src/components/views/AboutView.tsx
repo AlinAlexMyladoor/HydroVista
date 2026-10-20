@@ -5,7 +5,7 @@ import { BrandLogo } from "@/components/layout/BrandLogo";
 
 export function AboutView() {
   return (
-    <div className="flex-1 overflow-y-auto bg-background text-text p-6">
+    <div className="flex-1 overflow-y-auto bg-background text-text p-4 sm:p-6 pb-20 lg:pb-6">
       <div className="max-w-4xl mx-auto space-y-5">
         <header className="flex items-center gap-3 border-b border-border pb-4">
           <BrandLogo className="h-14 w-[250px]" />

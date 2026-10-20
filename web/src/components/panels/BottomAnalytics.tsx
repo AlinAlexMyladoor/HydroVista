@@ -408,7 +408,6 @@ export function BottomAnalyticsStrip() {
 
   const [activeView, setActiveView] = useState<"all" | "rainfall" | "terrain" | "exposure">("all");
   const [isRedoing, setIsRedoing] = useState(false);
-  const STRIP_HEIGHT = 245;
 
   const handleRedo = async () => {
     setIsRedoing(true);
@@ -427,8 +426,11 @@ export function BottomAnalyticsStrip() {
 
   return (
     <div
-      className="analytics-strip flex-shrink-0 relative bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-t border-slate-200/50 dark:border-slate-800/60 transition-all duration-200 p-2 pt-2.5"
-      style={{ height: collapsed ? 14 : STRIP_HEIGHT, overflow: collapsed ? "hidden" : "visible" }}
+      className="analytics-strip flex-shrink-0 relative bg-white/85 dark:bg-slate-950/85 backdrop-blur-md border-t border-slate-200/50 dark:border-slate-800/60 transition-all duration-200 p-2 pt-2.5"
+      style={{
+        height: collapsed ? 14 : (typeof window !== "undefined" && window.innerWidth < 1024 ? 275 : 245),
+        overflow: collapsed ? "hidden" : "visible",
+      }}
     >
       {/* ─── Sleek modern grab-handle ─── */}
       <button
@@ -442,29 +444,62 @@ export function BottomAnalyticsStrip() {
       </button>
 
       {!collapsed && (
-        <div className="flex h-full gap-2 overflow-hidden">
-          {(activeView === "all" || activeView === "rainfall") && (
-            <div className="analytics-panel p-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-xl shadow-md shadow-slate-200/50 dark:shadow-none border-none min-w-0 overflow-hidden flex-1">
-              <RainfallForecastPanel
-                activeView={activeView}
-                setActiveView={setActiveView}
-                onRedo={handleRedo}
-                isRedoing={isRedoing}
-              />
-            </div>
-          )}
+        <div className="flex flex-col h-full overflow-hidden">
+          {/* Mobile Segmented Tab Switcher (< lg) */}
+          <div className="flex lg:hidden items-center justify-center gap-1.5 pb-1.5 shrink-0">
+            {[
+              { id: "rainfall", label: language !== "ml" ? "Rainfall" : "മഴ" },
+              { id: "terrain", label: language !== "ml" ? "Terrain" : "ഭൂപ്രകൃതി" },
+              { id: "exposure", label: language !== "ml" ? "High-Risk Assets" : "സ്ഥാപനങ്ങൾ" },
+            ].map((tab) => {
+              const isSelected = activeView === tab.id || (activeView === "all" && tab.id === "rainfall");
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveView(tab.id as any)}
+                  className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
+                    isSelected
+                      ? "bg-teal-600 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 dark:bg-slate-850 dark:text-slate-300 hover:bg-slate-200"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
 
-          {(activeView === "all" || activeView === "terrain") && (
-            <div className="analytics-panel p-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-xl shadow-md shadow-slate-200/50 dark:shadow-none border-none min-w-0 overflow-hidden flex-1">
-              <TerrainSectionPanel />
-            </div>
-          )}
+          <div className="flex-1 flex min-h-0 gap-2 overflow-hidden">
+            {(activeView === "all" || activeView === "rainfall") && (
+              <div className={`analytics-panel p-2.5 sm:p-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-xl shadow-md shadow-slate-200/50 dark:shadow-none border-none min-w-0 overflow-hidden flex-1 ${
+                activeView === "all" ? "hidden lg:flex flex-col" : "flex flex-col"
+              }`}>
+                <RainfallForecastPanel
+                  activeView={activeView}
+                  setActiveView={setActiveView}
+                  onRedo={handleRedo}
+                  isRedoing={isRedoing}
+                />
+              </div>
+            )}
 
-          {(activeView === "all" || activeView === "exposure") && (
-            <div className="analytics-panel p-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-xl shadow-md shadow-slate-200/50 dark:shadow-none border-none min-w-0 overflow-hidden flex-1">
-              <ExposureRankingPanel />
-            </div>
-          )}
+            {(activeView === "all" || activeView === "terrain") && (
+              <div className={`analytics-panel p-2.5 sm:p-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-xl shadow-md shadow-slate-200/50 dark:shadow-none border-none min-w-0 overflow-hidden flex-1 ${
+                activeView === "all" ? "hidden lg:flex flex-col" : "flex flex-col"
+              }`}>
+                <TerrainSectionPanel />
+              </div>
+            )}
+
+            {(activeView === "all" || activeView === "exposure") && (
+              <div className={`analytics-panel p-2.5 sm:p-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-xl shadow-md shadow-slate-200/50 dark:shadow-none border-none min-w-0 overflow-hidden flex-1 ${
+                activeView === "all" ? "hidden lg:flex flex-col" : "flex flex-col"
+              }`}>
+                <ExposureRankingPanel />
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

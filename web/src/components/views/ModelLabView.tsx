@@ -208,8 +208,8 @@ export function ModelLabView() {
   );
 
   return (
-    <main className="flex-1 w-full h-[calc(100vh-4rem)] overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50">
-      <div className="h-[calc(100vh-5rem)] flex flex-col max-w-7xl mx-auto px-4 pb-4 overflow-hidden gap-3 pt-3">
+    <main className="flex-1 w-full h-[calc(100dvh-3.5rem)] lg:h-[calc(100vh-4rem)] overflow-y-auto lg:overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50">
+      <div className="lg:h-[calc(100vh-5rem)] flex flex-col max-w-7xl mx-auto px-3 sm:px-4 pb-20 lg:pb-4 gap-3 pt-3">
         
         {/* Top Info Header */}
         <div className="flex items-center justify-between pb-2 border-b border-slate-200/80 dark:border-slate-800 shrink-0">

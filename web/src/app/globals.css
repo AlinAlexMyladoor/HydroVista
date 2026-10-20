@@ -960,3 +960,28 @@ details.ux-disclosure > summary:focus-visible { outline: 2px solid var(--color-p
     display: flex !important;
   }
 }
+
+/* ─── Safe Area & Mobile Device Optimizations ────────────────────────────── */
+.safe-area-bottom {
+  padding-bottom: max(0.35rem, env(safe-area-inset-bottom, 0px));
+}
+.safe-area-top {
+  padding-top: max(0.35rem, env(safe-area-inset-top, 0px));
+}
+
+@supports (-webkit-touch-callout: none) {
+  /* iOS smooth scrolling and rubber-band prevention on fixed shells */
+  .app-shell {
+    min-height: -webkit-fill-available;
+  }
+}
+
+/* Hide scrollbar for clean horizontal tabs on touch screens */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+

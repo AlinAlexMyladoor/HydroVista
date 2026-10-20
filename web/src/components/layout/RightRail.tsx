@@ -18,6 +18,7 @@ import {
   Loader2,
   ShieldCheck,
   MessageCircle,
+  X,
 } from "lucide-react";
 
 // ─── Shared utility ────────────────────────────────────────────────────────────
@@ -591,18 +592,34 @@ function RainDialCard() {
 
 // ─── Right Intelligence Rail ───────────────────────────────────────────────────
 export function RightRail() {
-  const { rightRailOpen, assistantOpen, setAssistantOpen, language } = useStore();
+  const { rightRailOpen, setRightRailOpen, assistantOpen, setAssistantOpen, language } = useStore();
   const en = language !== "ml";
 
   if (!rightRailOpen) return null;
 
   return (
     <aside
-      className="flex flex-col bg-white/85 dark:bg-slate-950/85 backdrop-blur-md border-l border-slate-200/50 dark:border-slate-800/60 flex-shrink-0 p-2.5 w-[270px] h-full overflow-hidden"
+      className="flex flex-col bg-white/95 lg:bg-white/85 dark:bg-slate-950/95 lg:dark:bg-slate-950/85 backdrop-blur-md border-l border-slate-200/50 dark:border-slate-800/60 flex-shrink-0 p-2.5 w-full lg:w-[270px] h-full overflow-hidden"
       aria-label="Intelligence rail"
     >
+      {/* Mobile drawer header with close button */}
+      <div className="flex items-center justify-between pb-2 border-b border-slate-200/60 dark:border-slate-800/60 lg:hidden shrink-0">
+        <span className="font-bold text-xs text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+          <AlertTriangle className="h-4 w-4 text-rose-500" />
+          <span>{en ? "Intelligence & Scenarios" : "വിവരങ്ങളും സാഹചര്യങ്ങളും"}</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => setRightRailOpen(false)}
+          className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 cursor-pointer"
+          aria-label="Close"
+        >
+          <X size={16} />
+        </button>
+      </div>
+
       {/* Scrollable Cards Area */}
-      <div className="flex-1 flex flex-col gap-2.5 overflow-y-auto scrollbar-hide min-h-0 pr-0.5">
+      <div className="flex-1 flex flex-col gap-2.5 overflow-y-auto scrollbar-hide min-h-0 pr-0.5 pt-1 lg:pt-0">
         <RiskAssessmentCard />
         <RainDialCard />
         <IsolationClockCard />

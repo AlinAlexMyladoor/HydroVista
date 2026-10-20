@@ -188,9 +188,9 @@ export function InfrastructureView() {
   };
 
   return (
-    <div className="flex-1 w-full h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] overflow-hidden flex flex-col bg-slate-50 dark:bg-[#070b12] p-4 sm:p-6 text-[#1E292B] dark:text-slate-100">
+    <div className="flex-1 w-full h-[calc(100dvh-3.5rem)] lg:h-[calc(100vh-4rem)] lg:max-h-[calc(100vh-4rem)] overflow-hidden flex flex-col bg-slate-50 dark:bg-[#070b12] p-2.5 sm:p-4 lg:p-6 pb-20 lg:pb-6 text-[#1E292B] dark:text-slate-100">
       {/* Centered Command Center Viewport Lock Container */}
-      <div className="max-w-7xl mx-auto w-full h-[calc(100vh-6rem)] flex flex-col min-h-0">
+      <div className="max-w-7xl mx-auto w-full flex-1 flex flex-col min-h-0">
 
         {/* Error notification if asset has invalid coords */}
         {focusError && (
@@ -206,7 +206,7 @@ export function InfrastructureView() {
         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg shadow-slate-200/50 dark:shadow-slate-950/60 overflow-hidden flex flex-col flex-1 min-h-0 border-0">
           
           {/* Pinned Toolbar: Search, Filters & Softened Sync */}
-          <div className="shrink-0 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800/80 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white dark:bg-slate-900">
+          <div className="shrink-0 px-3.5 sm:px-5 py-3 sm:py-3.5 border-b border-slate-100 dark:border-slate-800/80 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 bg-white dark:bg-slate-900">
             <div className="flex flex-1 flex-col sm:flex-row items-center gap-2.5">
               {/* Search Input */}
               <div className="relative w-full sm:w-80">
@@ -283,9 +283,9 @@ export function InfrastructureView() {
             </button>
           </div>
 
-          {/* Table Container */}
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <table className="w-full text-left border-collapse text-xs">
+          {/* Table Container: scrollable vertically and horizontally on narrow mobile screens */}
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs min-w-[580px] sm:min-w-full">
               {/* Pinned Sticky Header Row */}
               <thead className="sticky top-0 bg-white dark:bg-slate-900 z-10 border-b border-slate-100 dark:border-slate-800 shadow-2xs">
                 <tr className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[11px]">

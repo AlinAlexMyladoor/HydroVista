@@ -126,11 +126,11 @@ export function ReportsView() {
   const reportsList = rawItems ?? [];
 
   return (
-    <div className="flex-1 w-full h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] flex flex-col lg:flex-row gap-6 p-4 sm:p-6 overflow-hidden bg-slate-50 dark:bg-[#070b12] text-[#1E292B] dark:text-slate-100">
+    <div className="flex-1 w-full h-[calc(100dvh-3.5rem)] lg:h-[calc(100vh-4rem)] lg:max-h-[calc(100vh-4rem)] flex flex-col lg:flex-row gap-4 sm:gap-6 p-3 sm:p-6 pb-20 lg:pb-6 overflow-y-auto lg:overflow-hidden bg-slate-50 dark:bg-[#070b12] text-[#1E292B] dark:text-slate-100">
       
-      {/* Left Column: Fixed-width Submit Form */}
+      {/* Left Column: Submit Form */}
       <div className="w-full lg:w-1/3 lg:max-w-md shrink-0 flex flex-col min-h-0">
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-md shadow-slate-200/50 dark:shadow-slate-950/60 border-0 flex flex-col flex-1 min-h-0 overflow-y-auto">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 shadow-md shadow-slate-200/50 dark:shadow-slate-950/60 border-0 flex flex-col flex-1 min-h-0 lg:overflow-y-auto">
           <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-4 shrink-0 flex items-center gap-2">
             <Megaphone className="h-4 w-4 text-teal-700 dark:text-teal-400" />
             <span>{language !== "ml" ? "Submit Field Observation" : "പുതിയ വിവരം അറിയിക്കുക"}</span>
@@ -292,8 +292,8 @@ export function ReportsView() {
         </div>
       </div>
 
-      {/* Right Column: Internal Scroll Feed */}
-      <div className="flex-1 flex flex-col min-h-0">
+      {/* Right Column: Observation Feed */}
+      <div className="flex-1 flex flex-col min-h-[360px] lg:min-h-0">
         <div className="shrink-0 flex items-center justify-between mb-3 px-1">
           <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2">
             <span>{language !== "ml" ? "Recent Basin Observations" : "ഏറ്റവും പുതിയ വിവരങ്ങൾ"}</span>
@@ -304,7 +304,7 @@ export function ReportsView() {
         </div>
 
         {/* Scrollable observation feed */}
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1.5 pb-2">
+        <div className="flex-1 min-h-0 lg:overflow-y-auto space-y-4 pr-0 lg:pr-1.5 pb-2">
           {reportsList.length === 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 shadow-md shadow-slate-200/50 dark:shadow-slate-950/60 text-center text-slate-400 dark:text-slate-500">
               <User className="h-10 w-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />

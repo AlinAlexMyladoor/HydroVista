@@ -372,9 +372,9 @@ export function AnalyticsView() {
   ] : [];
 
   return (
-    <div className="flex-1 flex flex-col h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] overflow-hidden bg-slate-50 p-6 text-[#26332F] dark:bg-black dark:text-slate-100">
+    <div className="flex-1 flex flex-col h-[calc(100dvh-3.5rem)] lg:h-[calc(100vh-4rem)] lg:max-h-[calc(100vh-4rem)] overflow-y-auto lg:overflow-hidden bg-slate-50 p-3 sm:p-5 lg:p-6 pb-20 lg:pb-6 text-[#26332F] dark:bg-black dark:text-slate-100">
       {/* Sub-navigation — sleek underlined tabs */}
-      <div className="shrink-0 flex items-end gap-1 border-b border-slate-200 dark:border-neutral-800 mb-4">
+      <div className="shrink-0 flex items-end gap-1 border-b border-slate-200 dark:border-neutral-800 mb-4 overflow-x-auto no-scrollbar">
         {([
           { id: "precipitation", label: t.analyticsPrecipitation },
           { id: "risk_model",    label: t.analyticsRisk },
@@ -384,7 +384,7 @@ export function AnalyticsView() {
           <button
             key={id}
             onClick={() => setActiveTab(id)}
-            className={`relative px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors focus-visible:outline-none cursor-pointer ${
+            className={`relative px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors focus-visible:outline-none cursor-pointer shrink-0 ${
               activeTab === id
                 ? "text-teal-700 dark:text-teal-400"
                 : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
@@ -398,21 +398,21 @@ export function AnalyticsView() {
         ))}
       </div>
 
-      {/* Main Tab Content Container (Strict Viewport Lock) */}
-      <div className="h-[calc(100vh-8rem)] flex-1 min-h-0 flex flex-col overflow-hidden">
+      {/* Main Tab Content Container */}
+      <div className="lg:h-[calc(100vh-8rem)] flex-1 min-h-0 flex flex-col lg:overflow-hidden">
         {/* KPI Cards (for precipitation and non-topography risk_model) */}
         {kpiCards.length > 0 && (
-          <div className="shrink-0 grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+          <div className="shrink-0 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
             {kpiCards.map(([label, value, hint], index) => (
               <div
                 key={`${activeTab}-${label}`}
-                className="bg-white rounded-2xl p-4 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40 flex flex-col justify-center"
+                className="bg-white rounded-2xl p-3.5 sm:p-4 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40 flex flex-col justify-center"
               >
-                <div className="text-[11px] font-semibold text-[#687770] uppercase tracking-wider dark:text-slate-400 truncate">
+                <div className="text-[10px] sm:text-[11px] font-semibold text-[#687770] uppercase tracking-wider dark:text-slate-400 truncate">
                   {label}
                 </div>
                 <div
-                  className={`text-2xl font-bold mt-1 tabular-nums ${
+                  className={`text-xl sm:text-2xl font-bold mt-1 tabular-nums ${
                     index === 1 && activeTab === "risk_model" && evaluationFloodCount != null && evaluationFloodCount < 30
                       ? "text-amber-700 dark:text-amber-300"
                       : "text-[#1E292B] dark:text-slate-50"
@@ -420,7 +420,7 @@ export function AnalyticsView() {
                 >
                   {value}
                 </div>
-                <div className="text-[11px] text-[#687770] font-medium mt-0.5 dark:text-slate-400 truncate" suppressHydrationWarning>
+                <div className="text-[10px] sm:text-[11px] text-[#687770] font-medium mt-0.5 dark:text-slate-400 truncate" suppressHydrationWarning>
                   {hint}
                 </div>
               </div>
@@ -430,9 +430,9 @@ export function AnalyticsView() {
 
         {/* Tab 1: Precipitation */}
         {activeTab === "precipitation" && (
-          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-4 pb-4 lg:pb-0">
             {/* Left: 48-Hour Hourly Precipitation Distribution */}
-            <div className="flex-1 min-h-0 flex flex-col rounded-2xl bg-white p-5 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40">
+            <div className="flex-1 min-h-[300px] sm:min-h-[340px] lg:min-h-0 flex flex-col rounded-2xl bg-white p-4 sm:p-5 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40">
               <div className="shrink-0 mb-2 flex items-center justify-between">
                 <h3 className="text-sm font-bold text-[#1E292B] dark:text-slate-100 flex items-center gap-1.5">
                   <span>{language !== "ml" ? "48-Hour Hourly Precipitation Distribution" : "48 മണിക്കൂർ മണിക്കൂർ തോറുമുള്ള മഴ"}</span>
@@ -490,7 +490,7 @@ export function AnalyticsView() {
             </div>
 
             {/* Right: Stage / Discharge Forecast */}
-            <section className="flex-1 min-h-0 flex flex-col rounded-2xl bg-white p-5 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40">
+            <section className="flex-1 min-h-[300px] sm:min-h-[340px] lg:min-h-0 flex flex-col rounded-2xl bg-white p-4 sm:p-5 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40">
               <div className="shrink-0 mb-2 flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-bold text-[#1E292B] dark:text-slate-50 flex items-center gap-1.5">
@@ -606,8 +606,8 @@ export function AnalyticsView() {
               ))}
             </div>
 
-            {/* Bottom: Main Event Reanalysis Comparison chart stretched to fill remaining height */}
-            <section className="flex-1 min-h-0 rounded-2xl bg-white p-5 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40 flex flex-col">
+            {/* Bottom: Main Event Reanalysis Comparison chart */}
+            <section className="flex-1 min-h-[320px] sm:min-h-[380px] lg:min-h-0 rounded-2xl bg-white p-4 sm:p-5 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40 flex flex-col">
               <div className="shrink-0 mb-3 flex items-center justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-bold text-[#1E292B] dark:text-slate-50 flex items-center gap-1.5">
