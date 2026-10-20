@@ -206,15 +206,15 @@ export function MethodologyView() {
                 · Geospatial hydrology, Earth Engine SAR pipeline &amp; infrastructure exposure
               </span>
             </div>
-            {/* Inline Stats on Right */}
+            {/* Inline Stats on Right: High contrast slate-600 metadata */}
             <div className="flex items-center gap-2.5 text-[11px] shrink-0">
               <div>
-                <span className="text-[9.5px] text-slate-400 uppercase mr-1">Catchment:</span>
+                <span className="text-[9.5px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mr-1">Catchment:</span>
                 <span className="font-bold text-slate-800 dark:text-slate-100">1,704 km²</span>
               </div>
-              <span className="text-slate-300 dark:text-slate-700">•</span>
+              <span className="text-slate-400 dark:text-slate-600">•</span>
               <div>
-                <span className="text-[9.5px] text-slate-400 uppercase mr-1">Reservoirs:</span>
+                <span className="text-[9.5px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mr-1">Reservoirs:</span>
                 <span className="font-bold text-slate-800 dark:text-slate-100">Sholayar · Poringalkuthu</span>
               </div>
             </div>
@@ -258,7 +258,7 @@ export function MethodologyView() {
           </div>
         </section>
 
-        {/* ── 2. Data Architecture: Clean Relative Cards with Absolute Status Badge ── */}
+        {/* ── 2. Data Architecture: Clean Relative Cards with items-start and icon mt-0.5 ── */}
         <section className="shrink-0">
           <div className="flex items-center justify-between mb-1">
             <h2 className="text-[10px] font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
@@ -275,7 +275,7 @@ export function MethodologyView() {
               return (
                 <div
                   key={src.name}
-                  className="relative rounded-xl border-0 bg-white dark:bg-slate-900 p-2 sm:p-2.5 shadow-xs hover:shadow-sm transition-all flex items-center gap-2.5 min-w-0 group"
+                  className="relative rounded-xl border-0 bg-white dark:bg-slate-900 p-2 sm:p-2.5 shadow-xs hover:shadow-sm transition-all flex items-start gap-2.5 min-w-0 group"
                 >
                   {/* Status badge: Pushed to absolute top-right corner */}
                   <span
@@ -285,9 +285,9 @@ export function MethodologyView() {
                     {src.status}
                   </span>
 
-                  {/* Left: Icon */}
+                  {/* Left: Icon with slight top margin for baseline optical centering with title */}
                   <div
-                    className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg"
+                    className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg mt-0.5"
                     style={{ background: `${src.color}18` }}
                   >
                     <Icon size={14} style={{ color: src.color }} />
@@ -448,8 +448,8 @@ export function MethodologyView() {
             <span className="text-[9px] text-slate-400 dark:text-slate-500 mr-24 sm:mr-48">Click pill to toggle definitions</span>
           </div>
 
-          {/* Right margin (pr-24 sm:pr-48) stops content safely before the floating assistant button */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 pr-24 sm:pr-48">
+          {/* Right margin stops content safely before the floating assistant button */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 pr-2 sm:pr-4">
             {[
               {
                 term: "Candidate Inundation",
@@ -481,10 +481,12 @@ export function MethodologyView() {
                 tag: "WorldPop GEE",
                 def: "Zonal population count intersecting candidate flood pixels from WorldPop raster data. Subject to census disaggregation tolerances.",
               },
-            ].map((item) => (
+            ].map((item, idx) => (
               <details
                 key={item.term}
-                className="group rounded-lg border-0 bg-white dark:bg-slate-900 shadow-xs hover:shadow-sm transition-all overflow-hidden"
+                className={`group rounded-lg border-0 bg-white dark:bg-slate-900 shadow-xs hover:shadow-sm transition-all overflow-hidden ${
+                  idx % 2 === 1 ? "md:mr-20 lg:mr-24" : ""
+                }`}
               >
                 <summary className="flex items-center justify-between px-3 py-1.5 cursor-pointer select-none list-none text-[11px] font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
                   <div className="flex items-center gap-1.5 min-w-0">
@@ -506,8 +508,8 @@ export function MethodologyView() {
           </div>
         </section>
 
-        {/* ── 5. Seamless Bottom Footer with Assistant Clearance ───────────── */}
-        <footer className="mt-2 -mx-2.5 sm:-mx-3 border-t border-slate-200/80 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-900/80 px-4 sm:px-5 py-2 flex flex-col sm:flex-row items-center justify-between gap-2 text-[9.5px] text-slate-500 dark:text-slate-400 pr-52 sm:pr-56 rounded-lg">
+        {/* ── 5. Seamless Bottom Footer with Generous Assistant Clearance ────── */}
+        <footer className="mt-2 -mx-2.5 sm:-mx-3 border-t border-slate-200/80 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-900/80 px-4 sm:px-5 py-2 flex flex-col sm:flex-row items-center justify-between gap-2 text-[9.5px] text-slate-500 dark:text-slate-400 pr-64 sm:pr-72 rounded-lg">
           <div className="flex items-center gap-2 min-w-0">
             <CheckCircle2 size={12} className="text-teal-600 dark:text-teal-400 shrink-0" />
             <span className="truncate sm:overflow-visible"><strong>Reproducibility:</strong> Each analysis run logs scene dates, processing scale, GEE asset IDs, and runtime parameters. Reuses cached result within 24 hours.</span>
