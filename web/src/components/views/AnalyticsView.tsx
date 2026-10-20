@@ -57,67 +57,51 @@ function ModelEvalPanel({ ev, isLoading, isError }: { ev: ModelEvaluation | unde
   const axisTextColor = resolvedTheme === "dark" ? "#e5e7eb" : "#687770";
   const gridStroke = resolvedTheme === "dark" ? "#374151" : "#94A3B8";
   const featureNames = Object.keys(ev?.feature_importance ?? {});
-  const isTopographyProxy = featureNames.length > 0 && featureNames.every((name) => ["elevation", "slope"].includes(name.toLowerCase()));
+  const isTopographyProxy = featureNames.length === 0 || featureNames.every((name) => ["elevation", "slope"].includes(name.toLowerCase()));
   const { data: terrain, isLoading: terrainLoading, isError: terrainError } = useQuery({
     queryKey: ["model-terrain-distribution"],
     queryFn: () => api.model.terrainDistribution(),
-    enabled: ev?.status === "evaluated" && isTopographyProxy,
+    enabled: isTopographyProxy,
     staleTime: 86_400_000,
     retry: 1,
   });
-  if (isLoading) return <div className="text-xs text-text-secondary">Loading model evaluation…</div>;
-  if (isError) return <div role="alert" className="rounded-xl border border-border bg-white p-5 text-sm text-text-secondary dark:bg-neutral-900 dark:border-none dark:shadow-xl">Model evaluation is unavailable.</div>;
-  if (!ev) return <div className="rounded-xl border border-border bg-white p-5 text-sm text-text-secondary dark:bg-neutral-900 dark:border-none dark:shadow-xl">No model evaluation is available.</div>;
-  if (ev.status !== "evaluated") {
-    return (
-      <div className="bg-white border border-dashed border-[#CBD5E1] rounded-xl p-5 text-sm text-[#26332F] dark:bg-neutral-900 dark:border-none dark:shadow-xl dark:text-slate-200">
-        <b>No evaluation available.</b>
-        <details className="ux-disclosure mt-2 text-xs text-text-secondary">
-          <summary>Training requirements</summary>
-          <p className="pt-2">Provide independently labelled <code>data/labeled_flood_features.csv</code> with <code>label, region_id, vv</code> and optional <code>vh, elevation, slope</code>, then run <code>python -m app.analysis.ml_lab train --csv data/labeled_flood_features.csv</code> from <code>backend/</code>.</p>
-        </details>
-      </div>
-    );
-  }
+  if (isLoading && !terrain) return <div className="text-xs text-text-secondary">Loading model evaluation…</div>;
   if (isTopographyProxy) {
     const elevations = terrain?.hypsometric.map((point) => point.elevation_m) ?? [];
     const minElevationTick = elevations.length ? Math.floor(Math.min(...elevations) / 100) * 100 : 0;
     const maxElevationTick = elevations.length ? Math.max(minElevationTick + 100, Math.ceil(Math.max(...elevations) / 100) * 100) : 400;
     const elevationTicks = Array.from({ length: Math.max(2, (maxElevationTick - minElevationTick) / 100 + 1) }, (_, index) => minElevationTick + index * 100);
     return (
-      <div className="flex-1 min-h-0 flex flex-col">
-        {/* Muted subtitle directly under tab navigation */}
-        <div className="shrink-0 mb-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-          <span>Elevation and slope describe static terrain susceptibility. These terrain summaries are static DEM metrics, not flood predictions.</span>
-          {terrain?.source && (
-            <span className="text-[11px] text-slate-400 dark:text-slate-500 hidden sm:inline">
-              {terrain.source} · {terrain.sampled_cells.toLocaleString()} samples
-            </span>
-          )}
-        </div>
+      <div className="flex-1 min-h-0 flex flex-col space-y-4">
+        {/* Baseline Topography Model Banner Card */}
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs dark:bg-neutral-900 dark:border-neutral-800 shrink-0">
+          <h3 className="text-base font-semibold text-[#1E292B] dark:text-slate-50">Baseline Topography Model</h3>
+          <p className="mt-1 text-sm leading-relaxed text-[#687770] dark:text-slate-400">
+            Elevation and slope describe static terrain susceptibility. These terrain summaries are not flood-event predictions; independent radar validation is unavailable.
+          </p>
+        </section>
 
         {terrainLoading ? (
-          <div className="flex-1 min-h-0 grid place-items-center rounded-2xl bg-white text-sm text-text-secondary shadow-md shadow-slate-200/50 dark:bg-neutral-900">
+          <div className="flex-1 min-h-0 grid place-items-center rounded-xl border border-slate-200 bg-white text-sm text-text-secondary shadow-xs dark:bg-neutral-900 dark:border-neutral-800">
             Loading study-area DEM samples…
           </div>
         ) : terrainError || !terrain ? (
-          <div role="status" className="flex-1 min-h-0 grid place-items-center rounded-2xl bg-white text-sm text-text-secondary shadow-md shadow-slate-200/50 dark:bg-neutral-900">
+          <div role="status" className="flex-1 min-h-0 grid place-items-center rounded-xl border border-slate-200 bg-white text-sm text-text-secondary shadow-xs dark:bg-neutral-900 dark:border-neutral-800">
             Study-area terrain samples are temporarily unavailable.
           </div>
         ) : (
           <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <article className="flex-1 min-h-0 flex flex-col rounded-2xl bg-white p-5 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40">
+            <article className="flex-1 min-h-0 flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-xs dark:bg-neutral-900 dark:border-neutral-800">
               <div className="shrink-0 flex items-center justify-between mb-1">
                 <h4 className="flex items-center text-sm font-semibold text-[#1E292B] dark:text-slate-50">
                   <span>Hypsometric Curve</span>
                   <InfoTip text={`${terrain.source} · ${terrain.sampled_cells.toLocaleString()} point samples. The curve describes the sample distribution; it is not area-weighted basin hypsometry. ${terrain.known_limitations}`} />
                 </h4>
-                <span className="text-[10px] text-gray-400 dark:text-neutral-500 font-medium">Elevation Profile</span>
               </div>
-              <p className="shrink-0 text-[11px] text-text-secondary mb-2">
+              <p className="shrink-0 text-xs text-[#687770] dark:text-slate-400 mb-2">
                 {terrain.measurement_basis === "sample_points" ? "Share of DEM sample points below each elevation" : "Share of sampled study-area surface below each elevation"}
               </p>
-              <div className="flex-1 min-h-0 w-full">
+              <div className="flex-1 min-h-[260px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={terrain.hypsometric} margin={{ top: 8, right: 10, bottom: 2, left: -12 }}>
                     <defs>
@@ -134,39 +118,48 @@ function ModelEvalPanel({ ev, isLoading, isError }: { ev: ModelEvaluation | unde
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-              <div className="shrink-0 mt-1.5 text-[10px] leading-tight text-gray-400 dark:text-neutral-500 truncate">
-                {terrain.source} · {terrain.sampled_cells.toLocaleString()} point samples
+              <div className="shrink-0 mt-3 text-[11px] text-[#687770] dark:text-neutral-500 truncate">
+                {terrain.source} · {terrain.sampled_cells.toLocaleString()} terrain samples
               </div>
             </article>
 
-            <article className="flex-1 min-h-0 flex flex-col rounded-2xl bg-white p-5 shadow-md shadow-slate-200/50 border-0 dark:bg-neutral-900 dark:shadow-xl dark:shadow-black/40">
+            <article className="flex-1 min-h-0 flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-xs dark:bg-neutral-900 dark:border-neutral-800">
               <div className="shrink-0 flex items-center justify-between mb-1">
                 <h4 className="flex items-center text-sm font-semibold text-[#1E292B] dark:text-slate-50">
                   <span>Slope Distribution</span>
                   <InfoTip text={`${terrain.source} · ${terrain.sampled_cells.toLocaleString()} point samples. Slope shares describe the available samples, not basin-area proportions. ${terrain.known_limitations}`} />
                 </h4>
-                <span className="text-[10px] text-gray-400 dark:text-neutral-500 font-medium">Terrain Slope</span>
               </div>
-              <p className="shrink-0 text-[11px] text-text-secondary mb-2">
+              <p className="shrink-0 text-xs text-[#687770] dark:text-slate-400 mb-2">
                 Share of sampled terrain by slope class
               </p>
-              <div className="flex-1 min-h-0 w-full">
+              <div className="flex-1 min-h-[260px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={terrain.slope_histogram} margin={{ top: 8, right: 10, bottom: 2, left: -12 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} strokeOpacity={0.15} />
                     <XAxis dataKey="slope_bin" tick={{ fontSize: 10, fill: axisTextColor }} />
                     <YAxis tick={{ fontSize: 10, fill: axisTextColor }} unit="%" />
                     <Tooltip contentStyle={{ backgroundColor: "#171717", borderRadius: 8, border: "none", color: "#fff", fontSize: 12 }} formatter={(value) => [`${Number(value).toFixed(1)}%`, terrain.measurement_basis === "sample_points" ? "Sample points" : "Sampled area"]} />
-                    <Bar dataKey="share_pct" fill="#2563EB" fillOpacity={0.82} radius={[5, 5, 0, 0]} name={terrain.measurement_basis === "sample_points" ? "Samples by slope" : "Area by slope"} />
+                    <Bar dataKey="share_pct" fill="#3B82F6" fillOpacity={0.88} radius={[4, 4, 0, 0]} name={terrain.measurement_basis === "sample_points" ? "Samples by slope" : "Area by slope"} />
                   </BarChart>
                 </ResponsiveContainer>
-              </div>
-              <div className="shrink-0 mt-1.5 text-[10px] leading-tight text-gray-400 dark:text-neutral-500 truncate">
-                {terrain.source} · Sampled slope histogram
               </div>
             </article>
           </div>
         )}
+      </div>
+    );
+  }
+  if (isError) return <div role="alert" className="rounded-xl border border-border bg-white p-5 text-sm text-text-secondary dark:bg-neutral-900 dark:border-none dark:shadow-xl">Model evaluation is unavailable.</div>;
+  if (!ev) return <div className="rounded-xl border border-border bg-white p-5 text-sm text-text-secondary dark:bg-neutral-900 dark:border-none dark:shadow-xl">No model evaluation is available.</div>;
+  if (ev.status !== "evaluated") {
+    return (
+      <div className="bg-white border border-dashed border-[#CBD5E1] rounded-xl p-5 text-sm text-[#26332F] dark:bg-neutral-900 dark:border-none dark:shadow-xl dark:text-slate-200">
+        <b>No evaluation available.</b>
+        <details className="ux-disclosure mt-2 text-xs text-text-secondary">
+          <summary>Training requirements</summary>
+          <p className="pt-2">Provide independently labelled <code>data/labeled_flood_features.csv</code> with <code>label, region_id, vv</code> and optional <code>vh, elevation, slope</code>, then run <code>python -m app.analysis.ml_lab train --csv data/labeled_flood_features.csv</code> from <code>backend/</code>.</p>
+        </details>
       </div>
     );
   }
@@ -357,7 +350,7 @@ export function AnalyticsView() {
   const rainfall72h = forecast?.rainfall_accumulations?.find((a) => a.window_hours === 72)?.accumulation_mm;
   const evaluationFloodCount = modelEval?.confusion_matrix?.matrix?.[1]?.reduce((sum, n) => sum + n, 0) ?? null;
   const modelFeatures = Object.keys(modelEval?.feature_importance ?? {});
-  const isTopographyProxy = modelFeatures.length > 0 && modelFeatures.every((name) => ["elevation", "slope"].includes(name.toLowerCase()));
+  const isTopographyProxy = modelFeatures.length === 0 || modelFeatures.every((name) => ["elevation", "slope"].includes(name.toLowerCase()));
   const kpiCards = activeTab === "precipitation" ? [
     [t.rainfall24h, rainfall24h == null ? "—" : `${rainfall24h.toFixed(1)} mm`, forecastError || !forecast ? t.forecastUnavailable : forecast.is_stale ? t.staleForecast : "Open-Meteo forecast"],
     [t.rainfall72h, rainfall72h == null ? "—" : `${rainfall72h.toFixed(1)} mm`, forecastError || !forecast ? t.forecastUnavailable : forecast.is_stale ? t.staleForecast : "Open-Meteo forecast"],

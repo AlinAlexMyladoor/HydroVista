@@ -164,25 +164,18 @@ def resolve_experiment_dir(out_dir: str | Path | None = None) -> Path:
 
 
 def latest_experiment(out_dir: str | Path = "artifacts/experiments") -> dict[str, Any] | None:
-    """Newest saved experiment JSON with evaluated metrics, or None if nothing has been trained."""
+    """Newest saved experiment JSON, or None if nothing has been trained."""
     resolved = resolve_experiment_dir(out_dir)
     if not resolved.is_dir():
         return None
-    experiments: list[dict[str, Any]] = []
     for name in sorted(os.listdir(resolved), reverse=True):
         if name.startswith("experiment_") and name.endswith(".json"):
             try:
                 with open(resolved / name) as f:
-                    experiments.append(json.load(f))
+                    return json.load(f)
             except (OSError, ValueError):
                 continue
-    if not experiments:
-        return None
-    for exp in experiments:
-        rf_metrics = exp.get("models", {}).get("random_forest", {}).get("metrics", {})
-        if rf_metrics.get("f1") is not None or rf_metrics.get("tp", 0) > 0:
-            return exp
-    return experiments[0]
+    return None
 
 
 def train_experiment(

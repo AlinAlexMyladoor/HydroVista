@@ -143,4 +143,7 @@ web/node_modules/
 node_modules/
 .venv/
 data/*.csv
-backend/data/
+!data/HydroVista_Train_Stratified.csv
+/backend/data/*
+!/backend/data/HydroVista_Train_Stratified.csv
+

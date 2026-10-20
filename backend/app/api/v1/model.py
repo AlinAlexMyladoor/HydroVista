@@ -27,12 +27,20 @@ MODEL_DISCLAIMER = (
 
 def _terrain_distribution_from_csv() -> dict | None:
     """Use cached GEE point samples when public DEM tiles cannot be fetched."""
-    data_dir = Path(__file__).resolve().parents[4] / "data"
-    candidates = [
-        data_dir / "HydroVista_Train_Stratified.csv",
-        data_dir / "HydroVista_Train_Data_JRC_Shifted.csv",
-        data_dir / "HydroVista_Train_Data_JRC.csv",
+    data_dirs = [
+        Path(__file__).resolve().parents[4] / "data",
+        Path(__file__).resolve().parents[3] / "data",
+        Path(__file__).resolve().parents[2] / "data",
+        Path("data"),
+        Path("backend/data"),
     ]
+    candidates: list[Path] = []
+    for d in data_dirs:
+        candidates.extend([
+            d / "HydroVista_Train_Stratified.csv",
+            d / "HydroVista_Train_Data_JRC_Shifted.csv",
+            d / "HydroVista_Train_Data_JRC.csv",
+        ])
     csv_path = next((path for path in candidates if path.is_file()), None)
     if csv_path is None:
         return None
