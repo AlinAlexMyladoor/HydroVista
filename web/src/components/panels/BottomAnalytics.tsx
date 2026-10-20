@@ -394,13 +394,6 @@ function ExposureRankingPanel() {
           </div>
         )}
       </div>
-
-      {exposure?.warnings && exposure.warnings.length > 0 && (
-        <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
-          <span className="font-semibold uppercase tracking-wider text-[9px] text-amber-700 dark:text-amber-400">Notice:</span>
-          <span>{exposure.warnings[0]}</span>
-        </div>
-      )}
     </div>
   );
 }
