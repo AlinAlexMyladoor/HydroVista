@@ -185,22 +185,22 @@ export function MethodologyView() {
 
   return (
     <div className="flex-1 w-full h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] overflow-y-auto bg-slate-50 dark:bg-[#070b12] text-slate-800 dark:text-slate-100">
-      <div className="max-w-6xl mx-auto p-4 sm:p-5 space-y-4">
+      <div className="max-w-6xl mx-auto p-4 sm:p-5 pb-24 sm:pb-28 space-y-4">
 
-        {/* ── 1. High-Contrast Top Intelligence Banner ─────────────────────── */}
+        {/* ── 1. Soft Atmospheric Top Intelligence Banner ─────────────────── */}
         <section
-          className="relative overflow-hidden rounded-2xl border border-teal-500/35 dark:border-teal-500/25 px-4 py-3.5 sm:px-5 sm:py-4 shadow-lg shadow-teal-900/10 dark:shadow-teal-950/40"
+          className="relative overflow-hidden rounded-2xl border border-teal-500/20 dark:border-teal-500/15 px-4 py-3.5 sm:px-5 sm:py-4 shadow-md shadow-blue-900/5 dark:shadow-slate-950/30 transition-all"
           style={{
-            background: "linear-gradient(135deg, rgba(13, 148, 136, 0.22) 0%, rgba(14, 165, 233, 0.20) 45%, rgba(99, 102, 241, 0.18) 100%)",
+            background: "linear-gradient(135deg, rgba(13, 148, 136, 0.08) 0%, rgba(14, 165, 233, 0.06) 45%, rgba(99, 102, 241, 0.05) 100%)",
           }}
         >
-          {/* Ambient Decorative Glows */}
+          {/* Subtle Ambient Decorative Glows */}
           <div
-            className="pointer-events-none absolute -top-10 -right-10 h-44 w-44 rounded-full opacity-20"
+            className="pointer-events-none absolute -top-10 -right-10 h-44 w-44 rounded-full opacity-10"
             style={{ background: "radial-gradient(circle, #0ea5e9 0%, transparent 70%)" }}
           />
           <div
-            className="pointer-events-none absolute -bottom-8 -left-8 h-36 w-36 rounded-full opacity-20"
+            className="pointer-events-none absolute -bottom-8 -left-8 h-36 w-36 rounded-full opacity-10"
             style={{ background: "radial-gradient(circle, #6366f1 0%, transparent 70%)" }}
           />
 
@@ -380,7 +380,7 @@ export function MethodologyView() {
                         </div>
                       </button>
                       {i < PIPELINE.length - 1 && (
-                        <ChevronRight size={11} className="shrink-0 text-slate-400 dark:text-slate-500" />
+                        <ChevronRight size={11} className="shrink-0 text-slate-400 dark:text-slate-500 mt-[2px] self-center" />
                       )}
                     </React.Fragment>
                   );
