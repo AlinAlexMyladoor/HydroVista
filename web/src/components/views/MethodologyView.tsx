@@ -184,17 +184,17 @@ export function MethodologyView() {
   const SelectedIcon = selectedNode.icon;
 
   return (
-    <div className="flex-1 w-full h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] overflow-hidden bg-slate-50 dark:bg-[#070b12] text-slate-800 dark:text-slate-100 flex flex-col justify-between p-2.5 sm:p-3 pb-4">
-      <div className="max-w-6xl w-full mx-auto flex-1 flex flex-col justify-between min-h-0 gap-2">
+    <div className="flex-1 w-full h-[calc(100vh-4rem)] overflow-y-auto overflow-x-hidden bg-slate-50 dark:bg-[#070b12] text-slate-800 dark:text-slate-100 p-2.5 sm:p-3.5 pb-24">
+      <div className="max-w-6xl w-full mx-auto flex flex-col gap-3">
 
-        {/* ── 1. Soft Atmospheric Top Banner with Compressed Height ────────── */}
+        {/* ── 1. Soft Atmospheric Top Banner with Unsquashed Elevation Chart ── */}
         <section
           className="relative overflow-hidden rounded-xl border border-teal-500/15 dark:border-teal-500/10 px-3 py-2 shadow-xs shadow-blue-900/5 dark:shadow-slate-950/20 shrink-0"
           style={{
             background: "linear-gradient(135deg, rgba(13, 148, 136, 0.07) 0%, rgba(14, 165, 233, 0.05) 50%, rgba(99, 102, 241, 0.04) 100%)",
           }}
         >
-          <div className="relative flex items-center justify-between gap-2 mb-1">
+          <div className="relative flex items-center justify-between gap-2 mb-1.5">
             <div className="flex items-center gap-2 min-w-0">
               <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-teal-600 text-white shadow-2xs">
                 <Waves size={12} />
@@ -220,38 +220,45 @@ export function MethodologyView() {
             </div>
           </div>
 
-          {/* Compressed Elevation Profile Graphic (Reduced empty space above peaks) */}
-          <div className="rounded-lg border border-white/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/70 px-2.5 py-1 backdrop-blur-xs shadow-2xs">
-            <svg viewBox="0 0 520 38" className="w-full h-6 sm:h-7" preserveAspectRatio="none">
+          {/* Basin Elevation Profile: Explicit height & headroom so labels float cleanly above peaks */}
+          <div className="rounded-lg border border-white/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/70 px-3 py-1.5 backdrop-blur-xs shadow-2xs min-h-[76px] h-20 sm:h-22 flex flex-col justify-center">
+            <svg viewBox="0 0 540 80" className="w-full h-full" preserveAspectRatio="none">
               <defs>
                 <linearGradient id="elevGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#6366f1" stopOpacity={0.45} />
-                  <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0.08} />
+                  <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0.06} />
                 </linearGradient>
               </defs>
+              {/* Mountain & River profile path */}
               <path
-                d="M0,36 L30,33 L70,18 L110,5 L140,11 L170,20 L200,8 L230,14 L260,21 L295,27 L330,24 L370,30 L410,32 L450,34 L490,35 L520,36 Z"
+                d="M0,70 L25,67 L65,48 L115,28 L145,36 L180,44 L210,36 L240,44 L280,53 L325,59 L375,63 L430,66 L485,68 L540,70 L540,70 L0,70 Z"
                 fill="url(#elevGrad)"
                 stroke="#6366f1"
-                strokeWidth={1.25}
-                strokeOpacity={0.7}
+                strokeWidth={1.5}
+                strokeOpacity={0.8}
               />
-              {[110, 200].map((x) => (
-                <g key={x}>
-                  <circle cx={x} cy={x === 110 ? 5 : 8} r={3} fill="#0ea5e9" opacity={0.95} />
-                  <line x1={x} y1={x === 110 ? 8 : 11} x2={x} y2={36} stroke="#0ea5e9" strokeDasharray="2,2" strokeOpacity={0.5} strokeWidth={1} />
+              {/* Reservoir markers with vertical guide lines */}
+              {[
+                { x: 115, y: 28, label: "Sholayar (1,050m)", textY: 14 },
+                { x: 210, y: 36, label: "Poringalkuthu (420m)", textY: 22 },
+              ].map((res) => (
+                <g key={res.label}>
+                  <line x1={res.x} y1={res.y} x2={res.x} y2={70} stroke="#0ea5e9" strokeDasharray="2,2" strokeOpacity={0.55} strokeWidth={1} />
+                  <circle cx={res.x} cy={res.y} r={3.5} fill="#0ea5e9" stroke="#ffffff" strokeWidth={1} className="dark:stroke-slate-900" />
+                  <text x={res.x} y={res.textY} fontSize={7.5} fill="#475569" className="dark:fill-slate-300 font-bold" textAnchor="middle">
+                    {res.label}
+                  </text>
                 </g>
               ))}
-              <text x={105} y={4.5} fontSize={6} fill="#64748b" className="dark:fill-slate-400" textAnchor="middle" fontWeight="bold">Sholayar</text>
-              <text x={200} y={7.5} fontSize={6} fill="#64748b" className="dark:fill-slate-400" textAnchor="middle" fontWeight="bold">Poringalkuthu</text>
-              <text x={5} y={33} fontSize={6} fill="#64748b" className="dark:fill-slate-400">Ghats</text>
-              <text x={515} y={33} fontSize={6} fill="#64748b" className="dark:fill-slate-400" textAnchor="end">Sea</text>
-              <text x={260} y={23} fontSize={6} fill="#64748b" className="dark:fill-slate-400" textAnchor="middle">Chalakudy River</text>
+              {/* Geographic references */}
+              <text x={8} y={62} fontSize={7} fill="#64748b" className="dark:fill-slate-400 font-medium">Western Ghats (1,200m+)</text>
+              <text x={532} y={62} fontSize={7} fill="#64748b" className="dark:fill-slate-400 font-medium" textAnchor="end">Arabian Sea (0m)</text>
+              <text x={310} y={50} fontSize={7} fill="#64748b" className="dark:fill-slate-400 font-medium" textAnchor="middle">Chalakudy River Descent (~130 km)</text>
             </svg>
           </div>
         </section>
 
-        {/* ── 2. Data Architecture: Ultra-Compact Horizontal Cards (Half Height) */}
+        {/* ── 2. Data Architecture: Clean Relative Cards with Absolute Status Badge ── */}
         <section className="shrink-0">
           <div className="flex items-center justify-between mb-1">
             <h2 className="text-[10px] font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
@@ -261,32 +268,36 @@ export function MethodologyView() {
             <span className="text-[9px] text-slate-400 dark:text-slate-500">Telemetry, Imagery &amp; Demographics</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-3 lg:grid-cols-3">
             {DATA_SOURCES.map((src) => {
               const Icon = src.icon;
               const statusColor = STATUS_COLORS[src.status];
               return (
                 <div
                   key={src.name}
-                  className="group rounded-xl border-0 bg-white dark:bg-slate-900 py-1.5 px-2.5 shadow-xs hover:shadow-sm transition-all flex flex-row items-center gap-2.5 min-w-0"
+                  className="relative rounded-xl border-0 bg-white dark:bg-slate-900 p-2 sm:p-2.5 shadow-xs hover:shadow-sm transition-all flex items-center gap-2.5 min-w-0 group"
                 >
-                  {/* Left: Icon & Status Badge */}
-                  <div className="flex flex-col items-center justify-center shrink-0 gap-0.5">
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md" style={{ background: `${src.color}18` }}>
-                      <Icon size={12} style={{ color: src.color }} />
-                    </div>
-                    <span
-                      className="text-[7.5px] font-bold uppercase tracking-wider px-1 py-0.2 rounded shrink-0 leading-none"
-                      style={{ background: `${statusColor}18`, color: statusColor }}
-                    >
-                      {src.status}
-                    </span>
+                  {/* Status badge: Pushed to absolute top-right corner */}
+                  <span
+                    className="absolute top-2 right-2 sm:top-2.5 sm:right-2.5 text-[7.5px] sm:text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded leading-none shrink-0"
+                    style={{ background: `${statusColor}18`, color: statusColor }}
+                  >
+                    {src.status}
+                  </span>
+
+                  {/* Left: Icon */}
+                  <div
+                    className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg"
+                    style={{ background: `${src.color}18` }}
+                  >
+                    <Icon size={14} style={{ color: src.color }} />
                   </div>
-                  {/* Right: Text Block */}
-                  <div className="flex-1 min-w-0 leading-tight">
-                    <div className="text-[11px] font-bold text-slate-800 dark:text-slate-100 truncate">{src.name}</div>
-                    <div className="text-[9px] text-slate-400 dark:text-slate-500 truncate">{src.provider}</div>
-                    <div className="text-[10px] text-slate-600 dark:text-slate-300 truncate mt-0.5">{src.powers}</div>
+
+                  {/* Right: Text block (padded right to clear the badge) */}
+                  <div className="flex-1 min-w-0 leading-tight pr-12 sm:pr-14">
+                    <div className="text-[11px] sm:text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{src.name}</div>
+                    <div className="text-[9px] sm:text-[9.5px] text-slate-400 dark:text-slate-500 truncate">{src.provider}</div>
+                    <div className="text-[9.5px] sm:text-[10px] text-slate-600 dark:text-slate-300 truncate mt-0.5">{src.powers}</div>
                   </div>
                 </div>
               );
@@ -294,11 +305,11 @@ export function MethodologyView() {
           </div>
         </section>
 
-        {/* ── 3. Flexible Middle Section: Pipeline & Model Lab (Absorbs Height) */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 items-stretch flex-1 min-h-0">
+        {/* ── 3. Middle Section: Pipeline & Model Lab ────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
           
           {/* Left Column: Flood-Mapping Pipeline */}
-          <section className="flex flex-col h-full min-h-0">
+          <section className="flex flex-col">
             <div className="flex items-center justify-between mb-1 shrink-0">
               <h2 className="text-[10px] font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
                 <Cpu size={12} className="text-indigo-600 dark:text-indigo-400" />
@@ -307,10 +318,10 @@ export function MethodologyView() {
               <span className="text-[9px] text-slate-400 dark:text-slate-500">Sentinel-1 · GEE COPERNICUS/S1_GRD</span>
             </div>
 
-            <div className="rounded-2xl border-0 bg-white dark:bg-slate-900 p-3 shadow-md shadow-slate-200/50 dark:shadow-slate-950/60 flex-1 flex flex-col justify-between min-h-0">
+            <div className="rounded-2xl border-0 bg-white dark:bg-slate-900 p-3 shadow-md shadow-slate-200/50 dark:shadow-slate-950/60 flex flex-col justify-between gap-2.5 h-full">
               
               {/* Pipeline Nodes: Strictly centered with negative top margin on arrows for vertical alignment */}
-              <div className="w-full flex items-center justify-between gap-1 mb-1.5 shrink-0">
+              <div className="w-full flex items-center justify-between gap-1 mb-1 shrink-0">
                 {PIPELINE.map((node, i) => {
                   const isSelected = selectedNodeId === node.id;
                   const NodeIcon = node.icon;
@@ -357,7 +368,7 @@ export function MethodologyView() {
               </div>
 
               {/* Active Stage Inspector: Dynamic Details */}
-              <div className="rounded-xl bg-slate-50/90 dark:bg-slate-800/50 p-2.5 border border-slate-200/60 dark:border-slate-800/70 flex-1 flex flex-col justify-start min-h-0 overflow-y-auto transition-all">
+              <div className="rounded-xl bg-slate-50/90 dark:bg-slate-800/50 p-2.5 border border-slate-200/60 dark:border-slate-800/70 flex flex-col justify-start transition-all">
                 <div className="flex items-center gap-2 mb-1 shrink-0">
                   <div
                     className="flex h-5.5 w-5.5 rounded-md items-center justify-center shrink-0 shadow-2xs"
@@ -380,7 +391,7 @@ export function MethodologyView() {
                     Hover / click to inspect
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-600 dark:text-slate-300 leading-relaxed overflow-y-auto">
+                <p className="text-[10px] text-slate-600 dark:text-slate-300 leading-relaxed">
                   {selectedNode.tooltip}
                 </p>
               </div>
@@ -389,7 +400,7 @@ export function MethodologyView() {
           </section>
 
           {/* Right Column: Machine Learning Model Lab */}
-          <section className="flex flex-col h-full min-h-0">
+          <section className="flex flex-col">
             <div className="flex items-center justify-between mb-1 shrink-0">
               <h2 className="text-[10px] font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
                 <FlaskConical size={12} className="text-purple-600 dark:text-purple-400" />
@@ -398,17 +409,17 @@ export function MethodologyView() {
               <span className="text-[9px] text-slate-400 dark:text-slate-500">Evaluation Metrics</span>
             </div>
 
-            <div className="rounded-2xl border-0 bg-white dark:bg-slate-900 p-3 shadow-md shadow-slate-200/50 dark:shadow-slate-950/60 flex-1 flex flex-col justify-between min-h-0">
+            <div className="rounded-2xl border-0 bg-white dark:bg-slate-900 p-3 sm:p-4 shadow-md shadow-slate-200/50 dark:shadow-slate-950/60 flex flex-col justify-center gap-4 sm:gap-6 h-full">
               
               {/* Gauges row */}
-              <div className="flex items-center justify-around gap-2 pb-1.5 border-b border-slate-100 dark:border-slate-800/80 shrink-0">
+              <div className="flex items-center justify-around gap-2 pb-3 border-b border-slate-100 dark:border-slate-800/80 shrink-0">
                 {ML_METRICS.map((m) => (
                   <CircleGauge key={m.label} label={m.label} value={m.value} color={m.color} />
                 ))}
               </div>
 
-              {/* Bulleted text */}
-              <div className="mt-1 space-y-1 text-[9.5px] text-slate-600 dark:text-slate-400 leading-tight">
+              {/* Bulleted text: Naturally grouped without dead space */}
+              <div className="space-y-1.5 text-[9.5px] sm:text-[10px] text-slate-600 dark:text-slate-400 leading-snug">
                 <div className="flex items-start gap-1.5">
                   <CheckCircle2 size={11} className="mt-0.5 shrink-0 text-teal-600 dark:text-teal-400" />
                   <span>Trained from a labelled table split by <code className="rounded bg-slate-100 dark:bg-slate-800 px-1 py-0.2 font-mono text-[8.5px]">region_id</code> (disjoint train/test sets).</span>
@@ -428,17 +439,17 @@ export function MethodologyView() {
         </div>
 
         {/* ── 4. Product Definitions & Limitations: Safe Assistant Margin ──── */}
-        <section className="shrink-0">
+        <section>
           <div className="flex items-center justify-between mb-1">
             <h2 className="text-[10px] font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
               <Database size={12} className="text-teal-600 dark:text-teal-400" />
               Product Definitions &amp; Limitations
             </h2>
-            <span className="text-[9px] text-slate-400 dark:text-slate-500 mr-28">Click pill to toggle definitions</span>
+            <span className="text-[9px] text-slate-400 dark:text-slate-500 mr-24 sm:mr-48">Click pill to toggle definitions</span>
           </div>
 
-          {/* Right margin (pr-28) completely prevents overlap with floating assistant button */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 pr-28">
+          {/* Right margin (pr-24 sm:pr-48) stops content safely before the floating assistant button */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 pr-24 sm:pr-48">
             {[
               {
                 term: "Candidate Inundation",
@@ -496,7 +507,7 @@ export function MethodologyView() {
         </section>
 
         {/* ── 5. Seamless Bottom Footer with Assistant Clearance ───────────── */}
-        <footer className="shrink-0 -mx-2.5 sm:-mx-3 -mb-3 border-t border-slate-200/80 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-900/80 px-4 sm:px-5 py-1.5 flex flex-col sm:flex-row items-center justify-between gap-2 text-[9.5px] text-slate-500 dark:text-slate-400 pr-52 sm:pr-56">
+        <footer className="mt-2 -mx-2.5 sm:-mx-3 border-t border-slate-200/80 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-900/80 px-4 sm:px-5 py-2 flex flex-col sm:flex-row items-center justify-between gap-2 text-[9.5px] text-slate-500 dark:text-slate-400 pr-52 sm:pr-56 rounded-lg">
           <div className="flex items-center gap-2 min-w-0">
             <CheckCircle2 size={12} className="text-teal-600 dark:text-teal-400 shrink-0" />
             <span className="truncate sm:overflow-visible"><strong>Reproducibility:</strong> Each analysis run logs scene dates, processing scale, GEE asset IDs, and runtime parameters. Reuses cached result within 24 hours.</span>
