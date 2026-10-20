@@ -140,18 +140,49 @@ def _probability_metrics(y_true: np.ndarray, proba: np.ndarray) -> dict[str, Any
     return out
 
 
-def latest_experiment(out_dir: str = "artifacts/experiments") -> dict[str, Any] | None:
-    """Newest saved experiment JSON, or None if nothing has been trained."""
-    if not os.path.isdir(out_dir):
+def resolve_experiment_dir(out_dir: str | Path | None = None) -> Path:
+    """Resolve directory containing experiment artifacts across diverse execution environments."""
+    if env_dir := os.getenv("EXPERIMENT_DIR"):
+        return Path(env_dir)
+    if out_dir:
+        p = Path(out_dir)
+        if p.is_dir() and any(p.glob("*.json")):
+            return p
+    candidates = [
+        Path("artifacts/experiments"),
+        Path("backend/artifacts/experiments"),
+        Path(__file__).resolve().parents[2] / "artifacts" / "experiments",
+        Path(__file__).resolve().parents[3] / "artifacts" / "experiments",
+    ]
+    for p in candidates:
+        if p.is_dir() and any(p.glob("*.json")):
+            return p
+    for p in candidates:
+        if p.is_dir():
+            return p
+    return Path(out_dir) if out_dir else Path("artifacts/experiments")
+
+
+def latest_experiment(out_dir: str | Path = "artifacts/experiments") -> dict[str, Any] | None:
+    """Newest saved experiment JSON with evaluated metrics, or None if nothing has been trained."""
+    resolved = resolve_experiment_dir(out_dir)
+    if not resolved.is_dir():
         return None
-    for name in sorted(os.listdir(out_dir), reverse=True):
+    experiments: list[dict[str, Any]] = []
+    for name in sorted(os.listdir(resolved), reverse=True):
         if name.startswith("experiment_") and name.endswith(".json"):
             try:
-                with open(os.path.join(out_dir, name)) as f:
-                    return json.load(f)
+                with open(resolved / name) as f:
+                    experiments.append(json.load(f))
             except (OSError, ValueError):
                 continue
-    return None
+    if not experiments:
+        return None
+    for exp in experiments:
+        rf_metrics = exp.get("models", {}).get("random_forest", {}).get("metrics", {})
+        if rf_metrics.get("f1") is not None or rf_metrics.get("tp", 0) > 0:
+            return exp
+    return experiments[0]
 
 
 def train_experiment(

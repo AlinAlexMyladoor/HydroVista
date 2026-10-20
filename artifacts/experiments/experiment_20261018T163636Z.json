@@ -1,0 +1,122 @@
+{
+  "id": "20261018T163636Z",
+  "created_at": "2026-10-18T16:36:36.042473+00:00",
+  "task": "flood_classification",
+  "models": {
+    "random_forest": {
+      "metrics": {
+        "tp": 18,
+        "fp": 0,
+        "fn": 1,
+        "tn": 281,
+        "precision": 1.0,
+        "recall": 0.9473684210526315,
+        "f1": 0.972972972972973,
+        "iou": 0.9473684210526315,
+        "accuracy": 0.9966666666666667,
+        "n": 300,
+        "positive_fraction": 0.06333333333333334,
+        "confusion_matrix": [
+          [
+            281,
+            0
+          ],
+          [
+            1,
+            18
+          ]
+        ],
+        "roc_auc": 0.9998126990073047,
+        "brier_score": 0.006740110529341243
+      },
+      "feature_importance": {
+        "vv": 0.5867360431881613,
+        "vh": 0.32169138567979505,
+        "elevation": 0.09034517789383681,
+        "slope": 0.001227393238206817
+      },
+      "n_estimators": 300,
+      "artifact": "flood_rf_20261018T163636Z.joblib"
+    },
+    "threshold_baseline": {
+      "metrics": {
+        "tp": 19,
+        "fp": 0,
+        "fn": 0,
+        "tn": 281,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "iou": 1.0,
+        "accuracy": 1.0,
+        "n": 300,
+        "positive_fraction": 0.06333333333333334,
+        "confusion_matrix": [
+          [
+            281,
+            0
+          ],
+          [
+            0,
+            19
+          ]
+        ]
+      },
+      "threshold_db": -16.0,
+      "rule": "VV < threshold_db => flooded"
+    }
+  },
+  "per_region_test": {
+    "1": {
+      "n": 300,
+      "rf_f1": 0.972972972972973,
+      "baseline_f1": 1.0
+    }
+  },
+  "provenance": {
+    "csv_sha256": "e3453041a582911ff56082000b04e6ea29ed43d99822b4de903e7360ca158bf6",
+    "csv_name": "labeled_flood_features.csv",
+    "n_rows": 900,
+    "n_train": 600,
+    "n_test": 300,
+    "features": [
+      "vv",
+      "vh",
+      "elevation",
+      "slope"
+    ],
+    "split": {
+      "method": "GroupShuffleSplit(region_id)",
+      "test_size": 0.2,
+      "seed": 42,
+      "train_regions": [
+        "2",
+        "3"
+      ],
+      "test_regions": [
+        "1"
+      ]
+    },
+    "class_balance": {
+      "train_positive_fraction": 0.19166666666666668,
+      "test_positive_fraction": 0.06333333333333334
+    },
+    "versions": {
+      "scikit-learn": "1.9.1",
+      "numpy": "2.5.4",
+      "pandas": "3.0.6"
+    },
+    "probability_calibration": {
+      "method": "sigmoid",
+      "training_only": true,
+      "grouped_oof": true,
+      "available": true,
+      "n_oof": 600
+    }
+  },
+  "warnings": [
+    "Only 19 flooded test samples.",
+    "Probabilities use sigmoid calibration fitted on group-separated out-of-fold training predictions; they are calibrated model scores, not guarantees of local flood conditions.",
+    "Near-perfect held-out score(s) (precision, roc_auc): audit for label leakage, permanent-water memorization, and test-set support before operational interpretation."
+  ]
+}

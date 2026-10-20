@@ -111,7 +111,7 @@ async def get_terrain_distribution():
 
 
 def _experiment_dir() -> str:
-    return os.getenv("EXPERIMENT_DIR", "artifacts/experiments")
+    return str(ml_lab.resolve_experiment_dir())
 
 
 def _rf_model_path() -> Path:

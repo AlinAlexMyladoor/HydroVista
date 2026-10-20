@@ -17,8 +17,14 @@ backend/data/*.json
 # Generated model and experiment artifacts
 *.joblib
 backend/models/
-backend/artifacts/
-artifacts/
+/backend/artifacts/*
+!/backend/artifacts/experiments/
+/backend/artifacts/experiments/*
+!/backend/artifacts/experiments/*.json
+/artifacts/*
+!/artifacts/experiments/
+/artifacts/experiments/*
+!/artifacts/experiments/*.json
 
 # Python caches and test output
 __pycache__/
@@ -132,7 +138,6 @@ web/tsconfig.tsbuildinfo
 
 # analysis runtime outputs
 data/analysis_runs.sqlite*
-artifacts/experiments/
 backend/venv/
 web/node_modules/
 node_modules/

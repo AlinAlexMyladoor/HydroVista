@@ -12,10 +12,10 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
-from app.analysis import core, gee, runs
+from app.analysis import core, gee, ml_lab, runs
 
 router = APIRouter()
-EXPERIMENT_DIR = lambda: os.getenv("EXPERIMENT_DIR", "artifacts/experiments")  # noqa: E731
+EXPERIMENT_DIR = lambda: str(ml_lab.resolve_experiment_dir())  # noqa: E731
 
 
 class RunRequest(BaseModel):

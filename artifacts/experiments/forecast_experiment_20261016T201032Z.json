@@ -1,0 +1,60 @@
+{
+  "id": "20261016T201032Z",
+  "created_at": "2026-10-16T20:10:32.539717+00:00",
+  "task": "future_flood_susceptibility",
+  "model": {
+    "type": "LogisticRegression",
+    "metrics": {
+      "tp": 19,
+      "fp": 20,
+      "fn": 0,
+      "tn": 261,
+      "precision": 0.48717948717948717,
+      "recall": 1.0,
+      "f1": 0.6551724137931034,
+      "iou": 0.48717948717948717,
+      "accuracy": 0.9333333333333333,
+      "n": 300,
+      "positive_fraction": 0.06333333333333334,
+      "confusion_matrix": [
+        [
+          261,
+          20
+        ],
+        [
+          0,
+          19
+        ]
+      ]
+    },
+    "artifact": "flood_forecast_20261016T201032Z.joblib"
+  },
+  "provenance": {
+    "csv_sha256": "2537e4f4730a09d00b355a0af6bd70290bd7572b530ce095eb56683ae8cd02e3",
+    "csv_name": "historical_flood_forecast_features.csv",
+    "n_rows": 900,
+    "n_train": 600,
+    "n_test": 300,
+    "features": [
+      "rainfall_24h_mm",
+      "river_distance_m",
+      "elevation",
+      "slope"
+    ],
+    "split": {
+      "method": "GroupShuffleSplit(region_id)",
+      "test_size": 0.2,
+      "seed": 42,
+      "train_regions": [
+        "2",
+        "3"
+      ],
+      "test_regions": [
+        "1"
+      ]
+    }
+  },
+  "warnings": [
+    "This is a susceptibility estimate, not a calibrated flood probability or official warning."
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "id": "20261018T164855Z",
+  "created_at": "2026-10-18T16:48:55.052809+00:00",
+  "task": "flood_classification",
+  "models": {
+    "random_forest": {
+      "metrics": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 27,
+        "tn": 1473,
+        "precision": null,
+        "recall": 0.0,
+        "f1": null,
+        "iou": 0.0,
+        "accuracy": 0.982,
+        "n": 1500,
+        "positive_fraction": 0.018,
+        "confusion_matrix": [
+          [
+            1473,
+            0
+          ],
+          [
+            27,
+            0
+          ]
+        ],
+        "roc_auc": 0.4865354152523196,
+        "brier_score": 0.01790853414902341
+      },
+      "feature_importance": {
+        "elevation": 0.659294507256778,
+        "slope": 0.340705492743222
+      },
+      "n_estimators": 300,
+      "artifact": "flood_rf_20261018T164855Z.joblib"
+    }
+  },
+  "per_region_test": {},
+  "provenance": {
+    "csv_sha256": {
+      "train": "536d873584b1745392c2e89da8ae5096cf15ef0761ae28ec47c53f9906896c8c",
+      "test": "4f129b591cdc4ac88ea0128519237a7298eb62d3690eb0626888d61821d3e12d"
+    },
+    "csv_name": "HydroVista_Train_Data_2018.csv / HydroVista_Test_Data_2018.csv",
+    "label_source": "vv_threshold_pseudo_label",
+    "n_rows": 5802,
+    "n_train": 4302,
+    "n_test": 1500,
+    "features": [
+      "elevation",
+      "slope"
+    ],
+    "split": {
+      "method": "provided train/test files; spatial separation unverified (no region_id or coordinates)",
+      "test_size": 0.25853154084798347,
+      "seed": 42,
+      "train_regions": [],
+      "test_regions": []
+    },
+    "class_balance": {
+      "train_positive_fraction": 0.10646211064621107,
+      "test_positive_fraction": 0.018
+    },
+    "probability_calibration": {
+      "method": "sigmoid",
+      "training_only": true,
+      "grouped_oof": false,
+      "available": true,
+      "n_oof": 4302
+    },
+    "versions": {
+      "scikit-learn": "1.9.1",
+      "numpy": "2.5.4",
+      "pandas": "3.0.6"
+    }
+  },
+  "warnings": [
+    "Target is a VV-threshold pseudo-label; these scores measure agreement with that rule, not independent flood detection.",
+    "VV and VH were excluded from predictors to prevent direct target leakage.",
+    "Provided train/test separation could not be verified as spatial: both files lack coordinates and region_id.",
+    "Only 27 flooded test samples; positive-class metrics are uncertain.",
+    "Sigmoid scores are calibrated to the pseudo-labels using cross-validation within the training file; they are not calibrated flood probabilities."
+  ]
+}

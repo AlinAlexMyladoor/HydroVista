@@ -69,7 +69,8 @@ async def test_model_evaluation_not_available(client, tmp_path, monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_explain_model_not_trained(client):
+async def test_explain_model_not_trained(client, tmp_path, monkeypatch):
+    monkeypatch.setenv("EXPERIMENT_DIR", str(tmp_path / "none"))
     resp = await client.get("/api/v1/model/explain/test-asset-123")
     assert resp.status_code == 200
     data = resp.json()
